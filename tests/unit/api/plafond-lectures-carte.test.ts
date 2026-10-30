@@ -120,6 +120,8 @@ vi.mock('@/lib/api/middleware', () => ({
 }));
 vi.mock('@/lib/api/rate-limit', () => ({
   createRateLimiter: () => async () => ({ ok: true }),
+  // Le score lit les messages de refus de la couverture (lib/zones/couverture.ts), qui déclare son quota au chargement.
+  createQuota: () => async () => null,
   rateLimitResponse: () => new Response(null, { status: 429 }),
 }));
 // Le cache fichier de la météo survit d'une exécution à l'autre : sans ce

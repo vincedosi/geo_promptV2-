@@ -6915,6 +6915,10 @@ export type Database = {
           code_postal: string
         }[]
       }
+      codes_postaux_de_zone_jsonb: {
+        Args: { p_org: string; p_zone: string }
+        Returns: Json
+      }
       codes_postaux_du_perimetre_jsonb: {
         Args: { p_code: string; p_type: string }
         Returns: Json

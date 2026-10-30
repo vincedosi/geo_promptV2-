@@ -45,6 +45,10 @@
  *    l'originale était coupée à 1 000 lignes ; index GIST — `centroid_lat`/
  *    `centroid_lon` sont NULL sur les 6 187 lignes, un filtre direct dessus
  *    rendrait toujours vide).
+ *    Depuis le 2026-10-30 (④ finitions, T1), la résolution vit dans
+ *    `lib/analyses/perimetre-score.ts`, et une ZONE passe par
+ *    `codes_postaux_de_zone_jsonb` (sql/295) : les CP de la couverture « Par
+ *    code postal », l'espace contrôlé en SQL (404 `zone_introuvable`).
  *
  * 4. **`'france'` (2026-09-15, spec-filtre-france.md).** `PerimetreSchema`
  *    accepte ce type au même titre que les autres. `codes_postaux_du_perimetre`
@@ -80,38 +84,15 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
-import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { assurerIndicateurCp } from '@/lib/analyses/indicateurs';
+import { MAX_CP, resoudrePerimetreScore } from '@/lib/analyses/perimetre-score';
 import { toJson, rpcJson } from '@/lib/supabase/rpc-json';
 import type { TableInsert } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-/**
- * Plafond de codes postaux d'un périmètre.
- *
- * **Relevé de 3 000 à 7 000 le 2026-09-15, sur mesure.** L'ancienne valeur
- * refusait la France entière au motif que « ce n'est plus un périmètre » —
- * un choix de conception, pas une contrainte technique. Or le référentiel
- * compte 6 187 codes postaux, et le calcul national a été chronométré :
- *
- *   EXPLAIN (ANALYZE, BUFFERS) sur les 6 187 CP, 2 indicateurs
- *   → 159 ms · shared hit=2795 read=80, soit 640 Ko lus
- *
- * Un sixième de seconde et moins d'un mégaoctet : rien qui justifie de
- * fermer le cas d'usage le plus naturel de l'outil. Le plafond reste, au-dessus
- * du référentiel complet, pour refuser une liste absurde envoyée par un client
- * — pas pour interdire la France.
- *
- * ⚠️ Ce qui coûte vraiment n'est PAS ce plafond, c'est la matérialisation
- * paresseuse : un indicateur jamais calculé déclenche un balayage complet
- * d'`iris` (~220 Mo, ~1,4 s) dans `assurerIndicateurCp`, une fois pour toutes.
- * Six indicateurs neufs sur un même lancement, c'est ~8 s — d'où `maxDuration`.
- */
-const MAX_CP = 7000;
 
 /** Au-delà, le score ne se lit plus : six curseurs de poids sont déjà beaucoup. */
 const MAX_INDICATEURS = 6;
@@ -140,9 +121,9 @@ const IndicateurSchema = z.object({
 /**
  * Miroir de `FiltreActif` (lib/carte/filtre.ts) — le périmètre tel que la
  * carte le pose. `'france'` ajouté le 2026-09-15 (spec-filtre-france.md) :
- * seul type qui n'a PAS besoin de `checkZoneAccess` (pas une zone) et dont
- * `code` ne sert côté RPC qu'à distinguer la métropole (`metro`, hors 97x/98x,
- * sql/287) de la France entière (tout autre code, sql/168).
+ * son `code` ne sert côté RPC qu'à distinguer la métropole (`metro`, hors
+ * 97x/98x, sql/287) de la France entière (tout autre code, sql/168). `'zone'`
+ * se résout par `codes_postaux_de_zone_jsonb` (sql/295, ④ finitions T1).
  */
 const PerimetreSchema = z.object({
   type: z.enum(['region', 'departement', 'commune', 'cp', 'zone', 'france']),
@@ -183,62 +164,11 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // ── 1. Le périmètre, borné ────────────────────────────────────────────
-  let codesPostaux = corps.valeur.codes_postaux ?? [];
-  if (!codesPostaux.length && perimetre) {
-    // Une zone appartient à une organisation : `codes_postaux_du_perimetre`
-    // joint `custom_geo_zones` sur l'uuid SANS filtre d'org (c'est une
-    // fonction de référentiel, elle n'a pas à connaître l'appelant). Sans ce
-    // contrôle, un utilisateur de l'org A qui devine l'uuid d'une zone de
-    // l'org B obtenait la liste complète de ses codes postaux — la garde
-    // standard du projet, appliquée partout ailleurs (cf.
-    // `app/api/custom-geo/[id]/route.ts`), manquait ici.
-    if (perimetre.type === 'zone') {
-      const acces = await checkZoneAccess(supabase, profile, perimetre.code);
-      if (acces !== 'ok') {
-        return NextResponse.json({ error: 'Zone introuvable.' }, { status: 404 });
-      }
-    }
-    // `_jsonb` et non `codes_postaux_du_perimetre` (RETURNS TABLE, sql/146/167) :
-    // PostgREST tronque à `db-max-rows` même une RPC RETURNS TABLE (1 000 sur
-    // le stack local ; 5 000 sur l'ancien projet hébergé) — mesuré ici
-    // (2026-09-15, projet hébergé) sur le périmètre `'france'`, 6 187 CP réels
-    // rendus comme 5 000 sans erreur, comme documenté pour `correlation_campagne_indicateur`
-    // (sql/154). `codes_postaux_du_perimetre_jsonb` (sql/168) est la jumelle
-    // `RETURNS jsonb`, jamais tronquée par PostgREST.
-    const { data, error } = await supabase.rpc('codes_postaux_du_perimetre_jsonb', {
-      p_type: perimetre.type, p_code: perimetre.code,
-    });
-    if (error) {
-      console.error('[POST /api/analyses/score] périmètre:', error.message);
-      return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
-    }
-    codesPostaux = rpcJson<string[]>(data) ?? [];
-  }
-  if (!codesPostaux.length && bbox) {
-    const [ouest, sud, est, nord] = bbox;
-    // `_jsonb` (sql/245) et non `codes_postaux_dans_bbox` (RETURNS TABLE) :
-    // celle-ci rendait 1 000 codes sur 6 051 pour la métropole sous le
-    // `max_rows` local (mesuré le 2026-10-10) — une grande zone était scorée
-    // sur ses 1 000 premiers codes, sous `MAX_CP`, sans erreur.
-    const { data, error } = await supabase.rpc('codes_postaux_dans_bbox_jsonb', {
-      p_ouest: ouest, p_sud: sud, p_est: est, p_nord: nord,
-    });
-    if (error) {
-      console.error('[POST /api/analyses/score] bbox:', error.message);
-      return NextResponse.json({ error: 'Résolution du périmètre impossible.' }, { status: 500 });
-    }
-    codesPostaux = rpcJson<string[]>(data) ?? [];
-  }
-  if (!codesPostaux.length) {
-    return NextResponse.json({ error: 'Périmètre vide : aucun code postal à scorer.' }, { status: 400 });
-  }
-  if (codesPostaux.length > MAX_CP) {
-    return NextResponse.json(
-      { error: `Périmètre trop large : ${codesPostaux.length} codes postaux pour un maximum de ${MAX_CP}. Resserrez le filtre.` },
-      { status: 400 },
-    );
-  }
+  // ── 1. Le périmètre, borné (lib/analyses/perimetre-score.ts) ───────────
+  // Une zone se résout par la règle de la couverture (sql/295), l'espace contrôlé en SQL.
+  const resolu = await resoudrePerimetreScore(supabase, orgId, corps.valeur);
+  if (!resolu.ok) return resolu.reponse;
+  const codesPostaux = resolu.codes;
 
   // ── 2. Les indicateurs existent-ils au registre ? ─────────────────────
   // Un code inconnu ferait LEVER la matérialisation ; on répond mieux que 500.
