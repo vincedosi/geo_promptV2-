@@ -104,7 +104,8 @@ export class JeuCarteService {
     const c = p ? this.jeu.choix()[p] : undefined;
     const ligne = c && this.jeu.plateformes().find((l) => l.plateforme === p && l.maille === c.maille);
     if (!p || !c || !ligne) return null;
-    if (estExacte(c, ligne, this.jeu.recette()) || c.maille === 'polygone') return { type: 'zone' };
+    // Le pays (⑤ finitions, A-9) : le contour de la zone nationale seulement, comme le polygone — aucune couche d'unités.
+    if (estExacte(c, ligne, this.jeu.recette()) || c.maille === 'polygone' || c.maille === 'pays') return { type: 'zone' };
     if (c.maille === 'cercle') {
       const k = this.jeu.cercles()[p];
       return k && k.rayon_m === c.rayon_m && k.seuil === c.seuil ? { type: 'cercles', rendu: entitesCercles(k) } : null;

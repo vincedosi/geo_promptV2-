@@ -190,7 +190,7 @@ export const NOMS_PAYS: Readonly<Record<string, string>> = {
 const DEPARTEMENT_DROM: Readonly<Record<string, string>> = { GP: '971', MQ: '972', GF: '973', RE: '974', YT: '976' };
 
 /** Une unité d'une plateforme au pays : un code ISO, son libellé, sa population carroyée (`null` : non carroyé). */
-export interface UnitePays { code: string; nom: string; population: number | null }
+interface UnitePays { code: string; nom: string; population: number | null }
 
 /**
  * Les unités d'une plateforme au pays (⑤ finitions, A-6), une par code de `codes_pays[code de la recette]`, dans

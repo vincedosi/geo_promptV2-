@@ -33,8 +33,7 @@ const codesIso = z.array(z.string().regex(/^[A-Z]{2}$/)).min(1)
  * base (`plateformes_geo_codes_pays_valides`). `null` sur toute autre maille ; absent (anciennes lectures, fixtures) =
  * `null`.
  */
-export const CodesPaysSchema = z.object({ METRO: codesIso, FR: codesIso }).strict();
-export type CodesPays = z.infer<typeof CodesPaysSchema>;
+const CodesPaysSchema = z.object({ METRO: codesIso, FR: codesIso }).strict();
 
 /**
  * Une ligne de `plateformes_geo`. Les clés inconnues de `limites` sont retirées (défaut de Zod) : une clé ajoutée en
