@@ -31,6 +31,7 @@ import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
 import { formaterNombre } from '@/lib/format/nombre';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone, zoneIntrouvable } from '@/lib/zones/session-zones';
+import { estRecettePays } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Lecture de la zone impossible.' }, { status: 500 });
     }
     if (!z) return zoneIntrouvable();
-    if ((z.recette as { type?: unknown } | null)?.type === 'pays') {
+    if (estRecettePays(z.recette)) {
       return NextResponse.json({ error: REFUS_ZONE_PAYS, refus: 'zone_pays' }, { status: 422 });
     }
     zone = { id: z.id, version: Date.parse(z.updated_at), orgId: s.espace.orgId };
@@ -217,6 +218,8 @@ export async function POST(req: NextRequest) {
           if (poiErr) { send({ type: 'error', message: `Erreur chargement POIs : ${poiErr.message}` }); return; }
           const lu = rpcJson<{ pois?: any[]; tronque?: boolean; refus?: string }>(data);
           if (lu?.refus === 'zone_introuvable') { send({ type: 'error', message: 'Zone introuvable dans cet espace.' }); return; }
+          // Zone devenue pays entre la lecture et le flux : la phrase du 422, pas « réponse illisible » (revue finale).
+          if (lu?.refus === 'zone_pays') { send({ type: 'error', message: REFUS_ZONE_PAYS }); return; }
           if (!lu || !Array.isArray(lu.pois)) { send({ type: 'error', message: 'Erreur chargement POIs : réponse illisible' }); return; }
           if (lu.tronque) { send({ type: 'error', message: refusZoneTronquee(String(category)) }); return; }
           rawRows = lu.pois;

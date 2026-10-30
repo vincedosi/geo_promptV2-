@@ -177,7 +177,7 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   zone_introuvable: 'Zone introuvable dans cet espace.',
   zone_referencee: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.',
   forme_vide: 'Aucun territoire français dans cette forme : rien à enregistrer.',
-  forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture ou combinaison) : elle ne se recalcule pas.',
+  forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture, combinaison ou zone nationale) : elle ne se recalcule pas.',
   operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine pas avec une autre zone : '
     + 'combinez des zones locales, ou analysez la zone nationale telle quelle.',
 };

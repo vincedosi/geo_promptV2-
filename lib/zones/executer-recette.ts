@@ -13,6 +13,7 @@
  */
 import type { createAdminClient } from '@/lib/auth';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
+import { estRecettePays } from './couverture';
 import {
   CAPACITE_SYNCHRONE_POI_RAYON, MAX_SOMMETS_FORME, MESSAGES_REFUS, refusPerimetreLocal, type Recette, type RefusRecette,
 } from './recette';
@@ -243,7 +244,7 @@ async function combiner(
   if ((data ?? []).length !== new Set(zones).size) return refuser('zone_introuvable', 404);
   // Une zone pays (sql/296) en opérande ferait une forme quasi nationale, que la résolution des codes lirait IRIS par
   // IRIS (2,1 s, 48 540 accès) : refusée avant tout calcul (relecture 1 du groupe A, ④ finitions).
-  if ((data ?? []).some((z) => (z.recette as { type?: unknown } | null)?.type === 'pays')) return refuser('operande_pays');
+  if ((data ?? []).some((z) => estRecettePays(z.recette))) return refuser('operande_pays');
 
   switch (recette.operation) {
     case 'union':

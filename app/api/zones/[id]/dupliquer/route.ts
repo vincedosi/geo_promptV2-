@@ -24,6 +24,7 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { lireCopie, modeDuplication } from '@/lib/zones/dupliquer';
 import { MESSAGES_REFUS } from '@/lib/zones/recette';
+import { estRecettePays } from '@/lib/zones/couverture';
 import {
   espaceDeZone, executerDansEspace, idDeZone, lireCreation, quotaZones, repondreResolue, reponseRefus, zoneIntrouvable,
 } from '@/lib/zones/session-zones';
@@ -66,8 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return echec('Duplication de la zone impossible.');
     }
     // Une zone pays (figée) se copie ; ses compteurs se posent sans lecture géométrique (sql/296).
-    const pays = (zone.recette as { type?: unknown } | null)?.type === 'pays';
-    return repondreResolue(supabase, issue.id, userId, issue.surface_km2, 'creation', pays);
+    return repondreResolue(supabase, issue.id, userId, issue.surface_km2, 'creation', estRecettePays(zone.recette));
   }
 
   // Recalcul À NEUF : aucune géométrie cliente (la recette est recalculable, `executerDansEspace` n'en lirait pas).

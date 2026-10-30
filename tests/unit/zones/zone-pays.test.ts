@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextResponse } from 'next/server';
 import { createAdminClient, etat, reinitialiser, ORG } from '../api/_doublures-route';
 import { executerRecette } from '@/lib/zones/executer-recette';
-import { MESSAGES_REFUS_COUVERTURE, MESSAGE_ZONE_PAYS_PLATEFORMES, repondreCouverture } from '@/lib/zones/couverture';
+import { MESSAGES_REFUS_COUVERTURE, MESSAGE_ZONE_PAYS_PLATEFORMES, estRecettePays, refusZonePays, repondreCouverture } from '@/lib/zones/couverture';
 import { repondreResolue } from '@/lib/zones/session-zones';
 import { extraireJeuZone } from '@/lib/zones/extraction-jeu-zone';
 import type { Tables } from '@/types/database.types';
@@ -78,5 +78,16 @@ describe('⑤ : une zone pays est refusée, avec le message d’A-5', () => {
     expect((await res.json()).error).toBe(MESSAGE_ZONE_PAYS_PLATEFORMES);
     expect(MESSAGE_ZONE_PAYS_PLATEFORMES).toBe('Zone nationale : le ciblage France natif des plateformes arrive avec les finitions de ⑤.');
     expect(etat.rpcs.map((r) => r.nom)).not.toContain('couverture_zone');
+  });
+});
+
+describe('estRecettePays / refusZonePays : la règle unique des routes (revue finale)', () => {
+  it('reconnaît la recette pays, et elle seule, sans lever sur une recette nulle ou illisible', async () => {
+    expect(estRecettePays({ v: 1, type: 'pays', code: 'FR' })).toBe(true);
+    for (const r of [null, undefined, 'pays', 42, {}, { v: 1, type: 'dessin' }]) expect(estRecettePays(r)).toBe(false);
+    expect(refusZonePays({ v: 1, type: 'dessin' })).toBeNull();
+    const refus = refusZonePays({ v: 1, type: 'pays', code: 'METRO' });
+    expect(refus?.status).toBe(422);
+    expect(await refus?.json()).toEqual({ error: MESSAGE_ZONE_PAYS_PLATEFORMES, refus: 'zone_pays' });
   });
 });
