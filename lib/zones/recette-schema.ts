@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  CODES_FRANCE, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, CODES_PAYS, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type ParametresScore as ParametresScoreRecette,
   type PerimetreRecette, type Recette,
 } from './recette';
@@ -61,6 +61,7 @@ export const RecetteUnionSchema = z.discriminatedUnion('type', [
   z.object({ v: V, type: z.literal('isochrone'), parametres: z.record(z.union([z.string().max(200), z.number(), z.boolean()])).refine((o) => Object.keys(o).length <= 20, { message: 'au plus 20 paramètres' }) }).strict(),
   z.object({ v: V, type: z.literal('combinaison'), operation: z.enum(['union', 'intersection', 'difference']), zones: Zones }).strict(),
   z.object({ v: V, type: z.literal('capture'), source_type: z.string().min(1).max(100), parametres: ParametresScore.optional() }).strict(),
+  z.object({ v: V, type: z.literal('pays'), code: z.enum(CODES_PAYS) }).strict(),
 ]);
 
 export const RecetteSchema = RecetteUnionSchema.superRefine((r, ctx) => {

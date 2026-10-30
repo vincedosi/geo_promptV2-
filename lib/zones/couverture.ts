@@ -63,7 +63,9 @@ export const RequeteCouvertureSchema = z.object({
   decoupage: z.enum(DECOUPAGES, { errorMap: () => ({ message: 'Découpage inconnu : forme, cp, iris, commune ou departement.' }) }).default('forme'),
 });
 
-type RefusCouverture = 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_carreaux' | 'couverture_non_construite';
+type RefusCouverture =
+  | 'zone_introuvable' | 'cible_inconnue' | 'zone_trop_vaste' | 'trop_de_carreaux' | 'couverture_non_construite'
+  | 'decoupage_trop_fin_pays';
 
 export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>> = {
   zone_introuvable: MESSAGES_REFUS.zone_introuvable,
@@ -71,7 +73,16 @@ export const MESSAGES_REFUS_COUVERTURE: Readonly<Record<RefusCouverture, string>
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
   trop_de_carreaux: `La zone compte plus de ${formaterNombre(MAX_CARREAUX_COUVERTURE)} carreaux habités.`,
   couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
+  // Zone pays (sql/296, ④ finitions T2, A-4) : refusé SANS lecture ; la liste IRIS pèserait 2,4 Mo.
+  decoupage_trop_fin_pays: 'Sur toute la France, le découpage par IRIS (48 872) ou par commune (34 918) est trop fin : '
+    + 'choisissez le découpage par code postal.',
 };
+
+/**
+ * ⑤ face à une zone pays (A-5) : hors de ce lot, l'extraction d'un jeu la refuse avec cette phrase
+ * (`lib/zones/extraction-jeu-zone.ts`). La ligne Excel « Mode pays — ⑤ » porte la suite.
+ */
+export const MESSAGE_ZONE_PAYS_PLATEFORMES = 'Zone nationale : le ciblage France natif des plateformes arrive avec les finitions de ⑤.';
 
 /**
  * La réponse d'une RPC de couverture (`couverture_zone`, `couverture_zone_en_cache`, `couverture_rayon_poi`) en HTTP : 200 le chiffrage ; un refus de `messages` en `{ error, refus, …détails }` (`plafond`,

@@ -163,7 +163,11 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `zone_seuil_carreaux()` | 255, 292 | Zone fabriquée : union des carreaux Filosofi au-delà d'un seuil d'indicateur, bornée au département ; enveloppe de `zone_seuil_carreaux_min` à 0 ménage depuis sql/292 |
 | `zone_seuil_carreaux_min()` | 292 | La jumelle qui porte le corps : carreaux d'au moins `p_min_menages` ménages (0 = règle d'avant ; 11 pour une nouvelle recette) |
 | `dupliquer_zone()` | 294 | Copie en base une zone à forme figée (forme, recette, sous-zones, `duplique_de`) sous un nouveau nom ; la source intacte |
-| `codes_postaux_de_zone_jsonb()` | 295 | Codes postaux d'une zone pour le score composite : la règle de la couverture « Par code postal » (`carreaux_de_forme`), espace contrôlé, refus `zone_introuvable` / `zone_trop_vaste` / `couverture_non_construite` |
+| `codes_postaux_de_zone_jsonb()` | 295, 296 | Codes postaux d'une zone pour le score composite : la règle de la couverture « Par code postal » (`carreaux_de_forme`), espace contrôlé, refus `zone_introuvable` / `zone_trop_vaste` / `couverture_non_construite` |
+| `zone_pays_geometrie()` | 296 | Forme d'une zone pays (`METRO` / `FR`) : union des régions ; recette `pays` admise par `custom_geo_zones_recette_forme` |
+| `couverture_pays_jsonb()` | 296 | Couverture nationale d'une zone pays par les dénominateurs (`cp_population_totale`, `unite_population_totale`), sans carreau ; IRIS et commune refusés ; appelée par `couverture_zone` (redéfinie) |
+| `pays_contient_code()` | 296 | La règle « pays » : FR contient tout, METRO hors 97x / 98x |
+| `compter_zone_pays()` | 296 | Compteurs de « Mes zones » d'une zone pays sans lecture géométrique |
 | `zone_seuil_territoire()` | 256 | Zone fabriquée : union des CP ou IRIS au-delà d'un seuil |
 | `boucher_interstices()` | 265 | Bouche les fentes de couture d'un contour de département ou de région, vraies enclaves gardées ; remplit `geom_perimetre` (migration psql : `\if :{?forcer_perimetres}`) |
 | `carreaux_de_forme()` | 269 | LA règle « carreaux d'une forme » (centroïde, `ST_Subdivide` + `ST_Intersects` + `distinct on`), inlinée dans ses deux appelants |

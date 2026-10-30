@@ -6923,6 +6923,10 @@ export type Database = {
         Args: { p_code: string; p_type: string }
         Returns: Json
       }
+      compter_zone_pays: {
+        Args: { p_caller_user_id: string; p_zone_id: string }
+        Returns: Json
+      }
       compte_cp_campagne: { Args: { p_campaign_id: string }; Returns: number }
       compte_poi_par_categorie: {
         Args: {
@@ -7091,6 +7095,10 @@ export type Database = {
           p_org_id: string
           p_zone_id: string
         }
+        Returns: Json
+      }
+      couverture_pays_jsonb: {
+        Args: { p_cible: string; p_code: string; p_decoupage: string }
         Returns: Json
       }
       couverture_rayon_poi: {
@@ -9078,6 +9086,7 @@ export type Database = {
         Returns: Json
       }
       zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
+      zone_pays_geometrie: { Args: { p_code: string }; Returns: Json }
       zone_rayon: {
         Args: { p_lat: number; p_lon: number; p_rayon_m: number }
         Returns: Json

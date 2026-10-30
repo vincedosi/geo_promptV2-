@@ -173,6 +173,9 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
       return lire('get_admin_filter_geometry', supabase.rpc('get_admin_filter_geometry', { p_scale: 'cp', p_codes: [...recette.codes] }));
     case 'combinaison':
       return combiner(supabase, recette, ctx);
+    case 'pays':
+      // Figée, calculée par le serveur (sql/296) : l'union des régions, aucune géométrie cliente.
+      return lire('zone_pays_geometrie', supabase.rpc('zone_pays_geometrie', { p_code: recette.code }));
     case 'dessin':
     case 'import':
     case 'isochrone':

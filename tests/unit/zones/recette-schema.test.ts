@@ -120,8 +120,8 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     expect((per('departement', '   ') as { ok: boolean }).ok).toBe(false);
   });
 
-  it('RecetteUnionSchema est l’union nue, avec ses dix options', () => {
-    expect(RecetteUnionSchema.options).toHaveLength(10);
+  it('RecetteUnionSchema est l’union nue, avec ses onze options (`pays` : ④ finitions, T2)', () => {
+    expect(RecetteUnionSchema.options).toHaveLength(11);
   });
 });
 

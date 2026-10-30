@@ -34,6 +34,8 @@ export const MESSAGES_REFUS_COUVERTURE = {
   zone_trop_vaste: 'La zone est trop vaste : la couverture se calcule jusqu’à la taille d’une région.',
   trop_de_carreaux: `La zone compte plus de ${formaterNombre(MAX_CARREAUX_COUVERTURE)} carreaux habités.`,
   couverture_non_construite: 'La couverture n’est pas encore construite sur cette base.',
+  decoupage_trop_fin_pays: 'Sur toute la France, le découpage par IRIS (48 872) ou par commune (34 918) est trop fin : '
+    + 'choisissez le découpage par code postal.',
 } as const;
 export type RefusCouverture = keyof typeof MESSAGES_REFUS_COUVERTURE;
 

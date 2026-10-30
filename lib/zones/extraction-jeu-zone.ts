@@ -28,7 +28,7 @@ import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { formaterNombre } from '@/lib/format/nombre';
-import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
+import { MESSAGES_REFUS_COUVERTURE, MESSAGE_ZONE_PAYS_PLATEFORMES, repondreCouverture, type LigneCouverture } from './couverture';
 import {
   MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, resumeExact, verifierLimites, type Avertissement, type Resume,
 } from './conversion';
@@ -253,6 +253,10 @@ export async function extraireJeuZone(
   if (choixLus.error) return panne('choix', choixLus.error.message).reponse;
   // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
   if (zoneLue.error || !zoneLue.data) return panne('zone du jeu', zoneLue.error?.message ?? 'absente').reponse;
+  const lue = lireRecette(zoneLue.data.recette);
+  // Une zone pays (sql/296) : le ciblage France natif des plateformes n'est pas encore là (A-5) — refusée avant toute
+  // autre lecture (règles, couverture).
+  if (lue.ok && lue.recette.type === 'pays') return erreur(MESSAGE_ZONE_PAYS_PLATEFORMES, 422).reponse;
   const choix: Choix[] = (choixLus.data ?? []).map((c) => ({ ...c, seuil: Number(c.seuil) }));
   if (choix.length === 0) return erreur('Ce jeu n’a aucune plateforme : il n’y a rien à extraire.', 409).reponse;
 
@@ -262,7 +266,6 @@ export async function extraireJeuZone(
   } catch (e) {
     return panne('règles', e).reponse;
   }
-  const lue = lireRecette(zoneLue.data.recette);
   const ctx: Contexte = { supabase, jeu, recette: lue.ok ? lue.recette : null, couvertures: new Map() };
 
   const unites: Unite[] = [];

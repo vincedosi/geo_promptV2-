@@ -65,7 +65,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       console.error('[zones/dupliquer] dupliquer_zone :', copie.error?.message ?? 'réponse hors contrat', copie.error ? '' : copie.data);
       return echec('Duplication de la zone impossible.');
     }
-    return repondreResolue(supabase, issue.id, userId, issue.surface_km2, 'creation');
+    // Une zone pays (figée) se copie ; ses compteurs se posent sans lecture géométrique (sql/296).
+    const pays = (zone.recette as { type?: unknown } | null)?.type === 'pays';
+    return repondreResolue(supabase, issue.id, userId, issue.surface_km2, 'creation', pays);
   }
 
   // Recalcul À NEUF : aucune géométrie cliente (la recette est recalculable, `executerDansEspace` n'en lirait pas).

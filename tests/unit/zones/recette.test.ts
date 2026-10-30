@@ -4,7 +4,7 @@ import {
   CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MIN_MENAGES_CARREAUX_DEFAUT, MIN_MENAGES_CARREAUX_MAX, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
-  exigePerimetre, libelleRecette, refusPerimetreLocal, type Recette,
+  exigePerimetre, libelleRecette, refusPerimetreLocal, CODES_PAYS, type Recette,
 } from '@/lib/zones/recette';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lireRecette } from '@/lib/zones/recette-schema';
@@ -18,10 +18,13 @@ function migration(suffixe: RegExp): string | undefined {
 }
 
 describe('la recette d’une zone', () => {
-  it('dix types, et le CHECK de la migration les liste tous', () => {
-    expect(TYPES_RECETTE).toHaveLength(10);
-    const sql = migration(/_zones_a_recette\.sql$/);
-    expect(sql, 'migration *_zones_a_recette.sql').toBeDefined();
+  it('onze types, et le CHECK de la DERNIÈRE migration qui le pose les liste tous', () => {
+    expect(TYPES_RECETTE).toHaveLength(11);
+    // sql/253 l'a posé (dix types), sql/296 l'a élargi à `pays` (④ finitions, T2) : la plus récente fait foi.
+    const f = readdirSync('sql').filter((n) => n.endsWith('.sql')).sort().reverse()
+      .find((n) => readFileSync(`sql/${n}`, 'utf8').includes('add constraint custom_geo_zones_recette_forme'));
+    expect(f, 'migration qui pose custom_geo_zones_recette_forme').toBeDefined();
+    const sql = readFileSync(`sql/${f}`, 'utf8');
     for (const t of TYPES_RECETTE) expect(sql, t).toContain(`'${t}'`);
   });
 
@@ -30,7 +33,7 @@ describe('la recette d’une zone', () => {
     expect(TYPES_RECALCULABLES).toEqual(['rayon_point', 'rayon_poi', 'seuil_carreaux', 'seuil_territoire', 'codes_postaux']);
     expect(TYPES_RECALCULABLES.every((t) => estRecalculable(r(t)))).toBe(true);
     // Arbitrage de la revue finale du lot 3 : une combinaison a des opérandes figés, la rejouer rend la même forme.
-    expect(['dessin', 'import', 'isochrone', 'capture', 'combinaison'].some((t) => estRecalculable(r(t)))).toBe(false);
+    expect(['dessin', 'import', 'isochrone', 'capture', 'combinaison', 'pays'].some((t) => estRecalculable(r(t)))).toBe(false);
   });
 
   it('la géométrie vient du client pour les quatre formes figées seulement ; la combinaison est calculée par le serveur', () => {
@@ -231,5 +234,34 @@ describe('lireRecette (Zod)', () => {
     expect(q.ok && q.recette.type === 'rayon_poi' && q.recette.perimetre).toEqual({ type: 'commune', code: 'Martigues' });
     // Le même UUID en deux casses est un doublon.
     expect(lireRecette({ v: 1, type: 'combinaison', operation: 'union', zones: [A, A.toLowerCase()] }).ok).toBe(false);
+  });
+});
+
+describe('la recette `pays` (④ finitions, T2, A-3)', () => {
+  it('METRO ou FR, rien d’autre', () => {
+    expect(lireRecette({ v: 1, type: 'pays', code: 'METRO' }).ok).toBe(true);
+    expect(lireRecette({ v: 1, type: 'pays', code: 'FR' }).ok).toBe(true);
+    for (const code of ['metro', 'fr', 'XX', '', null, 1]) expect(lireRecette({ v: 1, type: 'pays', code }).ok, String(code)).toBe(false);
+    expect(lireRecette({ v: 1, type: 'pays' }).ok).toBe(false);
+    expect(lireRecette({ v: 1, type: 'pays', code: 'FR', perimetre: null }).ok).toBe(false);
+  });
+
+  it('figée : ni recalculable, ni forme du client, ni périmètre de ①', () => {
+    const r: Recette = { v: 1, type: 'pays', code: 'METRO' };
+    expect(estRecalculable(r)).toBe(false);
+    expect(exigeGeometrie(r)).toBe(false);
+    expect(exigePerimetre(r)).toBe(false);
+    expect(refusPerimetreLocal(r)).toBeNull();
+  });
+
+  it('libellé : « France métropolitaine » / « France entière »', () => {
+    expect(libelleRecette({ v: 1, type: 'pays', code: 'METRO' })).toBe('France métropolitaine');
+    expect(libelleRecette({ v: 1, type: 'pays', code: 'FR' })).toBe('France entière');
+  });
+
+  it('les codes du pays sont ceux de la base (zone_pays_geometrie, couverture_pays_jsonb)', () => {
+    const sql = migration(/_zone_pays\.sql$/);
+    expect(sql, 'migration *_zone_pays.sql').toBeDefined();
+    expect(sql).toContain(`p_code not in ('${CODES_PAYS.join("', '")}')`);
   });
 });

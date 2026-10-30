@@ -10,7 +10,7 @@ export const VERSION_RECETTE = 1;
 
 export const TYPES_RECETTE = [
   'rayon_point', 'rayon_poi', 'seuil_carreaux', 'seuil_territoire', 'codes_postaux',
-  'dessin', 'import', 'isochrone', 'combinaison', 'capture',
+  'dessin', 'import', 'isochrone', 'combinaison', 'capture', 'pays',
 ] as const;
 export type TypeRecette = (typeof TYPES_RECETTE)[number];
 
@@ -33,6 +33,13 @@ export interface PerimetreRecette {
 }
 /** Les seuls codes d'un périmètre `france` (schéma serveur ; `zone_rayon_poi` reconnaît `METRO`, sql/285). */
 export const CODES_FRANCE = ['FR', 'METRO'] as const;
+/**
+ * Les codes d'une zone PAYS (④ finitions, T2, A-3) : `{ v: 1, type: 'pays', code }`, FIGÉE, forme = union des régions
+ * (`zone_pays_geometrie`, sql/296), chiffrée par les dénominateurs nationaux sans lire un carreau. Une zone pays se
+ * reconnaît à sa RECETTE, jamais à sa surface.
+ */
+export const CODES_PAYS = ['METRO', 'FR'] as const;
+type CodePays = (typeof CODES_PAYS)[number];
 
 /*
  * Les plafonds sont ceux des RPC de recette : un dépassement est un REFUS dit à l'utilisateur, jamais une troncature.
@@ -136,7 +143,8 @@ export type Recette =
   | { readonly v: 1; readonly type: 'import'; readonly format: 'geojson' | 'kml'; readonly fichier: string }
   | { readonly v: 1; readonly type: 'isochrone'; readonly parametres: Readonly<Record<string, string | number | boolean>> }
   | { readonly v: 1; readonly type: 'combinaison'; readonly operation: 'union' | 'intersection' | 'difference'; readonly zones: readonly string[] }
-  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string; readonly parametres?: ParametresScore };
+  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string; readonly parametres?: ParametresScore }
+  | { readonly v: 1; readonly type: 'pays'; readonly code: CodePays };
 
 /** Les refus que rend une RPC de recette (`{ refus }`) ou que l'écran pose avant d'appeler. */
 export type RefusRecette =
@@ -254,5 +262,6 @@ export function libelleRecette(r: Recette, indicateurs: readonly IndicateurLibel
     case 'isochrone': return 'Isochrones';
     case 'combinaison': return `${OPERATIONS[r.operation]} de ${r.zones.length} zones`;
     case 'capture': return 'Capture de la carte';
+    case 'pays': return r.code === 'METRO' ? 'France métropolitaine' : 'France entière';
   }
 }

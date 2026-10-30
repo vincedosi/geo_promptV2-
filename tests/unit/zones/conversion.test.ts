@@ -141,9 +141,10 @@ const RECETTES: Record<Recette['type'], Recette> = {
   isochrone: { v: 1, type: 'isochrone', parametres: { minutes: 15 } },
   combinaison: { v: 1, type: 'combinaison', operation: 'union', zones: ['a', 'b'] },
   capture: { v: 1, type: 'capture', source_type: 'iris' },
+  pays: { v: 1, type: 'pays', code: 'METRO' },
 };
 
-describe('exactitude — dix recettes × six mailles (A-6)', () => {
+describe('exactitude — onze recettes × six mailles (A-6)', () => {
   // Le polygone est exact pour toute recette ; hors de lui, ces deux cases seulement.
   const EXACTES = new Set(['codes_postaux.cp', 'rayon_point.cercle']);
   for (const [type, recette] of Object.entries(RECETTES)) {

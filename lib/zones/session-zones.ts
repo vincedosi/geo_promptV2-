@@ -135,13 +135,18 @@ export function reponseRefus(r: { statut: number; message: string; refus: RefusR
  * accès) — la zone existe (Review Focus 5). Partagé par l'écriture et le recalcul : un fichier `route.ts` ne peut
  * exporter que ses verbes HTTP. Le message du 207 dit l'action (`creation` ou `recalcul`) : après un recalcul, la
  * zone n'a pas été « créée ».
+ *
+ * Une zone PAYS (`pays`, sql/296) n'est pas résolue par la géométrie : `resolve_custom_geo_zone_codes` lirait tous les
+ * IRIS de France (2,1 s, 48 540 accès, ≈ 48 000 lignes de codes écrites). `compter_zone_pays` pose les deux compteurs
+ * par des comptes d'index (≈ 400 accès), sans écrire de code.
  */
 export async function repondreResolue(
-  supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null, action: 'creation' | 'recalcul',
+  supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null, action: 'creation' | 'recalcul', pays = false,
 ): Promise<NextResponse> {
-  const res = await supabase.rpc('resolve_custom_geo_zone_codes', { p_zone_id: zoneId, p_caller_user_id: userId });
+  const rpc = pays ? 'compter_zone_pays' : 'resolve_custom_geo_zone_codes';
+  const res = await supabase.rpc(rpc, { p_zone_id: zoneId, p_caller_user_id: userId });
   if (res.error) {
-    console.error('[zones] resolve_custom_geo_zone_codes :', res.error.message);
+    console.error(`[zones] ${rpc} :`, res.error.message);
     const message = action === 'recalcul'
       ? 'Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.'
       : 'Zone créée ; ses codes postaux n’ont pas pu être résolus.';

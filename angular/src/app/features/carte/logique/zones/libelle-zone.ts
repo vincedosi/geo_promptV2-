@@ -24,6 +24,7 @@ export const LIBELLES_TYPE_RECETTE: Readonly<Record<TypeRecette, string>> = {
   isochrone: 'Isochrones',
   combinaison: 'Combinaison',
   capture: 'Capture',
+  pays: 'Zone nationale',
 };
 
 const PREFIXE = 'recette_';
