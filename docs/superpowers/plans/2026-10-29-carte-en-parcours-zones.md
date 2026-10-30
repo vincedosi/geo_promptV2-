@@ -155,59 +155,59 @@ En attendant les réponses, le plan applique les recommandations ; chaque arbitr
 
 ### Task 1 : seuil sur carreaux sans carreaux imputés, codes normalisés (effort S-M, 0,3 j)
 
-- [ ] **Mesure d'abord** (base locale ; si Docker est éteint, le relancer par `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`, une seule fois) : `EXPLAIN (ANALYZE, BUFFERS)` de `zone_seuil_carreaux('part_men_pauv','>=',40,'departement','33',…)` et `'13'` ; puis, en lecture, le nombre de carreaux retenus avec `men >= 11` vs sans. Chiffres dans le rapport (Q-2).
-- [ ] Revérifier le numéro libre (292). Tests d'abord : `tests/integration/zones-finitions.test.ts` — (a) recette sans `min_menages` → même nombre de carreaux et même surface qu'avant (valeurs mesurées ci-dessus, écrites dans le test) ; (b) `min_menages: 11` → moins de carreaux, aucun carreau de `men < 11` (contrôle par `ST_Intersects` sur 3 carreaux connus) ; (c) recette `seuil_territoire` avec `code: ' 2a '` → même résultat que `'2A'`. `tests/unit/zones/recette-schema.test.ts` : normalisation, `min_menages` entier ≥ 0, borne haute 1 000. FAIL attendu.
-- [ ] `sql/292_zone_seuil_carreaux_min.sql` : jumelle (corps de sql/255 + `and <den> >= p_min_den`), enveloppe `zone_seuil_carreaux` → jumelle avec `0`, `comment on`, `grant` identiques. Appliquer en local, rejouer une 2ᵉ fois sans effet. `EXPLAIN` de la jumelle à 11 : buffers ± 5 % de la mesure initiale.
-- [ ] `recette-schema.ts` (A-3, A-4), `recette.ts` (`libelleRecette` : « … · carreaux d'au moins 11 ménages » si > 0), `executer-recette.ts` (appel de la jumelle). Recalcul : le paramètre vient de la recette enregistrée, jamais d'un défaut serveur.
-- [ ] `ARCHITECTURE.md` (`Grep "zone_seuil_carreaux"`) ; `npx tsc --noEmit`, `npm run test:unit`, `npm run test:integration` (codes de retour lus sans pipe).
-- [ ] Commit `feat(db): seuil sur carreaux sans carreaux imputés, codes de territoire normalisés (③ finitions, T1)`.
+- [x] **Mesure d'abord** (base locale ; si Docker est éteint, le relancer par `scripts/local/00-docker-up.sh` puis `01-supabase-up.sh`, une seule fois) : `EXPLAIN (ANALYZE, BUFFERS)` de `zone_seuil_carreaux('part_men_pauv','>=',40,'departement','33',…)` et `'13'` ; puis, en lecture, le nombre de carreaux retenus avec `men >= 11` vs sans. Chiffres dans le rapport (Q-2).
+- [x] Revérifier le numéro libre (292). Tests d'abord : `tests/integration/zones-finitions.test.ts` — (a) recette sans `min_menages` → même nombre de carreaux et même surface qu'avant (valeurs mesurées ci-dessus, écrites dans le test) ; (b) `min_menages: 11` → moins de carreaux, aucun carreau de `men < 11` (contrôle par `ST_Intersects` sur 3 carreaux connus) ; (c) recette `seuil_territoire` avec `code: ' 2a '` → même résultat que `'2A'`. `tests/unit/zones/recette-schema.test.ts` : normalisation, `min_menages` entier ≥ 0, borne haute 1 000. FAIL attendu.
+- [x] `sql/292_zone_seuil_carreaux_min.sql` : jumelle (corps de sql/255 + `and <den> >= p_min_den`), enveloppe `zone_seuil_carreaux` → jumelle avec `0`, `comment on`, `grant` identiques. Appliquer en local, rejouer une 2ᵉ fois sans effet. `EXPLAIN` de la jumelle à 11 : buffers ± 5 % de la mesure initiale.
+- [x] `recette-schema.ts` (A-3, A-4), `recette.ts` (`libelleRecette` : « … · carreaux d'au moins 11 ménages » si > 0), `executer-recette.ts` (appel de la jumelle). Recalcul : le paramètre vient de la recette enregistrée, jamais d'un défaut serveur.
+- [x] `ARCHITECTURE.md` (`Grep "zone_seuil_carreaux"`) ; `npx tsc --noEmit`, `npm run test:unit`, `npm run test:integration` (codes de retour lus sans pipe).
+- [x] Commit `feat(db): seuil sur carreaux sans carreaux imputés, codes de territoire normalisés (③ finitions, T1)`.
 
 ### Task 2 : « Dupliquer » une zone (effort S-M, 0,35 j)
 
-- [ ] Tests d'abord (`zones-finitions.test.ts`) : zone figée → nouvelle zone, même `ST_Area`, `recette` copiée, `source_metadata.duplique_de` ; zone à recette recalculable citée par un jeu de zones → nouvelle zone calculée à neuf, l'originale inchangée (`updated_at` identique) ; zone d'un autre espace → 404 ; nom vide → 400 ; quota partagé avec `POST /api/zones` (13ᵉ appel de la minute → 429). Unitaire `lib/zones/dupliquer.ts` (choix copie / exécution selon la recette). FAIL attendu.
-- [ ] Route (A-5), `lib/zones/dupliquer.ts`. Copie figée : d'abord chercher une RPC existante qui copie une ligne de `custom_geo_zones` côté base (`grep -rn "custom_geo_zones" sql`) ; à défaut, une petite RPC `jsonb` neuve `dupliquer_zone(p_id, p_nom, p_org)` (`INSERT … SELECT … RETURNING id`, une ligne, numéro libre suivant, sans `DROP`), nommée dans le rapport — jamais une géométrie relue puis renvoyée par Node. `EXPLAIN` de la copie sur la plus grosse zone (chiffre dans le rapport). Inscrire la route dans les tests de périmètre (`perimetre-routes.test.ts`) et de validation des corps.
-- [ ] `ARCHITECTURE.md` (route neuve) ; tsc, unit, integration.
-- [ ] Commit `feat(api): dupliquer une zone, recalculée à neuf si sa recette le permet (③ finitions, T2)`.
+- [x] Tests d'abord (`zones-finitions.test.ts`) : zone figée → nouvelle zone, même `ST_Area`, `recette` copiée, `source_metadata.duplique_de` ; zone à recette recalculable citée par un jeu de zones → nouvelle zone calculée à neuf, l'originale inchangée (`updated_at` identique) ; zone d'un autre espace → 404 ; nom vide → 400 ; quota partagé avec `POST /api/zones` (13ᵉ appel de la minute → 429). Unitaire `lib/zones/dupliquer.ts` (choix copie / exécution selon la recette). FAIL attendu.
+- [x] Route (A-5), `lib/zones/dupliquer.ts`. Copie figée : d'abord chercher une RPC existante qui copie une ligne de `custom_geo_zones` côté base (`grep -rn "custom_geo_zones" sql`) ; à défaut, une petite RPC `jsonb` neuve `dupliquer_zone(p_id, p_nom, p_org)` (`INSERT … SELECT … RETURNING id`, une ligne, numéro libre suivant, sans `DROP`), nommée dans le rapport — jamais une géométrie relue puis renvoyée par Node. `EXPLAIN` de la copie sur la plus grosse zone (chiffre dans le rapport). Inscrire la route dans les tests de périmètre (`perimetre-routes.test.ts`) et de validation des corps.
+- [x] `ARCHITECTURE.md` (route neuve) ; tsc, unit, integration.
+- [x] Commit `feat(api): dupliquer une zone, recalculée à neuf si sa recette le permet (③ finitions, T2)`.
 
 ### Task 3 : les 93 zones CIRFA dans « Mes zones » de la Marine (effort S, 0,25 j — si Q-8 = migrer)
 
-- [ ] Mesure : `select count(*), pg_size_pretty(sum(pg_column_size(geom))) from geography_zones` (attendu 93, ≈ 5 Mo), colonnes réelles (`\d geography_zones`), validité (`count(*) filter (where not st_isvalid(geom))`), SRID. Relire `sql/133`, `sql/134` et l'encart « Ménage en base du 2026-09-11 » d'`ARCHITECTURE.md`.
-- [ ] Revérifier le numéro libre (293). Tests d'abord : 93 zones de `source_metadata.origine = 'geography_zones'` dans l'espace Marine nationale, aucune ailleurs ; rejouer la migration → toujours 93 ; `geography_zones` inchangée (compte + somme des aires). FAIL attendu.
-- [ ] `sql/293_cirfa_vers_zones.sql` (A-11) : `ST_MakeValid` si des invalides, `ST_Multi`, SRID 4326, `geom_3857` si la table le porte ; aucune résolution de codes. Appliquer, rejouer.
-- [ ] `ARCHITECTURE.md` (encart du ménage : « migrées le … ») ; mémoire `project_zones_cirfa_orphelines` à clore en T7.
-- [ ] Commit `feat(db): les 93 zones CIRFA rejoignent les zones de la Marine nationale (③ finitions, T3)`.
+- [x] Mesure : `select count(*), pg_size_pretty(sum(pg_column_size(geom))) from geography_zones` (attendu 93, ≈ 5 Mo), colonnes réelles (`\d geography_zones`), validité (`count(*) filter (where not st_isvalid(geom))`), SRID. Relire `sql/133`, `sql/134` et l'encart « Ménage en base du 2026-09-11 » d'`ARCHITECTURE.md`.
+- [x] Revérifier le numéro libre (293). Tests d'abord : 93 zones de `source_metadata.origine = 'geography_zones'` dans l'espace Marine nationale, aucune ailleurs ; rejouer la migration → toujours 93 ; `geography_zones` inchangée (compte + somme des aires). FAIL attendu.
+- [x] `sql/293_cirfa_vers_zones.sql` (A-11) : `ST_MakeValid` si des invalides, `ST_Multi`, SRID 4326, `geom_3857` si la table le porte ; aucune résolution de codes. Appliquer, rejouer.
+- [x] `ARCHITECTURE.md` (encart du ménage : « migrées le … ») ; mémoire `project_zones_cirfa_orphelines` à clore en T7.
+- [x] Commit `feat(db): les 93 zones CIRFA rejoignent les zones de la Marine nationale (③ finitions, T3)`.
 
 ## Groupe B — Angular (relecture 2)
 
 ### Task 4 : la bataille se capture de nouveau (effort S, 0,3 j)
 
-- [ ] Mesure (base locale) : `EXPLAIN (ANALYZE, BUFFERS) select get_battle_geometry(array['<clé V2 d'un département>'])` et sur la plus grosse V2 en cache ; lire les propriétés d'un anneau V2 (`geojson->'battleGeoJSON'->'features'->0->'properties'`) pour A-2. Si > 5 s sur la plus grosse : la capture d'une bataille au-delà d'un nombre de POI à écrire (mesuré) est refusée avec un message, chiffre dans le rapport.
-- [ ] Specs d'abord : `bataille-v2.service.spec.ts` — un résultat portant `battleCacheKey` la pose sur le créneau (`BatailleService.cle()`), un résultat sans clé pose `null` ; `capture.service` compte la bataille V2 ; `capture.spec` / `logique/zones/capture.spec.ts` — recette `isochrone` figée, `paliers` « 10,20,30,… » (chaîne), sous-zones selon A-2 ; `panneau-zones.component.spec.ts` — nouveau texte du renvoi (A-1).
-- [ ] Implémentation (A-1, A-2). `ResultatV2` gagne `battleCacheKey?: string`.
-- [ ] `cd angular && npx ng test --watch=false`, `npx tsc --noEmit -p angular`.
-- [ ] Commit `fix(angular): ③ capture de nouveau la bataille d'isochrones (V2) (③ finitions, T4)`.
+- [x] Mesure (base locale) : `EXPLAIN (ANALYZE, BUFFERS) select get_battle_geometry(array['<clé V2 d'un département>'])` et sur la plus grosse V2 en cache ; lire les propriétés d'un anneau V2 (`geojson->'battleGeoJSON'->'features'->0->'properties'`) pour A-2. Si > 5 s sur la plus grosse : la capture d'une bataille au-delà d'un nombre de POI à écrire (mesuré) est refusée avec un message, chiffre dans le rapport.
+- [x] Specs d'abord : `bataille-v2.service.spec.ts` — un résultat portant `battleCacheKey` la pose sur le créneau (`BatailleService.cle()`), un résultat sans clé pose `null` ; `capture.service` compte la bataille V2 ; `capture.spec` / `logique/zones/capture.spec.ts` — recette `isochrone` figée, `paliers` « 10,20,30,… » (chaîne), sous-zones selon A-2 ; `panneau-zones.component.spec.ts` — nouveau texte du renvoi (A-1).
+- [x] Implémentation (A-1, A-2). `ResultatV2` gagne `battleCacheKey?: string`.
+- [x] `cd angular && npx ng test --watch=false`, `npx tsc --noEmit -p angular`.
+- [x] Commit `fix(angular): ③ capture de nouveau la bataille d'isochrones (V2) (③ finitions, T4)`.
 
 ### Task 5 : Mes zones — Dupliquer, sans script de bidding, score avec sa provenance (effort S-M, 0,35 j)
 
-- [ ] Specs d'abord : `carte-zone.component.spec.ts` — bouton « Dupliquer » (ou « Recalculer dans une nouvelle zone » quand le dernier recalcul a rendu 409 `zone_referencee`), aucun bouton `data-export="bidding_script"`, « Exporter TikTok » présent ; `mes-zones.component.spec.ts` — un clic = un appel, second clic ignoré en vol, 200 → liste relue et message « Zone dupliquée : <nom> », 207 → message de la route, statut 0 → « vérifiez Mes zones », 404 → message ; `score-composite.service.spec.ts` — `parametres` porte indicateurs, poids, sens, maille, seuil ; parité `recette.ts` (`min_menages` dans le libellé).
-- [ ] Implémentation : `ZonesApi.dupliquer(id, nom)`, sortie `dupliquer` de `carte-zone`, gestion dans `mes-zones` (≤ 400 lignes ; si ça déborde, extraire la gestion des gestes dans `logique/zones/gestes-zone.ts`), retrait du bouton (A-7), provenance (A-6), copie paritaire de `recette.ts`.
-- [ ] ng test, tsc.
-- [ ] Commit `feat(angular): Mes zones duplique une zone, sans script de bidding (③ finitions, T5)`.
+- [x] Specs d'abord : `carte-zone.component.spec.ts` — bouton « Dupliquer » (ou « Recalculer dans une nouvelle zone » quand le dernier recalcul a rendu 409 `zone_referencee`), aucun bouton `data-export="bidding_script"`, « Exporter TikTok » présent ; `mes-zones.component.spec.ts` — un clic = un appel, second clic ignoré en vol, 200 → liste relue et message « Zone dupliquée : <nom> », 207 → message de la route, statut 0 → « vérifiez Mes zones », 404 → message ; `score-composite.service.spec.ts` — `parametres` porte indicateurs, poids, sens, maille, seuil ; parité `recette.ts` (`min_menages` dans le libellé).
+- [x] Implémentation : `ZonesApi.dupliquer(id, nom)`, sortie `dupliquer` de `carte-zone`, gestion dans `mes-zones` (≤ 400 lignes ; si ça déborde, extraire la gestion des gestes dans `logique/zones/gestes-zone.ts`), retrait du bouton (A-7), provenance (A-6), copie paritaire de `recette.ts`.
+- [x] ng test, tsc.
+- [x] Commit `feat(angular): Mes zones duplique une zone, sans script de bidding (③ finitions, T5)`.
 
 ### Task 6 : l'atelier recadre, efface son message, montre le minimum de ménages (effort S, 0,25 j)
 
-- [ ] Specs d'abord : `atelier-zone.service.spec.ts` — un aperçu reçu recadre une fois (emprise de la forme, via le recadrage à marge), un aperçu déjà visible ne recadre pas ; le message s'efface au changement de recette ou de formulaire actif (A-9) ; `recette-seuil-carreaux.component.spec.ts` — champ « Carreaux d'au moins N ménages » (11 par défaut, entier ≥ 0), la recette le porte ; `carte.page.spec.ts` — compteur de lectures à l'ouverture de ③ inchangé.
-- [ ] Implémentation (A-8, A-9, A-3 côté écran).
-- [ ] ng test, tsc.
-- [ ] Commit `fix(angular): ③ l'aperçu recadre la carte, le message de réussite s'efface (③ finitions, T6)`.
+- [x] Specs d'abord : `atelier-zone.service.spec.ts` — un aperçu reçu recadre une fois (emprise de la forme, via le recadrage à marge), un aperçu déjà visible ne recadre pas ; le message s'efface au changement de recette ou de formulaire actif (A-9) ; `recette-seuil-carreaux.component.spec.ts` — champ « Carreaux d'au moins N ménages » (11 par défaut, entier ≥ 0), la recette le porte ; `carte.page.spec.ts` — compteur de lectures à l'ouverture de ③ inchangé.
+- [x] Implémentation (A-8, A-9, A-3 côté écran).
+- [x] ng test, tsc.
+- [x] Commit `fix(angular): ③ l'aperçu recadre la carte, le message de réussite s'efface (③ finitions, T6)`.
 
 ## Task 7 : revue finale, factorisation, preuve navigateur (effort 0,4 j)
 
-- [ ] Revue finale du lot (modèle le plus capable) : mineurs accumulés ; passe de factorisation (dire ce qui reste dupliqué : `recette.ts` ↔ `lib/zones/recette.ts`, dupliqués par construction et verrouillés).
-- [ ] **Preuve navigateur, une seule fois, deux thèmes** (`L-Z3-T7-*`, captures dans `.superpowers/sdd/2026-10-29-carte-en-parcours-zones/`), sur **:3002 + :4202**, React (:3002 `/map`) et Angular (:4202) côte à côte pour la parité des créateurs : (1) ④ bataille V2 (Marine nationale, CIRFA d'un département) → ③ « Capturer zone custom » compte la bataille → zone écrite, recette `isochrone` figée lue en base ; (2) « Par seuil » carreaux Gironde, 40 % ménages pauvres, 11 ménages → aperçu recadré, enregistrer, message effacé au changement de famille ; (3) « Dupliquer » une zone figée, puis « Recalculer dans une nouvelle zone » sur une zone d'un jeu de zones (409 d'abord) ; (4) Mes zones sans bouton de script de bidding ; (5) score composite → « Créer la zone » → `recette.parametres` en base ; (6) Marine nationale : les 93 CIRFA dans Mes zones (si T3) ; (7) rayon autour d'un point, dessin, import KML, codes postaux : mêmes contrôles et messages que React. Onglet réseau : aucune lecture à l'ouverture de ③. Zones de preuve supprimées, espace actif rétabli.
-- [ ] Écarts React à lister (README carte + spec § 17 bis, ligne « Suites ») : React ne capture pas la V2, garde le script de bidding, n'a ni « Dupliquer » ni le minimum de ménages (sa route `indicator-threshold` n'est pas touchée).
-- [ ] `ARCHITECTURE.md`, README carte (§ ③), spec § 17 bis (V-2, V-4, V-6, V-8 : « fait le … »), Excel n° 23 et 24 (État). Tests complets : `npm test`, `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`, `npm run lint`, `npm run build` avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` locaux explicites, `cd angular && npx ng build`.
-- [ ] Commit `docs: ③ Zones — revue finale et preuve navigateur (finitions, T7)`.
+- [x] Revue finale du lot (modèle le plus capable) : mineurs accumulés ; passe de factorisation (dire ce qui reste dupliqué : `recette.ts` ↔ `lib/zones/recette.ts`, dupliqués par construction et verrouillés).
+- [x] **Preuve navigateur, une seule fois, deux thèmes** (`L-Z3-T7-*`, captures dans `.superpowers/sdd/2026-10-29-carte-en-parcours-zones/`), sur **:3002 + :4202**, React (:3002 `/map`) et Angular (:4202) côte à côte pour la parité des créateurs : (1) ④ bataille V2 (Marine nationale, CIRFA d'un département) → ③ « Capturer zone custom » compte la bataille → zone écrite, recette `isochrone` figée lue en base ; (2) « Par seuil » carreaux Gironde, 40 % ménages pauvres, 11 ménages → aperçu recadré, enregistrer, message effacé au changement de famille ; (3) « Dupliquer » une zone figée, puis « Recalculer dans une nouvelle zone » sur une zone d'un jeu de zones (409 d'abord) ; (4) Mes zones sans bouton de script de bidding ; (5) score composite → « Créer la zone » → `recette.parametres` en base ; (6) Marine nationale : les 93 CIRFA dans Mes zones (si T3) ; (7) rayon autour d'un point, dessin, import KML, codes postaux : mêmes contrôles et messages que React. Onglet réseau : aucune lecture à l'ouverture de ③. Zones de preuve supprimées, espace actif rétabli.
+- [x] Écarts React à lister (README carte + spec § 17 bis, ligne « Suites ») : React ne capture pas la V2, garde le script de bidding, n'a ni « Dupliquer » ni le minimum de ménages (sa route `indicator-threshold` n'est pas touchée).
+- [x] `ARCHITECTURE.md`, README carte (§ ③), spec § 17 bis (V-2, V-4, V-6, V-8 : « fait le … »), Excel n° 23 et 24 (État). Tests complets : `npm test`, `cd angular && npx ng test --watch=false`, `npx tsc --noEmit`, `npm run lint`, `npm run build` avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` locaux explicites, `cd angular && npx ng build`.
+- [x] Commit `docs: ③ Zones — revue finale et preuve navigateur (finitions, T7)`.
 
 ---
 

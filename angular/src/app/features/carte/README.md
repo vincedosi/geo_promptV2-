@@ -218,6 +218,34 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
 - **Le catalogue d'indicateurs** : celui de la PAGE (X4), partagé avec ③ et Analyse ; « Mes zones » ne le lit QUE si
   un seuil sur territoires est listé.
 
+## ③ Finitions (plan `2026-10-29-carte-en-parcours-zones.md`, T1-T7, 29-30/10/2026)
+
+- **La bataille V2 se capture de nouveau** (T4, A-1) : `BatailleV2Service.terminer` pose `cle: battleCacheKey` ; le
+  renvoi de ③ dit « La bataille d’isochrones se lance à l’étape ④ ; capturez ensuite son résultat ici. ». Les anneaux
+  V2 sont des BANDES disjointes (`ST_Difference`) : la sous-zone d'un POI porte toutes ses bandes (`geometries`), que
+  `/api/custom-geo/capture` unit côté base (preuve T7, D-1 : 25 130 km² de sous-zones = la zone, 1 799 IRIS · 345 CP).
+- **« Dupliquer »** (T5, A-5) : `ZonesApi.dupliquer(id, nom)` → `POST /api/zones/[id]/dupliquer`, sur toute zone de
+  « Mes zones » ; après un 409 `zone_referencee`, le bouton devient « Recalculer dans une nouvelle zone ». Une recette
+  recalculable est exécutée À NEUF, une forme figée est copiée en base (`dupliquer_zone`, sql/294) ; la source n'est
+  jamais écrite. Non idempotent : bouton inactif dès le premier clic, statut 0 → « vérifiez Mes zones ».
+- **Plus de script de custom bidding** dans la carte d'une zone (T5, A-7) ; « Exporter TikTok » reste.
+- **Le score composite garde sa provenance** (T5, A-6) : `recette.parametres = { indicateurs, maille, seuil_score }`,
+  recette figée.
+- **Seuil sur carreaux : « Carreaux d'au moins N ménages »** (T6, A-3) : 11 par défaut pour une nouvelle recette
+  (`parametres.min_menages`, absent = 0 pour les zones d'avant), dit dans `libelleRecette` ; RPC
+  `zone_seuil_carreaux_min` (sql/292).
+- **L'atelier recadre et efface son message** (T6, A-8, A-9) : un aperçu reçu recadre la carte sur son emprise (marge
+  du panneau, zoom ≤ 14), pas un aperçu identique ; le message de réussite s'efface au changement de formulaire, de
+  famille ou de recette.
+- **Les 93 CIRFA** de `geography_zones` sont dans « Mes zones » de la Marine nationale (T3, sql/293), formes figées,
+  sans codes résolus (« 0 IRIS · 0 CP »).
+- **Écarts à React (gel P5, non corrigés)** : React ne capture pas la bataille V2 ; il garde le bouton de script de
+  custom bidding ; il n'a ni « Dupliquer » ni le minimum de ménages (sa route `indicator-threshold` est inchangée) ;
+  sa capture (`/api/custom-geo/capture`) et sa sauvegarde (`/api/custom-geo/save`) écrivent `created_by = NULL`
+  (D-3 ; `POST /api/zones` et `…/dupliquer` le renseignent) ; son dialogue de capture garde ses libellés sans accents
+  ni sentence case (D-7, corrigé côté Angular seulement) ; il n'a pas d'import GeoJSON / KML. Il affiche aussi les
+  `source_type` neufs en brut (« recette_capture »…) dans « Mes zones ».
+
 ## ④ Analyse : la zone analysée (lot 4, T7, 2026-10-22)
 
 ④ chiffre UNE zone enregistrée de l'espace, sur sa forme telle quelle ou découpée par code postal ou par IRIS
