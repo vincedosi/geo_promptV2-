@@ -6,7 +6,7 @@
  *
  * Contenu de l'entrée « Analyse » du rail (lib/navigation/config.ts) : « Ce que
  * je calcule ». Regroupe deux blocs repris TELS QUELS depuis l'ex-catégorie
- * `analyses` de `FilterPanel.tsx` (`VoronoiTool`, `IsochronesTool`,
+ * `analyses` de `FilterPanel.tsx` (`IsochronesTool`,
  * `BattleV2Tool`, `ClusteringSection`, `SpatialAnalysisEmptyState`/
  * `SpatialAnalysisTooManyPoi` — fichiers NON déplacés physiquement, seulement
  * réimportés ici depuis `../filter-panel/`, comme `PanneauCalques` l'a fait
@@ -27,14 +27,14 @@
  * `lib/carte/garde-perimetre.ts` (logique pure, testée) bloque tant qu'aucun
  * `FiltreActif` n'est posé. Câblage vérifié structurellement par
  * `tests/unit/carte/panneau-analyse-garde.test.ts` (lit le SOURCE de ce
- * fichier) — SIX points de lancement, à CINQ endroits distincts :
- *   1. Voronoï (`VoronoiTool` → `GET /api/voronoi`, route directe depuis le 2026-10-12)
- *   2. Bataille isochrone V1 (`IsochronesTool` → vérif. cache/lancement)
- *   3. Bataille isochrone V2 (`BattleV2Tool` → vérif. cache/remplissage ORS/lancement)
- *   4. Application de la bataille — bouton « BATAILLE (ST_Difference) »
+ * fichier) — CINQ points de lancement, à QUATRE endroits distincts (le
+ * Voronoï, sixième outil, a été supprimé le 30/10/2026 — décision Vincent) :
+ *   1. Bataille isochrone V1 (`IsochronesTool` → vérif. cache/lancement)
+ *   2. Bataille isochrone V2 (`BattleV2Tool` → vérif. cache/remplissage ORS/lancement)
+ *   3. Application de la bataille — bouton « BATAILLE (ST_Difference) »
  *      (`IsochronesTool.onApplyBattle`), un second point de calcul PostGIS
  *      distinct du lancement
- *   5. Clustering — DEUX points, round 2 de correction (voir ci-dessous) :
+ *   4. Clustering — DEUX points, round 2 de correction (voir ci-dessous) :
  *      a. `ClusteringSection.onLoadClusters` — un simple GET de relecture
  *         d'un modèle déjà calculé, gardé par prudence (round 1) mais qui
  *         N'EST PAS le calcul lourd ;
@@ -50,12 +50,12 @@
  *
  * **Refus du périmètre national (spec-filtre-france.md, 2026-09-15) :** le
  * filtre `'france'` (`lib/carte/filtre.ts`) lève la garde ci-dessus pour LES
- * SIX outils d'un coup — c'est le sens même de son ajout. `outilAdmetNational`
+ * CINQ outils d'un coup — c'est le sens même de son ajout. `outilAdmetNational`
  * (`lib/carte/garde-perimetre.ts`) distingue les outils dont le coût sur la
- * France est mesuré et négligeable (le score composite, 159 ms) des cinq
- * autres, jamais mesurés à cette échelle (Voronoï, bataille V1/V2,
+ * France est mesuré et négligeable (le score composite, 159 ms) des quatre
+ * autres, jamais mesurés à cette échelle (bataille V1/V2,
  * application de la bataille, clustering) : `verifierPerimetreOutil`
- * refuse EXPLICITEMENT un périmètre national pour ces cinq-là, avec un
+ * refuse EXPLICITEMENT un périmètre national pour ces quatre-là, avec un
  * message qui nomme l'outil — jamais un blocage muet. `verifierPerimetre`
  * (générique, sans refus national) reste utilisé par le score composite et
  * la relecture GET du clustering ((a) ci-dessus, pas un calcul lourd) ;
@@ -80,7 +80,6 @@ import { C, fInter } from '../filter-panel/tokens';
 import { labelStyle, pill } from '../filter-panel/styles';
 import { ClusteringSection } from '../filter-panel/ClusteringSection';
 import { SpatialAnalysisEmptyState, SpatialAnalysisTooManyPoi } from '../filter-panel/SpatialAnalysisIntro';
-import { VoronoiTool } from '../filter-panel/VoronoiTool';
 import { ScoreCompositeTool } from '../filter-panel/ScoreCompositeTool';
 import { CorrelationTool } from '../filter-panel/CorrelationTool';
 import { BattleV2Tool } from '../filter-panel/BattleV2Tool';
@@ -92,7 +91,6 @@ import type { FilterPanelProps } from '../filter-panel/types';
 import type { FiltreActif } from '@/lib/carte/filtre';
 import { messageGardePerimetre, messageGardeOutil, type OutilAnalyse } from '@/lib/carte/garde-perimetre';
 import { useSession } from '@/lib/auth-client';
-import { requeteVoronoi } from '@/lib/carte/voronoi-direct';
 
 export interface PanneauAnalyseProps {
   // ── Territoire — parité stricte avec l'ex-FilterPanel (voir en-tête) ──────
@@ -111,22 +109,11 @@ export interface PanneauAnalyseProps {
   /** POI sélectionnés (lifted à page.tsx, partagé avec PanneauCalques). */
   selectedPOI: string[];
 
-  /**
-   * Voronoï : lance `GET /api/voronoi` avec la chaîne de `requeteVoronoi`
-   * (`app/map/_hooks/useVoronoiDirect.ts`). Il passait par le chat geo.prompt
-   * jusqu'au 2026-10-12.
-   */
-  onDirectVoronoi: (requete: string) => void;
-  /** Calcul de Voronoï en cours : désactive le bouton (rôle d'`isLoading` du chat). */
-  voronoiChargement: boolean;
-
   onDirectBattle: FilterPanelProps['onDirectBattle'];
   onDirectBattleV2: FilterPanelProps['onDirectBattleV2'];
   onFillIsochroneCache: FilterPanelProps['onFillIsochroneCache'];
   onApplyBattle: FilterPanelProps['onApplyBattle'];
 
-  voronoiVisible: boolean;
-  setVoronoiVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleVisible: boolean;
   setBattleVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleOuterFillVisible: boolean;
@@ -153,9 +140,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
     ville: villeProp, onVilleChange,
     filtre, selectedPOI,
-    onDirectVoronoi, voronoiChargement,
     onDirectBattle, onDirectBattleV2, onFillIsochroneCache, onApplyBattle,
-    voronoiVisible, setVoronoiVisible,
     battleVisible, setBattleVisible,
     battleOuterFillVisible, setBattleOuterFillVisible,
   } = props;
@@ -168,7 +153,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   const clusteringOuvert = session?.user.role === 'super_admin';
 
   // ── Perimetre territorial — voir en-tete du fichier (parite, non corrige) ─
-  const { REF_REGIONS, scope, selectedRegions, selectedDepts, ville } = useTerritorySelection({
+  const { REF_REGIONS } = useTerritorySelection({
     scope: scopeProp, onScopeChange,
     selectedRegions: selectedRegionsProp, onSelectedRegionsChange,
     selectedDepts: selectedDeptsProp, onSelectedDeptsChange,
@@ -179,8 +164,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   const [analyseOpen, setAnalyseOpen] = useState<Record<string, boolean>>({ spatiale: false, clustering: false });
   const toggleAnalyse = (key: string) => setAnalyseOpen(prev => ({ ...prev, [key]: !prev[key] }));
 
-  // ── Exclusion mutuelle des trois outils — conservee telle quelle ────────
-  const [showVoronoi, setShowVoronoi] = useState(false);
+  // ── Exclusion mutuelle des deux outils de bataille — conservee telle quelle
   const [showBattle, setShowBattle] = useState(false);
   const [showBattleV2, setShowBattleV2] = useState(false);
 
@@ -240,11 +224,11 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
   // en plus du refus générique ci-dessus, refuse EXPLICITEMENT un périmètre
   // `'france'` pour tout outil dont `outilAdmetNational` rend `false` — sinon
   // poser le filtre France rouvrirait les incidents du 28/03 et du 08/04 pour
-  // Voronoï/bataille V1/bataille V2/application de la bataille/clustering, qui
+  // bataille V1/bataille V2/application de la bataille/clustering, qui
   // n'ont jamais été mesurés à l'échelle nationale.
   //
   // Source UNIQUE du message par outil, partagée par les deux formes dont les
-  // appelants ont besoin : `verifierPerimetreOutil` (booléen, cinq handlers
+  // appelants ont besoin : `verifierPerimetreOutil` (booléen, handlers
   // historiques ci-dessous) et `verifierPerimetreClustering` (texte du
   // message, relayé jusqu'à ClusteringWizard — ruling FF-2, 2026-09-15). Sans
   // cette source unique, le wizard n'a aucun moyen de connaître le refus RÉEL
@@ -259,16 +243,6 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     return messageGardePourOutil(outil) === null;
   };
 
-  const handleVoronoi = () => {
-    if (!exactlyOnePOI || !verifierPerimetreOutil('voronoi')) return;
-    if (voronoiChargement) return;
-    // Le territoire que la phrase au chat portait (« … de France
-    // métropolitaine »), traduit en paramètres de la route — voir
-    // lib/carte/voronoi-direct.ts.
-    onDirectVoronoi(requeteVoronoi(selectedPOI[0], {
-      scope, selectedRegions, selectedDepts, ville, refRegions: REF_REGIONS,
-    }));
-  };
   const handleCheckORSGarde = () => { if (verifierPerimetreOutil('bataille_v1')) handleCheckORS(); };
   const handleBattleGarde = (force = false) => { if (verifierPerimetreOutil('bataille_v1')) handleBattle(force); };
   const handleCheckV2Garde = () => { if (verifierPerimetreOutil('bataille_v2')) handleCheckV2(); };
@@ -308,7 +282,7 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
 
       {/* Garde de perimetre (spec §5) — message affiche apres une tentative de
-          lancement bloquee, POUR N'IMPORTE LEQUEL des cinq outils (Voronoi,
+          lancement bloquee, POUR N'IMPORTE LEQUEL des quatre outils (
           bataille V1/V2, application de la bataille, clustering) : place au
           niveau du panneau, pas dans l'accordeon Analyse spatiale, sinon un
           lancement de clustering bloque restait muet (round 1 de correction —
@@ -366,22 +340,10 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
                 </div>
               </div>
 
-              <VoronoiTool
-                showVoronoi={showVoronoi}
-                setShowVoronoi={setShowVoronoi}
-                setShowBattle={setShowBattle}
-                setShowBattleV2={setShowBattleV2}
-                isLoading={voronoiChargement}
-                voronoiVisible={voronoiVisible}
-                setVoronoiVisible={setVoronoiVisible}
-                handleVoronoi={handleVoronoi}
-              />
-
               <BattleV2Tool
                 showBattleV2={showBattleV2}
                 setShowBattleV2={setShowBattleV2}
                 setShowBattle={setShowBattle}
-                setShowVoronoi={setShowVoronoi}
                 battleVisible={battleVisible}
                 setBattleVisible={setBattleVisible}
                 battleV2Paliers={battleV2Paliers}
@@ -405,7 +367,6 @@ export function PanneauAnalyse(props: PanneauAnalyseProps) {
               <IsochronesTool
                 showBattle={showBattle}
                 setShowBattle={setShowBattle}
-                setShowVoronoi={setShowVoronoi}
                 setShowBattleV2={setShowBattleV2}
                 battleVisible={battleVisible}
                 setBattleVisible={setBattleVisible}

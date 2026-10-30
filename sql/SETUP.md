@@ -170,6 +170,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `compter_zone_pays()` | 296 | Compteurs de « Mes zones » d'une zone pays sans lecture géométrique |
 | `poi_de_zone()` | 297 | POI d'une catégorie dans une zone de l'espace, catégorie d'abord, `{ pois, tronque }` : la bataille V2 sur une zone |
 | `typologies_de_zone()` | 298 | Typologies déjà calculées (dernier modèle par durée et mode) des POI visibles d'une zone de l'espace, en lecture pour tous |
+| ~~`get_voronoi_by_category*()` · `get_voronoi_capture_geometry()` · `get_voronoi_routier_by_category()`~~ | 299 | **Supprimées le 2026-10-30** (décision Vincent : le Voronoï est supprimé). Garde-fou `pg_depend` + appels PL/pgSQL avant le `drop` ; les migrations 010, 164 et 246 restent pour l'histoire |
 | `zone_seuil_territoire()` | 256 | Zone fabriquée : union des CP ou IRIS au-delà d'un seuil |
 | `boucher_interstices()` | 265 | Bouche les fentes de couture d'un contour de département ou de région, vraies enclaves gardées ; remplit `geom_perimetre` (migration psql : `\if :{?forcer_perimetres}`) |
 | `carreaux_de_forme()` | 269 | LA règle « carreaux d'une forme » (centroïde, `ST_Subdivide` + `ST_Intersects` + `distinct on`), inlinée dans ses deux appelants |

@@ -51,7 +51,7 @@ import { legendePourMetrique, type SuiviMapEventDetail } from '@/app/map/_compon
 import { getCatColor, ISOCHRONE_COLORS, ISOCHRONE_MODE_LABELS, BATTLE_PALIER_OPACITY } from '@/app/map/_lib/constants';
 import { LARGEUR_TRAIT_PPRT } from '@/lib/carte/palette-pprt';
 import { formaterNombre } from '@/lib/format/nombre';
-import type { ZoneData, VoronoiData } from '@/types/spatial';
+import type { ZoneData } from '@/types/spatial';
 
 const fInter = "'Inter', system-ui, sans-serif";
 const fMono = "'JetBrains Mono', monospace";
@@ -100,10 +100,6 @@ export interface LegendeCarteProps {
   isochroneVisible?: boolean;
   isochroneMinutes?: number;
   isochroneMode?: string;
-  voronoiVisible?: boolean;
-  voronoiCategory?: string;
-  voronoiPois?: { id: string; nom: string; color: string }[];
-  voronoiDataRef?: React.MutableRefObject<VoronoiData | null>;
   battleVisible?: boolean;
   battleCategory?: string;
   battlePois?: { id: string; nom: string; color: string }[];
@@ -339,7 +335,6 @@ function BlocAnalyse(props: LegendeCarteProps) {
   if (!zoneData || activeCats.length === 0) return null;
 
   const isoColors = ISOCHRONE_COLORS[props.isochroneMode ?? ''] ?? ISOCHRONE_COLORS.walk;
-  const voronoiPois = props.voronoiPois ?? [];
   const battlePois = props.battlePois ?? [];
   const battleMaxPalier = props.battleMaxPalier ?? 90;
 
@@ -376,31 +371,6 @@ function BlocAnalyse(props: LegendeCarteProps) {
             <span style={labelStyle}>Iso {props.isochroneMinutes}min ({ISOCHRONE_MODE_LABELS[props.isochroneMode ?? ''] ?? props.isochroneMode})</span>
           </div>
         )}
-
-        {!!props.voronoiVisible && !!props.voronoiCategory && (() => {
-          const regionLabel = props.voronoiDataRef?.current?._meta?.filtre_region
-            ?? props.voronoiDataRef?.current?._meta?.filtre_ville
-            ?? props.voronoiDataRef?.current?._meta?.filtre_dept
-            ?? null;
-          return (
-            <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 9, height: 9, background: (voronoiPois[0]?.color ?? 'var(--warning)') + '40', borderRadius: 1, border: `1.5px solid ${voronoiPois[0]?.color ?? 'var(--warning)'}`, flexShrink: 0 }} />
-                  <span style={{ color: 'var(--text-primary)', fontSize: 9, fontFamily: fInter, letterSpacing: '0.08em' }}>
-                    VORONOI{regionLabel ? ` · ${regionLabel}` : ''}
-                  </span>
-                </div>
-              </div>
-              {voronoiPois.map(c => (
-                <div key={c.id} style={swatchRow}>
-                  <span style={{ width: 8, height: 8, background: c.color + '40', borderRadius: 1, border: `1.5px solid ${c.color}`, flexShrink: 0 }} />
-                  <span style={labelStyle}>{c.nom}</span>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
 
         {!!props.battleVisible && !!props.battleCategory && (
           <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -86,8 +86,7 @@ export const ORDRE_COUCHES: readonly string[] = [
   'radio-clusters', 'radio-cluster-count', 'radio-points', 'radio-heatmap', 'radio-coverage-fill', 'radio-coverage-line',
   // Cercle de zone (T8) — `:605-606`
   'zone-fill', 'zone-outline',
-  // Voronoï — `:614-692`
-  'voronoi-fill', 'voronoi-line', 'voronoi-pois-circle', 'voronoi-pois-halo',
+  // (Voronoï supprimé le 30/10/2026 — décision Vincent : ses quatre couches sont retirées des deux applications.)
   // Isochrones — `:739-740`
   'isochrones-fill', 'isochrones-line',
   'wizard-highlight-layer',

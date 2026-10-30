@@ -18,20 +18,6 @@ export interface IsochroneData {
   _cachedAt?: string;
 }
 
-export interface VoronoiData {
-  type: 'FeatureCollection';
-  features: GeoJSON.Feature[];
-  _meta?: {
-    category: string;
-    metropolitaine?: boolean;
-    filtre_ville?: string | null;
-    filtre_region?: string | null;
-    filtre_dept?: string | null;
-    mode?: string;
-    levels?: number[];
-  };
-}
-
 export interface BattleData {
   type: 'FeatureCollection';
   features: GeoJSON.Feature[];
@@ -104,7 +90,7 @@ export interface GeoJSONFeatureCollection {
 export interface SpatialResult {
   reply: string;
   geojson?: GeoJSONFeatureCollection | null;
-  analysisType?: 'voronoi' | 'isochrone' | 'proximity' | null;
+  analysisType?: 'isochrone' | 'proximity' | null;
   savedId?: string | null;
   poiCount?: number;
 }

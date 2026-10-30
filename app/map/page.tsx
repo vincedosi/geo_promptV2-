@@ -46,7 +46,6 @@ const MeteoGeoPanel = dynamic(
   () => import('@/app/map/analyse/digital/_components/MeteoGeoPanel').then(m => ({ default: m.MeteoGeoPanel })),
   { ssr: false },
 );
-import { useVoronoiDirect }    from '@/app/map/_hooks/useVoronoiDirect';
 import { useMapLayers }        from '@/app/map/_hooks/useMapLayers';
 import { MapPanel }            from '@/app/map/_components/MapPanel';
 import type { POIStylesMap } from '@/app/map/_components/filter-panel/poi-style';
@@ -628,9 +627,6 @@ export default function MapPage() {
     handleDirectBattleV2,
   } = useMapDirectActions(mapRef, mapLayers, setZoneData, setError, filtre);
 
-  // ── Voronoï du panneau Analyse par la route directe (cf _hooks/useVoronoiDirect)
-  const { lancerVoronoi, voronoiChargement } = useVoronoiDirect(mapLayers.applyVoronoi, setZoneData, setError);
-
   // ── Marqueurs POI + cadrage (cf _hooks/useMapMarkers) ─────────────────────
   useMapMarkers(mapRef, markersRef, mapReady, zoneData, densityMode, poiStyles, setSelectedBillboard);
 
@@ -648,7 +644,7 @@ export default function MapPage() {
       const geojsonSources = [
         'pois-heat', 'zone-circle', 'meteo-source',
         'tmja-source', 'radio-emetteurs', 'radio-coverage',
-        'voronoi', 'voronoi-pois', 'isochrones', 'battle-rings',
+        'isochrones', 'battle-rings',
         'battle-borders', 'battle-pois', 'test-iso',
         'clusters-source', 'wizard-highlight',
         'territory-mask',
@@ -675,7 +671,6 @@ export default function MapPage() {
     }
 
     // Couches tuiles vectorielles (visibilité) et couches de la carte
-    mapLayers.setVoronoiVisible(false);
     mapLayers.setBattleVisible(false);
     mapLayers.setIsochroneVisible(false);
     mapLayers.setCarreauxVisible(false);
@@ -937,14 +932,10 @@ export default function MapPage() {
         onVilleChange={setPerimeterVille}
         filtre={filtre}
         selectedPOI={selectedPOI}
-        onDirectVoronoi={lancerVoronoi}
-        voronoiChargement={voronoiChargement}
         onDirectBattle={handleDirectBattle}
         onDirectBattleV2={handleDirectBattleV2}
         onFillIsochroneCache={handleFillIsochroneCache}
         onApplyBattle={handleApplyBattle}
-        voronoiVisible={mapLayers.voronoiVisible}
-        setVoronoiVisible={mapLayers.setVoronoiVisible}
         battleVisible={mapLayers.battleVisible}
         setBattleVisible={mapLayers.setBattleVisible}
         battleOuterFillVisible={mapLayers.battleOuterFillVisible}
@@ -1155,10 +1146,6 @@ export default function MapPage() {
         isochroneVisible={mapLayers.isochroneVisible}
         isochroneMinutes={mapLayers.isochroneMinutes}
         isochroneMode={mapLayers.isochroneMode}
-        voronoiVisible={mapLayers.voronoiVisible}
-        voronoiCategory={mapLayers.voronoiCategory}
-        voronoiPois={mapLayers.voronoiPois}
-        voronoiDataRef={mapLayers.voronoiDataRef}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
         battlePois={mapLayers.battlePois}
@@ -1176,8 +1163,6 @@ export default function MapPage() {
         radioSelectedNom={radioSelectedNom}
         radioCoverageMode={radioCoverageMode}
         selectedIrisCode={selectedIrisCode}
-        voronoiVisible={mapLayers.voronoiVisible}
-        voronoiCategory={mapLayers.voronoiCategory}
         carreauxVisible={mapLayers.carreauxVisible}
         carreauxIndicateur={mapLayers.carreauxIndicateur}
         carreauxSelectedBucket={mapLayers.carreauxSelectedBucket}
@@ -1275,9 +1260,6 @@ export default function MapPage() {
         isochroneFromCache={mapLayers.isochroneFromCache}
         isochroneCachedAt={mapLayers.isochroneCachedAt}
         setIsochroneVisible={mapLayers.setIsochroneVisible}
-        voronoiVisible={mapLayers.voronoiVisible}
-        voronoiCategory={mapLayers.voronoiCategory}
-        setVoronoiVisible={mapLayers.setVoronoiVisible}
         battleVisible={mapLayers.battleVisible}
         battleCategory={mapLayers.battleCategory}
         setBattleVisible={mapLayers.setBattleVisible}

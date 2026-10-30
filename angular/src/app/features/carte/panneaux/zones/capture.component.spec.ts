@@ -146,7 +146,7 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
   });
 
   it('lot 3 : une capture MIXTE (bataille + autre couche) envoie une recette `capture` composite — la forme n’est pas que des isochrones', async () => {
-    const { el, api, stable } = monter({ sources: [BATAILLE, source('map-voronoi', 'voronoi_cells', 'Voronoi lycee', 'voronoi')] });
+    const { el, api, stable } = monter({ sources: [BATAILLE, source('map-tmja-routes', 'tmja_routes', 'Flux routier', 'tmja')] });
     await stable();
     nommer(el, 'mixte');
     await stable();
@@ -201,15 +201,15 @@ describe('CaptureComponent (CustomGeoCaptureModal.tsx)', () => {
     expect(el.querySelector('[data-avertissement]')!.textContent!.trim()).toBe('Zone créée ; ses codes postaux n’ont pas pu être résolus.');
   });
 
-  it('lot 3 : une capture de Voronoï envoie une recette `capture` qui nomme sa source', async () => {
-    const { el, api, stable } = monter({ sources: [source('map-voronoi', 'voronoi_cells', 'Voronoi lycee', 'voronoi')] });
+  it('lot 3 : une capture de flux routier envoie une recette `capture` qui nomme sa source (Voronoï supprimé le 30/10/2026)', async () => {
+    const { el, api, stable } = monter({ sources: [source('map-tmja-routes', 'tmja_routes', 'Flux routier', 'tmja')] });
     await stable();
-    nommer(el, 'voronoi');
+    nommer(el, 'flux');
     await stable();
     el.querySelector<HTMLButtonElement>('[data-sauver]')!.click();
     await stable();
     expect((api.capturer as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
-      recette: { v: 1, type: 'capture', source_type: 'voronoi_cells' },
+      recette: { v: 1, type: 'capture', source_type: 'tmja_routes' },
     });
   });
 

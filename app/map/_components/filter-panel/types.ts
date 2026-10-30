@@ -71,8 +71,6 @@ export interface FilterPanelProps {
   isLoading: boolean;
   error: string | null;
   zoneData: ZoneData | null;
-  voronoiVisible: boolean;
-  setVoronoiVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleVisible: boolean;
   setBattleVisible: (v: boolean | ((p: boolean) => boolean)) => void;
   battleOuterFillVisible: boolean;

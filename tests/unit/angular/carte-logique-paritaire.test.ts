@@ -62,8 +62,8 @@ describe('logique de navigation et de carte : Angular = React', () => {
     }
     for (const v of [...ids, 'inconnu', '', null, 3, undefined]) expect(Ac.validerDegradeId(v)).toBe(Rc.validerDegradeId(v));
   });
-  it('garde de périmètre — six outils, sept filtres, zone sélectionnée ou non', () => {
-    const outils = ['voronoi', 'bataille_v1', 'bataille_v2', 'application_bataille', 'clustering', 'score_composite'] as const;
+  it('garde de périmètre — cinq outils, sept filtres, zone sélectionnée ou non', () => {
+    const outils = ['bataille_v1', 'bataille_v2', 'application_bataille', 'clustering', 'score_composite'] as const;
     expect(Ag.MESSAGE_PERIMETRE_MANQUANT).toBe(Rg.MESSAGE_PERIMETRE_MANQUANT);
     for (const f of FILTRES) for (const z of [null, undefined, 'zone-1']) {
       expect(Ag.perimetreChoisi(f, z)).toBe(Rg.perimetreChoisi(f, z));

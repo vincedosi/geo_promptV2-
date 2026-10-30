@@ -223,4 +223,4 @@ export interface ReponseSourceSurface extends ReponseSurface {
 }
 
 /** Les routes de `/api/custom-geo/source/` qu'une couche contributive de la capture peut appeler. */
-export type RouteSourceCapture = 'carreaux' | 'iris' | 'radio' | 'tmja' | 'battle' | 'voronoi' | 'indicator-threshold' | 'score' | 'composite';
+export type RouteSourceCapture = 'carreaux' | 'iris' | 'radio' | 'tmja' | 'battle' | 'indicator-threshold' | 'score' | 'composite';

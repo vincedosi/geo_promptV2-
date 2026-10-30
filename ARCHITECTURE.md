@@ -280,7 +280,7 @@ genesis_app/
 │   # copilote/ SUPPRIME le 2026-10-12 (suppression de l'IA, lot 5) : chat IA,
 │   # ChatPanel, useChatControls, useToolProcessor... Son moteur de carte etait
 │   # deja sorti vers app/map/ au lot 4. L'etat `error` de app/map/page.tsx
-│   # (alimente par useMapDirectActions et useVoronoiDirect) s'affiche dans
+│   # (alimente par useMapDirectActions ; useVoronoiDirect jusqu'au 2026-10-30) s'affiche dans
 │   # components/map/BandeauErreur.tsx, au-dessus de la carte, ferme par sa croix
 │   # ou efface par la prochaine action (round de correction 1 du lot 5).
 │   ├── dashboard/              # Page d'accueil apres login
@@ -298,7 +298,7 @@ genesis_app/
 │   │   │                       # CivicIndicatorsLayer, ScoreMapLayer,
 │   │   │                       # DiffusionMapLayer, SuiviMapLayer.
 │   │   │                       # MapPanel.tsx (badges ZONE_ACTIVE / isochrone /
-│   │   │                       # Voronoi / bataille, fond compact, tiroir Street
+│   │   │                       # bataille, fond compact, tiroir Street
 │   │   │                       # View), venu d'app/copilote le 2026-10-12.
 │   │   │                       # FilterPanel.tsx (l'ancien monolithe) supprime le
 │   │   │                       # 2026-09-12, vide par les taches 2 a 7 — mais
@@ -311,9 +311,9 @@ genesis_app/
 │   │   │                       # supprime » : ce sont deux choses differentes.
 │   │   ├── _hooks/             # Moteur de la carte : useMapInit (sources et
 │   │   │                       # couches posees au load), useMapLayers (peinture,
-│   │   │                       # Voronoi, bataille, carreaux, IRIS),
+│   │   │                       # bataille, carreaux, IRIS ; Voronoi supprime le 30/10/2026),
 │   │   │                       # useMapMarkers, useMapDirectActions,
-│   │   │                       # useVoronoiDirect... — useMapInit/useMapLayers
+│   │   │                       # ... — useMapInit/useMapLayers
 │   │   │                       # venus d'app/copilote le 2026-10-12. useSavedMaps
 │   │   │                       # SUPPRIME au lot 5 : son seul ecran vivait dans
 │   │   │                       # le chat (cartes sauvegardees React abandonnees).
@@ -826,7 +826,7 @@ avec lui.
 |---|---|---|---|
 | Filtre | panneau gauche | `Alt+1` | pose le filtre unique (voir plus bas) |
 | Calques | panneau gauche | `Alt+2` | affiche des donnees, ne fabrique rien |
-| Analyse | panneau gauche | `Alt+3` | lance un calcul (Voronoi, bataille, clustering, score composite) |
+| Analyse | panneau gauche | `Alt+3` | lance un calcul (bataille, clustering, score composite ; le Voronoi est supprime le 2026-10-30, decision Vincent) |
 | Zones | panneau gauche | `Alt+4` | seul endroit qui fabrique une geometrie + une liste de CP. **Depuis le 2026-09-20, il liste aussi les JEUX DE ZONES a risque** (`JeuxDeZonesRail.tsx`) : un jeu de zones EST une zone — un perimetre nomme, enregistre, reutilisable — et le chercher dans l'atelier suppose de se rappeler ou il a ete fabrique. Le panneau MONTRE et OUVRE, rien de plus : afficher ou supprimer restent dans l'atelier, avec le contexte (profil, seuil, taux d'utile) qui les rend comprehensibles |
 | Campagne | overlay MAGELIAN plein ecran | `Alt+C` | active/pilote une campagne (accent teal, pastille d'alertes) |
 | Reglages, Aide | panneau gauche, en bas du rail | — | pas de raccourci, pas de tooltip |
@@ -897,23 +897,23 @@ du comportement metier de chaque outil.
   lui, un degrade ajoute serait REJETE en silence a la frontiere et ne se
   rallumerait jamais depuis l'URL ou localStorage.
 - **Aucun calcul d'analyse sans perimetre** (`lib/carte/garde-perimetre.ts`) —
-  bloque le lancement (Voronoi, bataille V1/V2, application de la bataille,
+  bloque le lancement (bataille V1/V2, application de la bataille,
   clustering, score composite) tant qu'aucun `FiltreActif` n'est pose et
   qu'aucune zone n'est selectionnee. Meme famille d'incident que le filtre unique (28/03 et 08/04).
-  Le cablage reel sur les six outils est verrouille par
+  Le cablage reel sur les cinq outils (six jusqu'a la suppression du Voronoi, 2026-10-30) est verrouille par
   `tests/unit/carte/panneau-analyse-garde.test.ts`, qui lit le SOURCE de
   `PanneauAnalyse.tsx` plutot que de simuler son comportement — une premiere
   version avait ecrit la garde correctement dans un test isole, tout en
   laissant une prop reelle cablee SANS garde en production ; seul un test qui
   lit le composant reel attrape ce genre d'ecart.
   **Refus explicite du perimetre national (2026-09-15, spec-filtre-france.md)** :
-  poser le filtre `'france'` fait passer `perimetreChoisi` pour LES SIX outils
+  poser le filtre `'france'` fait passer `perimetreChoisi` pour TOUS les outils
   d'un coup — c'est le but meme de ce filtre. `outilAdmetNational` (meme
   fichier) distingue l'outil dont le cout sur la France est mesure et
   negligeable (le score composite, 159 ms/640 Ko sur les 6 187 CP,
-  `/api/analyses/score`) des cinq autres, jamais mesures a cette echelle
-  (Voronoi/bataille V1/bataille V2/application de la bataille/clustering) et
-  dont un seul (le Voronoi) depassait 30 s avant un correctif de la veille :
+  `/api/analyses/score`) des quatre autres, jamais mesures a cette echelle
+  (bataille V1/bataille V2/application de la bataille/clustering ; le Voronoi,
+  qui depassait 30 s avant un correctif de la veille, est supprime le 2026-10-30) :
   `messageGardeOutil` leur rend un refus qui NOMME l'outil et propose une
   region ou un departement, jamais un blocage muet. Cablage verrouille par le
   meme test structurel (`HANDLERS_GARDE_OUTIL`, `verifierPerimetreOutil`) —
@@ -1222,8 +1222,9 @@ toujours un tableau ; `/api/map/categories` et `/api/map/pois` (et
 `tests/unit/auth/perimetre-vue-espace.test.ts`). Consequences : l'empreinte de
 cache d'un super_admin sur la carte est celle de son espace (les battles
 calculees sous `tout` ne lui sont plus resservies, recalcul une fois, pas de
-purge) ; `categorieEntierementVisible` lui refuse, dans l'espace BMW, un
-Voronoi sur une categorie contenant des POI de la Marine. `source_visible()`
+purge) ; `categorieEntierementVisible` lui refusait, dans l'espace BMW, un
+Voronoi sur une categorie contenant des POI de la Marine (helper retire avec le
+Voronoi le 2026-10-30, son seul appelant). `source_visible()`
 (SQL) n'est pas modifiee. Preuve de bout en bout (T5, base locale, Angular +
 Next du chantier) : super_admin dans BMW GROUP = categories `bmw` (espace) +
 `lycee` (commune), 177 concessions affichees (24 en Ile-de-France), 0 CIRFA ;
@@ -1298,8 +1299,9 @@ Outils de `lib/auth/perimetre-donnees.ts` :
   resultat calcule sur des POI (battle, isochrones du chat) : sans elle, la
   battle d'un super_admin sur toutes les concessions etait resservie a la
   Marine. `cleDeCacheDuPerimetre` controle une cle recue du navigateur.
-- `categorieEntierementVisible` — pour un calcul SQL sur toute une categorie
-  (Voronoi) : refuse si un seul POI appartient a une source invisible.
+- ~~`categorieEntierementVisible`~~ — retire le 2026-10-30 avec le Voronoi,
+  son seul appelant (un calcul SQL sur toute une categorie refusait si un seul
+  POI appartenait a une source invisible).
 - `reserverAuSuperAdmin(req)` — session lue par cookie OU en-tete
   (`requireAdmin` ne lit que l'en-tete, et les ecrans de la carte appellent par
   `fetch` nu). Pose sur les 16 handlers de `/api/poi-clusters` : les modeles de
@@ -1462,7 +1464,8 @@ dans le code », 2026-10-12) ; les paquets `ai` et `@ai-sdk/*` sont desinstalles
 verrou `tests/unit/securite/aucune-ia.test.ts` echoue si un import, une cle
 (`GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `MODAL_*`) ou un appel vers
 Gemini/Mistral reparait dans un fichier suivi. Le seul calcul que seul le chat offrait,
-le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
+le Voronoi, a eu sa route directe `GET /api/voronoi` (lot 4) — **SUPPRIME le 2026-10-30 (decision Vincent)** avec ses
+fonctions SQL (sql/299).
 
 ### Donnees cartographiques
 | Route | Methode | Description |
@@ -1508,7 +1511,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/tiles/[z]/[x]/[y]` | GET | Tuiles MVT carreaux (gzip obligatoire). **Cascade `get_tile` calee sur la taille apparente des mailles** (une choroplethe se lit entre 10 et 40 px par carreau) : `z<=6` 20 km · `z7` 5 km · `z8` 2 km · `z9-11` **1 km** · `z>=12` 200 m (sql/129). Ne PAS redescendre le seuil du 200 m sans avoir d'abord donne des colonnes typees a `carreaux_filosofi` : ses 4,6 Go et son jsonb de 806 o/ligne imposent un plancher d'environ 4 s par tuile froide (mesure faite quand le compute etait annonce Nano ; le palier reel est Micro, voir « Budget I/O Supabase » plus bas — le plancher, lui, a ete chronometre et reste vrai). Chaque feature porte `superficie_km2` (sql/122), consomme par `lib/carreaux/normalisation.ts` pour rendre les indicateurs comparables entre paliers de zoom. **Tout changement du schema de tuile (colonnes ajoutees/retirees) impose de bumper `CARREAUX_TILE_VERSION` dans `lib/version.ts`** — sinon une tuile en cache (jusqu'a 1 h) reste servie avec l'ancien schema pendant que le front attend le nouveau. |
 | `/api/tiles/iris/[z]/[x]/[y]` | GET | Tuiles MVT IRIS (RPC `get_iris_tile`, sql/139) — cascade departement/commune/IRIS, plancher `IRIS_ZOOM_PLANCHER`. Placee sous `/api/tiles/` a dessein : le matcher de `middleware.ts` raisonne par SEGMENT. Voir la section « IRIS : tuiles MVT servies par Postgres » |
 | `/api/tmja-tiles/[z]/[x]/[y]` | GET | Tuiles MVT du flux routier (`comptages_routiers`), pipeline calque sur celui des carreaux. La table ne porte plus que les **1 100** comptages MESURÉS (le proxy OSM, 99,7 % de l'ancienne table, a été abandonné au rapatriement du 2026-09-19 ; recompté le 2026-10-10). Lue par la carte React et par `CarteApi.urlTuilesTmja()` (Angular, lot 4, T9) |
-| `/api/voronoi` | GET | **Cellules de Voronoi d'une categorie** (`?categorie=`, `metropolitaine`, `ville` / `departement` / `region`) — le bouton « Lancer le calcul » du panneau Analyse, SANS le chat (2026-10-12). RPC `get_voronoi_by_category_jsonb` (borne 5 000, `tronque`), session exigee DANS la route par `requireAuth` + `adminFetch` (hors matcher de `middleware.ts`), quota 6 / 60 s, garde `categorieEntierementVisible`. Detail : section « Voronoi & Stats villes » |
+| ~~`/api/voronoi`~~ | GET | **SUPPRIME le 2026-10-30 (decision Vincent)** : la route, le bouton « Lancer le calcul » du panneau Analyse React (`VoronoiTool`, `useVoronoiDirect`, `lib/carte/voronoi-direct.ts`) et les fonctions `get_voronoi_*` (sql/299). Une analyse enregistree de type `voronoi` repond 410 `outil_supprime` a `POST /api/analyses/[id]/rejouer` |
 | `/api/map/territory-mask` | POST | Geometrie d'un territoire (region/departement/CP) pour le masque MapLibre cote client — meme union admin que `/api/custom-geo/source/admin` |
 | `/api/insee-variables/[code]/geojson` | GET | Polygones CP d'une bbox enrichis de la valeur d'une variable INSEE (couche indicateurs). Un code hors des indicateurs visibles de l'espace actif répond 404 `unknown_variable`, exactement comme un code inconnu (`indicateursVisibles`, sql/288) ; réponse `no-store`. React demande le monde (`-180,-90,180,90` : 6 186 polygones, 21,6 Mo de jsonb) ; Angular (lot 4, T10) la carte VISIBLE |
 | `/api/insee-variables/cp-detail` | GET | Commune principale d'un code postal + nombre de communes associees — popup de la couche ci-dessus |
@@ -1813,7 +1816,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/custom-geo/national-totals` | GET | Totaux population France par tranche d'age (RPC `get_national_population_totals` sur carreaux_5km, cache serveur 24h) — colonne « % France » du plan media (ZoneMediaPlanPanel : budget/CPM/cible sur les zones affichees) |
 | `/api/custom-geo/[id]/items-audience` | GET | Audience par item d'une zone (les isochrones d'une zone battle) — cache `items_audience_stats`, sinon RPC `compute_zone_items_audience` (sql/088, cibles age+menages+logement social sql/090) |
 | `/api/custom-geo/[id]/export?weights=` | GET | Variantes ponderees de `bidding_script` (paliers de score DV360 par item) et `tiktok_geo` (un ad group par item avec part de budget) — poids du plan media, RPC `get_zone_items_export` (sql/089). Les formats `csv_cp`, `csv_iris`, `dv360_cp`, `dv360_sdf` et `bidding_script` lisent `custom_geo_zone_codes` EN ENTIER par `lireCodesDeZone` (`lib/custom-geo/codes-zone.ts`, lecture paginee, borne 60 000) depuis le 2026-10-10 : l'ancien `.limit(100000)` rendait 1 000 codes (`db-max-rows`) — une zone en porte 1 641 CP, une autre 9 834 IRIS. Les textes de `dv360_cp` et `dv360_sdf` sont `texteCpDv360` / `texteSdfDv360` (`lib/digital/fichiers-dv360.ts`, lot 7 T2), partages avec le fichier d'une extraction ; reponses inchangees | **Zone `pays`** : 422 `zone_pays` avant toute lecture de codes (même phrase que ⑤), au lieu d'un fichier vide.
-| `/api/custom-geo/source/*` | — | ⚠ **Six des dix-sept routes de ce prefixe portent un quota**, PAS toutes. Avec quota (20 appels / 60 s par utilisateur, compteur PARTAGE en base — `consommer_quota`, sql/135, jamais une Map locale) : `codes-postaux`, `rayon`, `dessin`, `intersection`, `difference` (les cinq routes de fabrication de zone) et `score` (quota `geo:rl:zone-score`, ajoute le 2026-09-15). Les trois routes d'analyse `/api/analyses`, `/score` et `/correlation` en ont un aussi. **SANS quota** : `admin`, `battle`, `carreaux`, `composite`, `digital`, `indicator-threshold`, `iris`, `meteo`, `radio`, `tmja`, `voronoi` — et parmi elles, **`admin`, `indicator-threshold` et `meteo` appellent `get_admin_filter_geometry`**, la RPC dont le cout justifie le garde-fou. Recompte le 2026-09-16 : jusque-la cette ligne, posee sur le glob, laissait croire que les dix-sept etaient couvertes. Cout unitaire mesure : `get_admin_filter_geometry` sur 2 000 CP lit **540 blocs disque** par appel, `zone_dessin` sur 5 000 sommets prend 1,5 s, `zone_rayon` a 100 km 355 ms — sans plafond, une boucle sur l'une d'elles est la famille exacte de l'incident du 28/03 |
+| `/api/custom-geo/source/*` | — | ⚠ **Six des seize routes de ce prefixe portent un quota** (dix-sept jusqu'a la suppression de `voronoi`, 2026-10-30), PAS toutes. Avec quota (20 appels / 60 s par utilisateur, compteur PARTAGE en base — `consommer_quota`, sql/135, jamais une Map locale) : `codes-postaux`, `rayon`, `dessin`, `intersection`, `difference` (les cinq routes de fabrication de zone) et `score` (quota `geo:rl:zone-score`, ajoute le 2026-09-15). Les trois routes d'analyse `/api/analyses`, `/score` et `/correlation` en ont un aussi. **SANS quota** : `admin`, `battle`, `carreaux`, `composite`, `digital`, `indicator-threshold`, `iris`, `meteo`, `radio`, `tmja` — et parmi elles, **`admin`, `indicator-threshold` et `meteo` appellent `get_admin_filter_geometry`**, la RPC dont le cout justifie le garde-fou. Recompte le 2026-09-16 : jusque-la cette ligne, posee sur le glob, laissait croire que les dix-sept etaient couvertes. Cout unitaire mesure : `get_admin_filter_geometry` sur 2 000 CP lit **540 blocs disque** par appel, `zone_dessin` sur 5 000 sommets prend 1,5 s, `zone_rayon` a 100 km 355 ms — sans plafond, une boucle sur l'une d'elles est la famille exacte de l'incident du 28/03 |
 | `/api/custom-geo/source/codes-postaux` | POST | **Une zone depuis une liste de CP** (Tache 16) : liste collee (JSON) ou fichier depose (multipart, lu par `lireFormulaire()` + `fichierDeFormulaire()`, jamais un cast). Borne a 2 000 CP. Rend SEPAREMENT les jetons rejetes (coquille de saisie) et les codes inconnus du referentiel (Cedex, code perime, CP etranger) — un import qui avale 500 codes, en resout 460 et n'en dit rien produit une zone plus petite que commandee, et personne ne s'en apercoit avant la facture. La verification au referentiel est **decoupee en lots de 500** : `postgrest-js` encode chaque virgule d'un `.in()` en `%2C`, soit 8 caracteres par CP — a 2 000 codes l'URL faisait **16 104 caracteres** (mesure) pour une limite Kong/nginx usuelle de 16 384, et un depassement echoue MUETTEMENT |
 | `/api/custom-geo/source/rayon` | POST | **Zone circulaire** (Tache 17, sql/155) : `{lon, lat, rayon_m}`, rayon borne a 100 km. `ST_Buffer` sur `geography` — en degres, le cercle deviendrait une ellipse et « 20 km » n'en ferait pas 20. Clippe sur `france_borders`, qui couvre les DROM (verifie : -61,8 a 55,8 de longitude). Rend `part_retenue` : Marseille 20 km ne garde que 60,5 % du cercle, le reste est en mer. 409 si le clip emporte tout |
 | `/api/custom-geo/source/dessin` | POST | **Trace libre** (Tache 18, sql/156) : recoit le polygone dessine, le valide par `ST_MakeValid` — un trace a main levee croise souvent son propre chemin, et le « noeud papillon » resultant ferait lever toute operation PostGIS ulterieure — puis le clippe sur `france_borders`. 409 sur un trace sans surface exploitable. Rend `corrige` (le trace a du etre repare, la zone n'est pas exactement celle dessinee) et `part_retenue` |
@@ -1847,7 +1850,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/custom-geo/source/meteo` | Enveloppe de `get_admin_filter_geometry` : la meteo est agregee par zones admin existantes, pas sur une grille propre |
 | `/api/custom-geo/source/carreaux` | Union des carreaux Filosofi d'une bbox (borne par `max_rows`), filtrage optionnel par bornes de valeur |
 | `/api/custom-geo/source/iris` | Union des geometries d'un ensemble d'IRIS |
-| `/api/custom-geo/source/voronoi` | Union des cellules Voronoi d'une categorie (mode standard V1 ; le mode routier reste a faire) |
+| ~~`/api/custom-geo/source/voronoi`~~ | **SUPPRIME le 2026-10-30 (decision Vincent)** (capture du calque Voronoi ; `get_voronoi_capture_geometry` supprimee par sql/299). Les zones deja capturees (`source_type = 'voronoi_cells'`) gardent leur forme figee et leur libelle |
 | `/api/custom-geo/source/battle` | Geometrie d'une bataille isochrone (union des caches cibles) |
 | `/api/custom-geo/source/radio` | Union des buffers de couverture des emetteurs d'une radio (RPC `get_radio_coverage_geometry`, sql/121) |
 | `/api/custom-geo/source/tmja` | Buffer de 250 m autour des LineStrings de flux routier d'une bbox, unis en MultiPolygon |
@@ -2117,7 +2120,7 @@ et `cloisonnement-rls.test.ts` (« supprimer l'espace ne les rend lisibles par p
 | `carreau_risque_nature` | **La MEME chose que `carreau_risque_distance`, mais PAR NATURE de risque** : `d_haut_m` / `d_bas_m` / `pprt_niveau` au grain (carreau x nature). **1 446 552 lignes, 13 natures**, Martinique et La Reunion comprises. Existe parce que sa table mere a ete construite avec un predicat **FIXE** — Seveso haut et bas, toutes natures confondues — et ne peut donc pas repondre « distance au site *inflammable* le plus proche ». ⚠ **Une table FILLE et non quinze colonnes** sur la mere : la nature est une dimension, pas un attribut, et quinze colonnes `d_<nature>_m` auraient impose une migration a chaque nature ajoutee au registre. Le facteur de multiplication mesure est **1,64** et non 13 — un carreau n'est a portee que d'une ou deux natures en general. ⚠ **`nature_ord` est un `smallint`** et non le libelle : 1,4 M de lignes ne peuvent pas porter 25 caracteres chacune, et l'ordinal vient de `icpe_rubrique_familles.rang_gravite`, deja unique. ⚠ **`pprt_niveau` y est REPETE par nature** et ne vaut pas celui de la mere : un carreau peut etre couvert par un perimetre dont le generateur est d'une nature, et hors des anneaux d'une autre — sans cette colonne, filtrer une nature laissait a l'ecran les servitudes opposables des autres. Pas de cle etrangere vers `carreaux_filosofi`, meme raison que la mere | sql/218 (2026-09-20). ⚠ **AUCUN script ne la construit — corrige le 2026-09-22.** Cette case annoncait `scripts/construire_carreau_risque.mjs`, qui ne nomme nulle part `construire_carreau_risque_nature` : il ne batit que la table MERE. Il faut derouler les bandes a la main — 20 en metropole (`construire_carreau_risque_nature(i, 20)`), puis Martinique et La Reunion en appels SEPARES avec cles de journal >= 1000, plus `remplir_pprt_nature_generateur()` AVANT. Le defaut etait couteux precisement parce qu'il ne se voyait pas : en suivant cette ligne, on lancait le script, on lisait « termine », et le filtre par nature restait vide sans un mot — une table absente et une table qui ne retient rien se ressemblent a l'ecran. A doter d'un script, comme sa mere. RLS deny-all |
 | `pprt_niveau_generateur` | Le niveau (`haut`/`bas`) du site generateur de chaque perimetre PPRT, par rattachement au site le plus proche a **500 m** — MEME regle que sql/179, et 500 m plutot que l'inclusion stricte parce que les coordonnees AIOT pointent parfois l'entree du site. 664 perimetres, **532 rattaches** ; les 132 autres n'ont aucun site Seveso ACTIF assez proche, le generateur ayant pu cesser son activite — ce n'est pas une lacune d'import. **`nature_ord` ajoute sql/218** : la nature dominante du generateur, par la MEME regle de rattachement que le niveau — sans elle, un jeu filtre sur une nature gardait les perimetres PPRT de toutes. ⚠ **MATERIALISEE sur mesure** : ecrite d'abord comme fonction `stable`, elle coutait **51,9 s par appel**, et la construction l'appelle une fois par bande — 17 minutes de recalcul identique sur 20 bandes. Le symptome designait mal la cause : la bande de l'Atlantique produisait ZERO ligne en 42 s quand une bande dense en produisait 48 391 en 3,7 s, et un cout qui ne suit pas le volume de sortie est un cout fixe | sql/203 (2026-09-19). RLS deny-all |
 | `seveso_exposition` | Cache de la population exposee par site. Une ligne par (site, mode, palier). `indicatif` distingue un chiffre issu de la servitude PPRT d'un chiffre issu d'un rayon choisi par nous. `pop_couronne` est STOCKEE et non derivee a l'affichage : la couronne se deduit des cumuls DEJA ARRONDIS, sinon la somme des couronnes ne retombe pas sur le cumul (mesure avant correctif : 2+29+2096 = 2127 pour un cumul de 2126, et un tableau qui ne s'additionne pas fait douter le lecteur, pas le logiciel) | sql/180 (2026-09-18). Alimente a la demande par `/api/risques/[siteId]/exposition`. RLS deny-all |
-| `analyses` | Une analyse lancee (clusters/score/battle/voronoi/correlation/elm) devenue un objet rejouable : nom, `parametres` complets (cle de rejeu via `cleParametres`, `lib/analyses/types.ts`), `maillage`, `perimetre`, `resultat` leger, `statut` | sql/145 (2026-09-12). `type`/`statut` sont `text` + `CHECK` — le generateur sort `string`, les unions TS vivent dans `lib/analyses/types.ts` et doivent rester synchronisees a la main avec la contrainte. Index `idx_analyses_org_date` (org_id, created_at DESC) et `idx_analyses_type` (org_id, type). RLS deny-all, routes en `service_role`. Auparavant, seul le clustering laissait une trace (`clustering_models`/`clustering_jobs`) ; battles/voronois/isochrones n'en laissaient aucune |
+| `analyses` | Une analyse lancee (clusters/score/battle/voronoi/correlation/elm ; `voronoi` garde pour l'historique, 410 au rejeu depuis le 2026-10-30) devenue un objet rejouable : nom, `parametres` complets (cle de rejeu via `cleParametres`, `lib/analyses/types.ts`), `maillage`, `perimetre`, `resultat` leger, `statut` | sql/145 (2026-09-12). `type`/`statut` sont `text` + `CHECK` — le generateur sort `string`, les unions TS vivent dans `lib/analyses/types.ts` et doivent rester synchronisees a la main avec la contrainte. Index `idx_analyses_org_date` (org_id, created_at DESC) et `idx_analyses_type` (org_id, type). RLS deny-all, routes en `service_role`. Auparavant, seul le clustering laissait une trace (`clustering_models`/`clustering_jobs`) ; battles/voronois/isochrones n'en laissaient aucune |
 
 ### Support
 | Table | Description | Notes |
@@ -2151,37 +2154,20 @@ et `cloisonnement-rls.test.ts` (« supprimer l'espace ne les rend lisibles par p
 | `clip_geojson_to_france` | Clip GeoJSON sur `france_borders` | `api/isochrone-battle/` |
 
 ### Voronoi & Stats villes
+**SUPPRIME le 2026-10-30 (decision Vincent)** : `get_voronoi_by_category` (deux signatures), `get_voronoi_by_category_jsonb`,
+`get_voronoi_capture_geometry` et `get_voronoi_routier_by_category` sont supprimees par
+`sql/299_suppression_voronoi.sql`, apres preuve qu'aucun objet n'en dependait (`pg_depend`, vues, corps
+PL/pgSQL : garde-fou rejoue a l'execution). Les fonctions PostGIS `st_voronoi*` restent (`couverture_rayon_poi`).
+Les migrations 010, 164 et 246 restent pour l'histoire.
+
 | RPC | Description | Appelee depuis |
 |-----|-------------|----------------|
-| `get_voronoi_by_category` | Voronoi par categorie, clippe France. **ENVELOPPE MINCE de `get_voronoi_by_category_jsonb` depuis sql/246** (2026-10-10) : `RETURNS SETOF json`, donc coupee a `db-max-rows` = 1 000 par PostgREST — mesure : 4 653 cellules de lycees en base, 1 000 rendues. Meme borne (5 000) qu'en sql/164 ; droits alignes sur la jumelle (service_role seul) | *plus appelee par l'application* |
-| `get_voronoi_by_category_jsonb` | Jumelle `jsonb` (sql/246) qui porte le calcul de sql/164 inchange (seule la forme passe de `json_build_object` a `jsonb_build_object` : ordre des cles normalise par jsonb, contenu identique ; `p_limite` NULL ou negatif non garde, seul service_role l'appelle) : rend `{ features, tronque }`, lit `p_limite + 1` cellules (defaut 5 000) et DIT quand la borne est atteinte. Identite verifiee contre l'ancienne fonction (ids + aire de chaque cellule, cirfa 95 et lycee 4 653 : 0 ecart). Cout inchange : lycee 14,4 s, `shared hit=318267 read=45946` ; cirfa 0,7 s. Service_role seul | `GET /api/voronoi` (bouton « Lancer le calcul » du panneau Analyse, depuis le 2026-10-12), seul appelant depuis le retrait de `lib/chat/tools/voronoi.ts` (lot 5) — borne `BORNE_CELLULES` = 5 000 |
 | `refresh_ville_stats_chunk` | Refresh stats villes par batch | *orpheline* (route supprimee 08/2026) |
 
-**`GET /api/voronoi?categorie=…[&metropolitaine=false][&ville=…|&departement=…|&region=…]`**
-(2026-10-12, suppression de l'IA, lot 4) — le Voronoi du panneau Analyse SANS
-le chat. Jusque-la, « Lancer le calcul » ecrivait « Fais le Voronoi des … » au
-copilote, et seul l'outil `voronoi_analysis` appelait la RPC. La route rend la
-MEME forme que l'outil (`voronoiGeoJSON` avec `_meta`, `poisForMap`,
-`nb_polygones`, `tronque`, `category`, `metropolitaine`), affichee par
-`lib/carte/voronoi-direct.ts` (`appliquerResultatVoronoi` : `applyVoronoi` puis
-`setZoneData`, ce que faisait la branche `voronoi_analysis` de `useToolProcessor`)
-via `app/map/_hooks/useVoronoiDirect.ts`. Depuis le lot 5, l'outil et
-`useToolProcessor` sont supprimes avec le chat : la route est la SEULE copie
-du calcul. L'authentification passe AVANT la validation (un anonyme recoit
-401, jamais un 400 qui decrirait les parametres) et l'id de repli d'une cellule
-sans `id` est deterministe (`<categorie>-<rang>`, plus de `Math.random`). `requeteVoronoi` traduit le territoire du
-panneau comme la phrase le formulait (ville > UN departement > UNE region par son
-NOM > etendue ; plusieurs regions/departements retombent sur l'etendue).
-Gardes : **session exigee dans la route** par `requireAuth` (en-tete
-`Authorization`, pose par `adminFetch` cote client — 401 sinon ; la route n'est
-PAS dans le matcher de `middleware.ts`, fichier protege, meme patron que
-`/api/custom-geo/source/voronoi`), quota partage 6 / 60 s par compte
-(`geo:rl:voronoi`), puis `categorieEntierementVisible` avec
-`sourcesVisiblesDeLaRequete` (vue espace) : 403 et RPC jamais lancee si un seul
-POI de la categorie echappe a l'appelant. Erreur RPC : 500 dans
-l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
-14 s). Verrous : `tests/unit/api/voronoi-route.test.ts`,
-`tests/unit/carte/voronoi-direct.test.ts`.
+**`GET /api/voronoi`** (2026-10-12, suppression de l'IA, lot 4 : le Voronoi du panneau Analyse sans le chat) —
+**SUPPRIME le 2026-10-30 (decision Vincent)**, avec `lib/carte/voronoi-direct.ts`, `app/map/_hooks/useVoronoiDirect.ts`, le quota `geo:rl:voronoi` et
+leurs verrous (`tests/unit/api/voronoi-route.test.ts`, `tests/unit/carte/voronoi-direct.test.ts`,
+`tests/integration/voronoi-jsonb.test.ts`). Jamais porte en Angular ; il ne se lancait plus que par ce bouton React.
 
 ### Carreaux & Tuiles
 | RPC | Description | Appelee depuis |

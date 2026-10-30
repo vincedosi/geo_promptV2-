@@ -16,9 +16,6 @@ interface MapPanelProps {
   isochroneFromCache: boolean;
   isochroneCachedAt: string;
   setIsochroneVisible: (v: boolean) => void;
-  voronoiVisible: boolean;
-  voronoiCategory: string;
-  setVoronoiVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
   battleVisible: boolean;
   battleCategory: string;
   setBattleVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -102,7 +99,6 @@ export function MapPanel({
   mapContainerRef, mapRef, mapReady, zoneData,
   isochroneVisible, isochroneMinutes, isochroneMode, isochroneFromCache, isochroneCachedAt,
   setIsochroneVisible,
-  voronoiVisible, voronoiCategory, setVoronoiVisible,
   battleVisible, battleCategory, setBattleVisible,
   carreauxRange, carreauxSelectedBucket,
   setCarreauxVisible, setCarreauxIndicateur, setCarreauxPalette, setCarreauxOpacity, setCarreauxSelectedBucket,
@@ -196,38 +192,9 @@ export function MapPanel({
         </div>
       )}
 
-      {/* Badge Voronoï actif */}
-      {voronoiVisible && voronoiCategory && (
-        <div style={{
-          ...badgeBase,
-          position: 'relative',
-          borderColor: C.warn + '60',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: C.warn, fontFamily: fontInter, fontSize: 9, letterSpacing: '0.12em' }}>
-              VORONOI
-            </span>
-            <span style={{ color: C.textDim }}>{voronoiCategory}</span>
-            <button
-              onClick={() => setVoronoiVisible(false)}
-              style={{ background: 'none', border: 'none', color: C.textDim, cursor: 'pointer', padding: 0, fontSize: 11, lineHeight: 1 }}
-            >✕</button>
-          </div>
-        </div>
-      )}
-
       {/* Toggles layers : ligne compacte */}
       <div style={{ display: 'flex', gap: 4 }}>
         {/* Carreaux : contrôles dans PanneauCalques > Socio-démographie (Tâche 6, 2026-09-12) */}
-        {voronoiCategory && (
-          <button onClick={() => setVoronoiVisible(v => !v)}
-            onMouseEnter={() => setHoveredToggle('voronoi')}
-            onMouseLeave={() => setHoveredToggle(null)}
-            style={{ ...toggleBtnBase(voronoiVisible, C.warn), position: 'relative', flex: 1, justifyContent: 'center', padding: '5px 6px', transform: hoveredToggle === 'voronoi' ? 'scale(1.02)' : 'scale(1)' }}>
-            <span style={{ width: 7, height: 7, background: voronoiVisible ? C.warn : 'transparent', border: `1.5px solid ${C.warn}`, borderRadius: 1, flexShrink: 0 }} />
-            Voronoï
-          </button>
-        )}
         {battleCategory && (
           <button onClick={() => setBattleVisible(v => !v)}
             onMouseEnter={() => setHoveredToggle('battle')}

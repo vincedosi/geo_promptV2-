@@ -242,7 +242,7 @@ export async function GET(req: NextRequest) {
       // Strategy 3: Estimate sizes from row counts if nothing else worked
       if (tables.every(t => t.total_size === 'N/A')) {
         // Rough estimate: ~200 bytes/row for metadata tables, ~500 bytes/row for geo/data tables
-        const heavyTables = new Set(['poi', 'carreaux_insee', 'carreaux_filosofi', 'panneaux', 'isochrones_cache', 'voronoi_cells']);
+        const heavyTables = new Set(['poi', 'carreaux_insee', 'carreaux_filosofi', 'panneaux', 'isochrones_cache']);
         for (const t of tables) {
           if (t.row_count > 0) {
             const bytesPerRow = heavyTables.has(t.table_name) ? 500 : 200;

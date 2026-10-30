@@ -224,7 +224,7 @@ C'est l'étape RQ ④ rendue générale, telle que décidée le 25/09.
 
 - **Écran**, de haut en bas :
   1. **Source** — d'où vient la zone : capture d'un résultat de ③ ou d'un
-     calque de ② (seuil d'indicateur, score, bataille, Voronoï, radio,
+     calque de ② (seuil d'indicateur, score, bataille, radio — le Voronoï (supprimé le 30/10/2026, décision Vincent) —,
      TMJA, carreaux), import d'une liste de CP, liste d'IRIS, dessin
      polygone/rectangle, point + rayon. **La nature est affichée et
      conservée** (§ 8).
@@ -651,7 +651,7 @@ prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
 | ② | Données | POI, carreaux Filosofi 200 m, IRIS, CP, variables INSEE, flux routier (TMJA), transport, civique, santé (pollen/air), météo (pluie, température, prévisions) ; sélection recommandée par espace | lot 2 (en livraison) |
 | — | **Autres** (hors fil) | bouton de la barre du parcours, au même niveau que les étapes mais séparé, **non numéroté, sans Alt+N** : Panneaux OOH et Radio — on ne construit pas de zone avec | Task 11b du lot 2 |
 | ③ | Zones | **toute sélection devient une forme** (polygone), un SEUL objet « zone » quelle que soit sa recette, nommé, enregistré, qui **garde sa recette** pour être recalculé | rayon autour d'UN point, dessin (Polygon ≤ 5 000 sommets), liste de CP, capture, union/intersection/différence |
-| ④ | Analyse | plusieurs analyses au choix sur les zones : couverture (population et cible, sur le polygone **tel quel** ou découpé par CP ou IRIS), clustering des POI, score composite, Voronoï, isochrones comparées, croisements radio/trafic/météo. **Rien de l'existant n'est retiré.** | outils du panneau Analyse ; couverture = module risque seul |
+| ④ | Analyse | plusieurs analyses au choix sur les zones : couverture (population et cible, sur le polygone **tel quel** ou découpé par CP ou IRIS), clustering des POI, score composite, isochrones comparées, croisements radio/trafic/météo. **Rien de l'existant n'est retiré** — sauf le Voronoï (supprimé le 30/10/2026, décision Vincent) : jamais porté en Angular, sa route, son outil React et ses fonctions SQL (sql/299) sont retirés. | outils du panneau Analyse ; couverture = module risque seul |
 | ⑤ | Jeu de zones | on fige ce qui sera acheté ; **l'utilisateur choisit la maille plateforme par plateforme** (rien n'est forcé au plus fin) ; l'écran montre pour chaque plateforme ce qu'elle accepte, un **lien vers sa doc officielle**, et **ce que la maille choisie fait perdre** (diffusion hors zone, habitants manqués) | jeux de zones Seveso au CP |
 | ⑥ | Plan | le jeu de zones devient le plan média (budget, pression, CPM) | au CP seulement (React) |
 | ⑦ | Activation | export ou push dans le format natif de chaque plateforme, avec la connexion API de l'**espace actif** | DV360 CP/SDF/script + push ; TikTok fichier |
@@ -690,7 +690,7 @@ prime sur les §§ 2, 4, 8, 9, 10, 12 et 15** là où ils divergent.
 | Par seuil | carreaux Filosofi (ex. part de ménages pauvres > 40 % → union des carreaux retenus) ; IRIS ou CP au-dessus d'un seuil d'indicateur ; zone pluvieuse (météo) | oui ; oui ; lot météo (§ 16.5, lot 10) |
 | À la main | dessin ; **import de polygone GeoJSON / KML** ; liste de CP | forme figée ; forme figée ; oui |
 | Combinaisons | union, intersection, différence de zones enregistrées | oui (sur la forme actuelle des opérandes) |
-| Capture (existant) | ce qui est affiché (Voronoï, radio, TMJA, score…) | forme figée |
+| Capture (existant) | ce qui est affiché (radio, TMJA, score… ; plus le Voronoï (supprimé le 30/10/2026, décision Vincent)) | forme figée |
 
 ### 16.4 Ce que ce paragraphe remplace, section par section
 

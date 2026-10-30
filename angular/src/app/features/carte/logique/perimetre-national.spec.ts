@@ -4,7 +4,7 @@ import {
   FILTRE_FRANCE_ENTIERE, FILTRE_METROPOLE, corpsPoisDuFiltre, estMetropole, messageGardeCarte, scopeDuFiltre,
 } from './perimetre-national';
 
-const OUTILS: OutilAnalyse[] = ['voronoi', 'bataille_v1', 'bataille_v2', 'application_bataille', 'clustering', 'score_composite'];
+const OUTILS: OutilAnalyse[] = ['bataille_v1', 'bataille_v2', 'application_bataille', 'clustering', 'score_composite'];
 const REGION: FiltreActif = { type: 'region', code: '93', label: "Provence-Alpes-Côte d'Azur" };
 const FILTRES: (FiltreActif | null)[] = [
   null, REGION, FILTRE_METROPOLE, FILTRE_FRANCE_ENTIERE,
@@ -40,8 +40,6 @@ describe('perimetre-national', () => {
     for (const o of ['bataille_v1', 'application_bataille'] as const) {
       expect(messageGardeCarte(o, FILTRE_METROPOLE)).toContain('sur toute la France métropolitaine');
     }
-    expect(messageGardeCarte('voronoi', FILTRE_METROPOLE))
-      .toBe('Le Voronoï ne peut pas être calculé sur toute la France métropolitaine — choisissez une région ou un département.');
     expect(messageGardeCarte('clustering', FILTRE_METROPOLE))
       .toBe('Le clustering ne peut pas être calculé sur toute la France métropolitaine — choisissez une région ou un département.');
   });

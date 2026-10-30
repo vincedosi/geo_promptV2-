@@ -18,7 +18,6 @@ import { labelStyle, pill, primaryBtn } from './styles';
 export interface IsochronesToolProps {
   showBattle: boolean;
   setShowBattle: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowVoronoi: React.Dispatch<React.SetStateAction<boolean>>;
   setShowBattleV2: React.Dispatch<React.SetStateAction<boolean>>;
 
   battleVisible: boolean;
@@ -58,7 +57,6 @@ export interface IsochronesToolProps {
 export function IsochronesTool({
   showBattle,
   setShowBattle,
-  setShowVoronoi,
   setShowBattleV2,
   battleVisible,
   setBattleVisible,
@@ -88,7 +86,7 @@ export function IsochronesTool({
     <div style={{ border: `0.5px solid ${showBattle ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
       <button
         disabled={battleLoading}
-        onClick={() => { setShowBattle(s => !s); setShowVoronoi(false); setShowBattleV2(false); }}
+        onClick={() => { setShowBattle(s => !s); setShowBattleV2(false); }}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '9px 12px', background: showBattle ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',

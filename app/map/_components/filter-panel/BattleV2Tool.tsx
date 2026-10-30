@@ -21,7 +21,6 @@ export interface BattleV2ToolProps {
   showBattleV2: boolean;
   setShowBattleV2: React.Dispatch<React.SetStateAction<boolean>>;
   setShowBattle: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowVoronoi: React.Dispatch<React.SetStateAction<boolean>>;
 
   battleVisible: boolean;
   setBattleVisible: (v: boolean) => void;
@@ -50,7 +49,6 @@ export function BattleV2Tool({
   showBattleV2,
   setShowBattleV2,
   setShowBattle,
-  setShowVoronoi,
   battleVisible,
   setBattleVisible,
   battleV2Paliers,
@@ -74,7 +72,7 @@ export function BattleV2Tool({
     <div style={{ border: `0.5px solid ${showBattleV2 ? 'var(--border-default)' : C.border}`, borderRadius: 4, overflow: 'hidden' }}>
       <button
         disabled={battleV2Loading}
-        onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); setShowVoronoi(false); }}
+        onClick={() => { setShowBattleV2(s => !s); setShowBattle(false); }}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '9px 12px', background: showBattleV2 ? 'var(--bg-level-2)' : 'rgba(255,255,255,0.02)',

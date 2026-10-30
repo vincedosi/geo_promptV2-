@@ -45,7 +45,6 @@ const SOURCE = readFileSync(
  * `HANDLERS_GARDES` plus bas) — jamais la prop brute reçue de `page.tsx`.
  */
 const PROPS_DE_LANCEMENT: Array<[attribut: string, attendu: string]> = [
-  ['handleVoronoi', 'handleVoronoi'],
   ['handleCheckV2', 'handleCheckV2Garde'],
   ['handleFillMissingV2', 'handleFillMissingV2Garde'],
   ['handleBattleV2', 'handleBattleV2Garde'],
@@ -56,13 +55,12 @@ const PROPS_DE_LANCEMENT: Array<[attribut: string, attendu: string]> = [
 ];
 
 /**
- * Handlers locaux des CINQ outils lourds (spec-filtre-france.md, 2026-09-15) :
+ * Handlers locaux des QUATRE outils lourds (le Voronoï, supprimé le 30/10/2026, était le cinquième) (spec-filtre-france.md, 2026-09-15) :
  * doivent appeler `verifierPerimetreOutil('<outil>')` — pas `verifierPerimetre()`
  * seul — pour refuser explicitement un périmètre national. [nom du handler,
  * identifiant d'outil attendu (OutilAnalyse de garde-perimetre.ts)].
  */
 const HANDLERS_GARDE_OUTIL: Array<[nom: string, outil: string]> = [
-  ['handleVoronoi', 'voronoi'],
   ['handleCheckORSGarde', 'bataille_v1'],
   ['handleBattleGarde', 'bataille_v1'],
   ['handleCheckV2Garde', 'bataille_v2'],
@@ -269,5 +267,11 @@ describe('PanneauAnalyse — Correlation, absence de garde ASSUMEE', () => {
     // Son seul appel de calcul est borne par un campaignId.
     expect(source).toMatch(/\/api\/analyses\/correlation\?campaignId=/);
     expect(source).not.toMatch(/bbox/);
+  });
+});
+
+describe('Voronoï supprimé le 30/10/2026 (décision Vincent)', () => {
+  it('ni outil, ni handler, ni route dans le panneau Analyse React', () => {
+    expect(SOURCE).not.toMatch(/VoronoiTool|handleVoronoi|onDirectVoronoi|api\/voronoi|'voronoi'/);
   });
 });

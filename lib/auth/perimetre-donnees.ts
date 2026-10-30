@@ -172,40 +172,6 @@ export function cleDeCacheDuPerimetre(cle: string, sources: string[] | null): bo
   return cle.endsWith(`__p${empreintePerimetre(sources)}`);
 }
 
-/**
- * Une catégorie est-elle ENTIÈREMENT visible de l'appelant ?
- *
- * Pour les calculs faits en SQL sur toute une catégorie — Voronoï, modèles de
- * clustering — qu'on ne peut pas restreindre ligne à ligne : si un seul POI de
- * la catégorie appartient à une source que l'appelant ne voit pas, le résultat
- * en révélerait l'emplacement. On refuse alors le calcul, plutôt que de le
- * rendre faux ou indiscret.
- *
- * Super_admin compris sur la carte depuis le 2026-10-12 : dans l'espace BMW,
- * une catégorie qui contient des POI de la Marine lui est refusée, comme à un
- * client BMW. Seul `sources === null` (administration) passe sans contrôle.
- *
- * Une lecture d'un POI au plus (`limit(1)`), sur l'index de `categorie`.
- */
-export async function categorieEntierementVisible(
-  supabase: { from(table: 'poi_france'): unknown },
-  categorie: string,
-  sources: string[] | null,
-): Promise<boolean> {
-  if (sources === null) return true;
-  const ids = sources.filter((s) => UUID.test(s));
-  // Requête non typée : voir FiltrableParSource.
-  let q: any = (supabase.from('poi_france') as any)
-    .select('id')
-    .ilike('categorie', categorie)
-    .not('data_source_id', 'is', null);
-  if (ids.length > 0) q = q.not('data_source_id', 'in', `(${ids.join(',')})`);
-  const { data, error } = await q.limit(1);
-  // Une lecture en échec ferme.
-  if (error) return false;
-  return (data ?? []).length === 0;
-}
-
 interface FiltrableParSource {
   in(colonne: string, valeurs: readonly string[]): unknown;
   or(expression: string): unknown;

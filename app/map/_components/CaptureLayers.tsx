@@ -11,7 +11,6 @@
  *   - battle-isochrone     : RPC get_battle_geometry
  *   - radio-coverage       : RPC get_radio_coverage_geometry
  *   - iris-selection       : RPC get_iris_selection_geometry
- *   - voronoi-cells        : RPC get_voronoi_capture_geometry (mode standard V1, TODO V2 routier)
  *   - carreaux-filosofi    : RPC get_carreaux_capture_geometry (bbox + indicateur)
  *   - tmja-routes          : RPC get_tmja_capture_geometry (bbox + buffer 250m)
  */
@@ -55,10 +54,6 @@ interface Props {
   // IRIS selection
   selectedIrisCode: string | null;
 
-  // Voronoi (mode standard V1 ; TODO V2 mode routier)
-  voronoiVisible: boolean;
-  voronoiCategory: string;
-
   // Carreaux Filosofi
   carreauxVisible: boolean;
   carreauxIndicateur: string;
@@ -94,8 +89,6 @@ export function CaptureLayers({
   radioSelectedNom,
   radioCoverageMode,
   selectedIrisCode,
-  voronoiVisible,
-  voronoiCategory,
   carreauxVisible,
   carreauxIndicateur,
   carreauxSelectedBucket,
@@ -194,35 +187,6 @@ export function CaptureLayers({
     enabled: !!selectedIrisCode,
     getGeometry: getIrisGeom,
     metadata: { code_iris: selectedIrisCode },
-  });
-
-  // ── Voronoi (mode standard V1 — TODO V2 mode routier) ────────────────
-  // Limitation V1 : get_voronoi_by_category accepte UN seul code par filtre.
-  // Si le scope a >1 codes (multi-selection), on passe null pour ce filtre.
-  const getVoronoiGeom = useCallback((): Promise<ContributedGeometry> => {
-    if (!voronoiCategory) return Promise.resolve(null);
-    const scope = getActiveScope();
-    const monoCode = scope?.codes.length === 1 ? scope.codes[0] : null;
-    return fetchGeometryFromRoute('/api/custom-geo/source/voronoi', {
-      category: voronoiCategory,
-      metropolitaine: true,
-      filtre_region: scope?.scale === 'region' ? monoCode : null,
-      filtre_departement: scope?.scale === 'departement' ? monoCode : null,
-      filtre_ville: scope?.scale === 'ville' ? monoCode : null,
-    });
-  }, [voronoiCategory, getActiveScope]);
-
-  useCustomGeoLayer({
-    id: 'map-voronoi-cells',
-    sourceType: 'voronoi_cells',
-    label: voronoiCategory ? `Voronoi ${voronoiCategory}` : 'Voronoi',
-    enabled: voronoiVisible && !!voronoiCategory,
-    getGeometry: getVoronoiGeom,
-    metadata: {
-      category: voronoiCategory,
-      mode: 'standard',
-      admin_scope: getActiveScope(),
-    },
   });
 
   // ── Carreaux Filosofi (scope > bbox) ──────────────────────────────────

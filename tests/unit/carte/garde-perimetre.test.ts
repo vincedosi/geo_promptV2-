@@ -60,7 +60,7 @@ describe('garde de perimetre (spec §5)', () => {
 // est verifie structurellement par panneau-analyse-garde.test.ts).
 // ─────────────────────────────────────────────────────────────────────────
 const OUTILS_LOURDS: OutilAnalyse[] = [
-  'voronoi', 'bataille_v1', 'bataille_v2', 'application_bataille', 'clustering',
+  'bataille_v1', 'bataille_v2', 'application_bataille', 'clustering',
 ];
 
 describe('outilAdmetNational — seul le score composite admet la France entiere', () => {
@@ -81,9 +81,9 @@ describe('messageRefusNational — nomme l outil et propose la suite', () => {
     expect(msg).toMatch(/région ou un département/);
   });
 
-  it('le message du Voronoi correspond au verbatim de la spec', () => {
-    expect(messageRefusNational('voronoi')).toBe(
-      'Le Voronoï ne peut pas être calculé sur la France entière — choisissez une région ou un département.',
+  it('le message de la bataille V2 suit le verbatim de la spec (Voronoï supprimé le 30/10/2026)', () => {
+    expect(messageRefusNational('bataille_v2')).toBe(
+      'La bataille isochrone V2 ne peut pas être calculé sur la France entière — choisissez une région ou un département.',
     );
   });
 
@@ -94,12 +94,12 @@ describe('messageRefusNational — nomme l outil et propose la suite', () => {
 
 describe('messageGardeOutil — combine absence de perimetre ET refus national', () => {
   it('aucun perimetre : le message generique prime, quel que soit l outil', () => {
-    expect(messageGardeOutil('voronoi', null)).toBe(MESSAGE_PERIMETRE_MANQUANT);
+    expect(messageGardeOutil('bataille_v1', null)).toBe(MESSAGE_PERIMETRE_MANQUANT);
     expect(messageGardeOutil('score_composite', null)).toBe(MESSAGE_PERIMETRE_MANQUANT);
   });
 
   it('un perimetre regional/departemental : jamais bloque, quel que soit l outil', () => {
-    expect(messageGardeOutil('voronoi', dept)).toBeNull();
+    expect(messageGardeOutil('bataille_v1', dept)).toBeNull();
     expect(messageGardeOutil('clustering', zoneFiltre)).toBeNull();
   });
 

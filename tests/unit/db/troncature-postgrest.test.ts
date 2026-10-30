@@ -34,7 +34,8 @@ import { join, sep } from 'node:path';
  *   6. `get_voronoi_by_category`         — 2026-10-10, 4 653 cellules → 1 000,
  *      corrigée sql/246 ; la jumelle `_jsonb` est lue depuis le 2026-10-12 par
  *      la route directe `GET /api/voronoi` (`app/api/voronoi/route.ts`, borne
- *      5 000, `tronque`), qui remplace l'outil copilote (retiré au lot 5)
+ *      5 000, `tronque`), qui remplace l'outil copilote (retiré au lot 5) ;
+ *      route ET fonctions supprimées le 30/10/2026 (décision Vincent, sql/299)
  *
  * Quatre correctifs ponctuels n'ont pas empêché le cinquième. Ce fichier est la
  * réponse structurelle demandée par `docs/SUITE_TRONCATURE_POSTGREST.md` §2 et

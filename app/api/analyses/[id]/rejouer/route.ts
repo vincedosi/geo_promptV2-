@@ -41,6 +41,13 @@ const MOTEURS = {
   elm:         { cable: false, endpoint: null, methode: null },
 } satisfies Record<TypeAnalyse, { cable: boolean; endpoint: string | null; methode: string | null }>;
 
+/**
+ * Le Voronoï a été SUPPRIMÉ le 30/10/2026 (décision Vincent) : son type reste admis en base (`TYPES_ANALYSE`, l'historique
+ * se consulte), mais une analyse `voronoi` ne se rejoue plus — 410 et une phrase, jamais un moteur `cable: false` qui
+ * laisserait croire à un branchement à venir.
+ */
+const REFUS_VORONOI_SUPPRIME = 'Le Voronoï a été supprimé le 30/10/2026 : cette analyse se consulte mais ne se rejoue plus.';
+
 const RejouerSchema = z.object({
   /** Nom du nouveau lancement. Par défaut : nom de la source + suffixe. */
   nom: z.string().min(1).optional(),
@@ -81,6 +88,9 @@ export async function POST(
   // `source.type` sort en `string` du générateur (CHECK non vu) — resserré via
   // `AnalyseEnregistree`, source de vérité `lib/analyses/types.ts`.
   const typeSource = source as Pick<AnalyseEnregistree, 'type' | 'nom' | 'parametres' | 'maillage' | 'perimetre'>;
+  if (typeSource.type === 'voronoi') {
+    return NextResponse.json({ error: REFUS_VORONOI_SUPPRIME, refus: 'outil_supprime' }, { status: 410 });
+  }
   const moteur = MOTEURS[typeSource.type];
 
   return NextResponse.json({

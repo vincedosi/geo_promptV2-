@@ -33,7 +33,7 @@
  * CHOISI, pas absent.** `perimetreChoisi`/`messageGardePerimetre` passent
  * donc naturellement — c'est le sens même de la Tâche (« France entière » est
  * désormais une intention explicite, plus l'absence de filtre). Mais poser ce
- * filtre lève la garde pour LES SIX outils du panneau Analyse d'un coup, et
+ * filtre lève la garde pour TOUS les outils du panneau Analyse d'un coup, et
  * cinq d'entre eux coûtent bien plus que le score composite (159 ms sur les
  * 6 187 CP) : le Voronoï dépassait 30 s avant le correctif de la veille,
  * clustering et bataille sont du même ordre — rouvrir les incidents du 28/03
@@ -65,12 +65,12 @@ export function messageGardePerimetre(filtre: FiltreActif | null, zoneSelectionn
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Les six outils de calcul du panneau Analyse gardés par cette garde. Ne
+ * Les cinq outils de calcul du panneau Analyse gardés par cette garde (le
+ * Voronoï, sixième, a été supprimé le 30/10/2026 — décision Vincent). Ne
  * couvre pas la Corrélation (bornée par une campagne, pas par la carte —
  * absence de garde ASSUMÉE, voir `PanneauAnalyse.tsx`).
  */
 export type OutilAnalyse =
-  | 'voronoi'
   | 'bataille_v1'
   | 'bataille_v2'
   | 'application_bataille'
@@ -79,7 +79,6 @@ export type OutilAnalyse =
 
 /** Libellé humain de chaque outil, pour un message de refus qui NOMME l'outil. */
 const LIBELLE_OUTIL: Record<OutilAnalyse, string> = {
-  voronoi: 'Le Voronoï',
   bataille_v1: 'La bataille isochrone',
   bataille_v2: 'La bataille isochrone V2',
   application_bataille: 'L’application de la bataille',

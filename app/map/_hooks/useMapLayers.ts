@@ -16,7 +16,7 @@ import { bornesInternes, donneeExploitableExpr,
   hauteurExtrusionExpr, COULEUR_DONNEE_ABSENTE } from '@/lib/carreaux/expressions';
 import { echelleDe, echelleLogExpr, donneeIrisExploitableExpr,
   type BornesIris, type CatalogueBornesIris } from '@/lib/iris/echelle';
-import type { IsochroneData, VoronoiData, CarreauxData } from '@/types/spatial';
+import type { IsochroneData, CarreauxData } from '@/types/spatial';
 import { IRIS_ZOOM_PLANCHER } from '@/lib/version';
 import type { DegradeId } from '@/lib/carte/degrades';
 import { basculerDegrade as basculerDegradePur } from '@/lib/carte/calques-actifs';
@@ -109,15 +109,6 @@ export function useMapLayers({
   mapRef,
   mapReady,
 }: UseMapLayersOpts) {
-  // Voronoï
-  // Dernier Voronoï affiché : la légende en lit le territoire (`_meta`). Il
-  // vivait dans `useSavedMaps` (« voronoiDataForSaveRef »), retiré avec le
-  // chat le 2026-10-12 (seul l'écran de sauvegarde du chat l'ouvrait).
-  const voronoiDataRef = useRef<VoronoiData | null>(null);
-  const [voronoiVisible,  setVoronoiVisible]  = useState(false);
-  const [voronoiCategory, setVoronoiCategory] = useState('');
-  const [voronoiPois,   setVoronoiPois]   = useState<{ id: string; nom: string; color: string }[]>([]);
-
   // Bataille d'Isochrones
   const [battleVisible,          setBattleVisible]          = useState(false);
   const [battleCategory,         setBattleCategory]         = useState('');
@@ -205,18 +196,6 @@ export function useMapLayers({
   useEffect(() => { irisChoroRef.current      = irisChoro;      }, [irisChoro]);
 
   // ── Visibility toggles ────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-    const vis = voronoiVisible ? 'visible' : 'none';
-    try {
-      map.setLayoutProperty('voronoi-fill',       'visibility', vis);
-      map.setLayoutProperty('voronoi-line',       'visibility', vis);
-      map.setLayoutProperty('voronoi-pois-halo',  'visibility', vis);
-      map.setLayoutProperty('voronoi-pois-circle','visibility', vis);
-    } catch { /* layer pas encore prêt */ }
-  }, [voronoiVisible, mapReady, mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -860,92 +839,6 @@ export function useMapLayers({
 
   // ── Visualization functions ───────────────────────────────────────────────
 
-  const applyVoronoi = (vData: VoronoiData) => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    voronoiDataRef.current = vData;
-
-    const poiColorMap = new Map<string, string>();
-    let _colorIdx = 0;
-    for (const f of vData.features) {
-      const cid = String((f.properties as Record<string, unknown>)?.id ?? '');
-      if (cid && !poiColorMap.has(cid)) {
-        poiColorMap.set(cid, VORONOI_PALETTE[_colorIdx % VORONOI_PALETTE.length]);
-        _colorIdx++;
-      }
-    }
-
-    const featuresWithColors = vData.features.map((f) => {
-      const cid = String((f.properties as Record<string, unknown>)?.id ?? '');
-      const voronoi_color = poiColorMap.get(cid) ?? VORONOI_PALETTE[0];
-      return { ...f, properties: { ...f.properties, voronoi_color } };
-    });
-
-    const source = map.getSource('voronoi') as maplibregl.GeoJSONSource | undefined;
-    if (!source) return;
-
-    source.setData({ type: 'FeatureCollection', features: featuresWithColors } as GeoJSON.FeatureCollection);
-    map.setLayoutProperty('voronoi-fill', 'visibility', 'visible');
-    map.setLayoutProperty('voronoi-line', 'visibility', 'visible');
-    setVoronoiVisible(true);
-    setVoronoiCategory(vData._meta?.category ?? '');
-
-    const poisSeen = new Set<string>();
-    const poiFeatures: GeoJSON.Feature[] = [];
-    for (const f of featuresWithColors) {
-      const p = f.properties as Record<string, unknown>;
-      const pid = String(p.id ?? '');
-      const plat = Number(p.lat);
-      const plng = Number(p.lng);
-      if (pid && !poisSeen.has(pid) && !isNaN(plat) && !isNaN(plng) && plat && plng) {
-        poisSeen.add(pid);
-        poiFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [plng, plat] },
-          properties: { nom: p.nom, categorie: p.categorie, adresse: p.adresse, ville: p.ville, id: pid },
-        });
-      }
-    }
-
-    const poisSource = map.getSource('voronoi-pois') as maplibregl.GeoJSONSource | undefined;
-    if (poisSource) {
-      poisSource.setData({ type: 'FeatureCollection', features: poiFeatures });
-      if (poiFeatures.length > 0) {
-        try {
-          map.setLayoutProperty('voronoi-pois-halo',   'visibility', 'visible');
-          map.setLayoutProperty('voronoi-pois-circle', 'visibility', 'visible');
-        } catch {}
-      }
-    }
-
-    const _poiSeen = new Set<string>();
-    const poiLegend: { id: string; nom: string; color: string }[] = [];
-    for (const f of featuresWithColors) {
-      const p = f.properties as Record<string, unknown>;
-      const cid = String(p?.id ?? '');
-      if (cid && !_poiSeen.has(cid)) {
-        _poiSeen.add(cid);
-        poiLegend.push({ id: cid, nom: String(p?.nom ?? cid), color: poiColorMap.get(cid) ?? VORONOI_PALETTE[0] });
-      }
-    }
-    setVoronoiPois(poiLegend);
-
-    if (featuresWithColors.length > 0) {
-      const bounds = new maplibregl.LngLatBounds();
-      let extended = false;
-      for (const f of featuresWithColors) {
-        const geom = (f as GeoJSON.Feature<GeoJSON.Polygon>).geometry;
-        if (!geom || geom.type !== 'Polygon') continue;
-        for (const coord of geom.coordinates.flat()) {
-          bounds.extend([coord[0], coord[1]]);
-          extended = true;
-        }
-      }
-      if (extended) map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 1200 });
-    }
-  };
-
   // Référence interne pour accumuler les anneaux partiels côté client
   const partialRingsRef = useRef<GeoJSON.Feature[]>([]);
 
@@ -1261,11 +1154,6 @@ export function useMapLayers({
   }, [degradeActif, setCarreauxVisible, setIrisVisible]);
 
   return {
-    // Voronoï
-    voronoiVisible, setVoronoiVisible,
-    voronoiCategory,
-    voronoiPois,
-    voronoiDataRef,
     // Bataille
     battleVisible, setBattleVisible,
     battleCategory,
@@ -1314,7 +1202,6 @@ export function useMapLayers({
     setDegradeActif,
     basculerDegrade,
     // Visualization functions
-    applyVoronoi,
     clearBattlePartialRings,
     addBattlePartialRings,
     applyIsochroneBattle,

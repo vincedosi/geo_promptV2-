@@ -6,7 +6,8 @@ import { X } from 'lucide-react'
 /**
  * Bandeau d'erreur de la page carte (`app/map/page.tsx`).
  *
- * Rend l'état `error` alimenté par `useMapDirectActions` et `useVoronoiDirect`
+ * Rend l'état `error` alimenté par `useMapDirectActions` (et `useVoronoiDirect`
+ * jusqu'à la suppression du Voronoï, le 30/10/2026)
  * (refus de périmètre, délais dépassés, erreurs OOH / bataille / isochrones…).
  * `ChatPanel` en était le seul afficheur ; son retrait (lot 5 de la suppression
  * de l'IA) les avait rendus muets. Style « Alertes / Statut — Danger » du

@@ -7964,53 +7964,6 @@ export type Database = {
       get_user_org: { Args: never; Returns: string }
       get_user_orgs: { Args: never; Returns: string[] }
       get_user_role: { Args: never; Returns: string }
-      get_voronoi_by_category:
-        | { Args: { cat_name: string }; Returns: Json[] }
-        | {
-            Args: {
-              cat_name: string
-              filtre_departement?: string
-              filtre_region?: string
-              filtre_ville?: string
-              metropolitaine?: boolean
-            }
-            Returns: Json[]
-          }
-      get_voronoi_by_category_jsonb: {
-        Args: {
-          cat_name: string
-          filtre_departement?: string
-          filtre_region?: string
-          filtre_ville?: string
-          metropolitaine?: boolean
-          p_limite?: number
-        }
-        Returns: Json
-      }
-      get_voronoi_capture_geometry: {
-        Args: {
-          p_category: string
-          p_filtre_departement?: string
-          p_filtre_region?: string
-          p_filtre_ville?: string
-          p_metropolitaine?: boolean
-        }
-        Returns: Json
-      }
-      get_voronoi_routier_by_category: {
-        Args: {
-          cache_key_120?: string
-          cache_key_30?: string
-          cache_key_60?: string
-          cache_key_90?: string
-          cat_name: string
-          filtre_departement?: string
-          filtre_region?: string
-          filtre_ville?: string
-          metropolitaine?: boolean
-        }
-        Returns: Json[]
-      }
       get_zone_bbox_array: { Args: { p_zone_id: string }; Returns: number[] }
       get_zone_centroids: {
         Args: { p_scale: string }

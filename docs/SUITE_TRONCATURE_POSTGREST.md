@@ -66,7 +66,7 @@ ne voyait pas : `get_dept_representative_communes` et
 | RPC | Lignes aujourd'hui | Peut dépasser 1 000 ? | Suite |
 |---|---:|---|---|
 | `calculer_score_composite` | 1 429 sur une zone AURA + Occitanie (route : jusqu'à 3 000) | **dépassait** | appelant passé à `calculer_score_composite_jsonb` (sql/170) |
-| `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246 ; depuis le 2026-10-12, appelée par la seule route directe `GET /api/voronoi` (panneau Analyse) — l'outil `voronoi_analysis` qui la lisait est supprimé avec le chat (lot 5) |
+| `get_voronoi_by_category` | 4 653 (lycées, métropole) | **dépassait** | jumelle sql/246 ; depuis le 2026-10-12, appelée par la seule route directe `GET /api/voronoi` (panneau Analyse) — l'outil `voronoi_analysis` qui la lisait est supprimé avec le chat (lot 5) ; **le Voronoï entier est supprimé le 30/10/2026** (décision Vincent) : route, fonctions (sql/299) |
 | `get_strategy_comparison_data` | 306 150 et 174 780 | **dépasse** | **clos le 2026-10-12** : plus appelée par l'application (défaut C) ; la fonction reste en base, sans appelant |
 | `count_emetteurs_par_radio` | 861 | **oui** — une ligne par radio ayant un émetteur, 1 175 radios en table | **dette D ci-dessous**, non touchée |
 | `get_zone_radius_targets` | 565 au plus (7 zones) | **oui** — une ligne par poche disjointe d'une zone, sans LIMIT | **dette E ci-dessous**, non touchée |
