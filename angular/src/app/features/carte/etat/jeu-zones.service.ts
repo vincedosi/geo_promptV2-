@@ -6,7 +6,7 @@ import { CouvertureApi } from '../data/couverture.api';
 import { type DetailJeuZone, JeuxApi, type ModePlan } from '../data/jeux.api';
 import { MODES_PLAN } from '../../risques/logique/jeu';
 import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireZoneAnalyse } from '../logique/analyses/couverture';
-import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
+import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
   type BilanPlateforme, type ResultatCercles, bilanDe, choixDeBase, choixNeuf, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture,
 } from '../logique/jeu/bilan';
@@ -18,7 +18,7 @@ import { MESSAGE_JEU_RISQUE } from '../logique/jeu/ecran';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
-import { FileLectures } from './file-lectures';
+import { TachesJeu, cleTache } from './jeu-zones-taches';
 import { LectureAnnulable } from './lecture-annulable';
 
 /** Un jeu RISQUE reçu par ⑤ : la phrase que le serveur rend dans l'autre sens (`MESSAGE_JEU_RISQUE`). */
@@ -68,14 +68,14 @@ export class JeuZonesService {
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
   private readonly lecturePlateformes = new LectureAnnulable<readonly PlateformeGeo[]>(messageErreurCouverture);
-  private readonly file = new FileLectures();
+  /** La file des conversions et leurs échecs (T0 des finitions) ; une zone introuvable la retire, message gardé. */
+  private readonly taches = new TachesJeu((message) => {
+    this.choisirZone(null);
+    this._erreur.set(message);
+  });
   /** Les couvertures lues, par `cleCouverture` ; vidées au changement de zone, purgées si la forme a changé. */
   private readonly _couvertures = signal<ReadonlyMap<string, ResultatCouverture>>(new Map());
   private readonly _cercles = signal<Partial<Record<Plateforme, ResultatCercles>>>({});
-  /** Le pavage demandé en dernier par plateforme (`zone|cible|rayon|seuil`) : un second `valider` identique n'en relance pas. */
-  private readonly demandes = new Map<Plateforme, string>();
-  /** Le message d'échec de chaque tâche de la file, par clé. */
-  private readonly _erreursTaches = signal<ReadonlyMap<string, string>>(new Map());
 
   readonly zoneId: Signal<string | null> = this._zoneId.asReadonly();
   readonly jeuId: Signal<string | null> = this._jeuId.asReadonly();
@@ -134,10 +134,10 @@ export class JeuZonesService {
     parPlateforme(this.choix(), this.regleDe, (p, c, l) => bilanDe(c, l, this._recette(), this.lu(p, c, l))));
   /** Les plateformes dont la conversion est en file ou en vol. */
   readonly enCours: Signal<Partial<Record<Plateforme, true>>> = computed(() =>
-    parPlateforme(this.choix(), this.regleDe, (p, c, l) => (this.file.cles().has(this.tache(p, c, l)) ? true : undefined)));
+    parPlateforme(this.choix(), this.regleDe, (p, c, l) => (this.taches.contient(this.tache(p, c, l)) ? true : undefined)));
   /** Le message d'échec de la conversion de chaque plateforme (refus en français). */
   readonly erreurs: Signal<Partial<Record<Plateforme, string>>> = computed(() =>
-    parPlateforme(this.choix(), this.regleDe, (p, c, l) => this._erreursTaches().get(this.tache(p, c, l))));
+    parPlateforme(this.choix(), this.regleDe, (p, c, l) => this.taches.erreur(this.tache(p, c, l))));
 
   private dernier: ParametresJeu = lireParametresJeu(this.route.snapshot.queryParamMap);
   private detruit = false;
@@ -246,7 +246,7 @@ export class JeuZonesService {
     const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette());
     if (actuel && ecrireMailles({ [plateforme]: actuel }) === ecrireMailles({ [plateforme]: suivant })) return;
     this._reglages.update((avant) => ({ ...avant, [plateforme]: suivant }));
-    this.oublierErreur(`cercles|${plateforme}`); // un refus de pavage valait pour l'ancien rayon ou l'ancien seuil
+    this.taches.oublier(`cercles|${plateforme}`); // un refus de pavage valait pour l'ancien rayon ou l'ancien seuil
   }
 
   /**
@@ -264,22 +264,17 @@ export class JeuZonesService {
     const besoin = lectureRequise(c, ligne, this._recette());
     const tache = this.tache(plateforme, c, ligne);
     if (besoin !== 'cercles') {
-      if (this._couvertures().has(this.cleCouv(besoin)) || this.file.contient(tache)) return;
-      this.oublierErreur(tache);
+      if (this._couvertures().has(this.cleCouv(besoin)) || this.taches.contient(tache)) return;
       // La clé se calcule à l'ARRIVÉE : une date adoptée pendant le vol range la lecture sous la clé datée.
-      this.file.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, besoin),
-        (r) => this.ranger(zone, cleCouverture(zone, this._maj(), cible, besoin), r), (e) => this.surEchec(tache, e));
+      this.taches.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, besoin),
+        (r) => this.ranger(zone, cleCouverture(zone, this._maj(), cible, besoin), r));
       return;
     }
     const rayon = c.rayon_m;
-    const demande = `${zone}|${cible}|${rayon}|${c.seuil}`;
-    // Déjà lu, ou déjà demandé à l'identique (double relâchement) : rien ; un autre rayon remplace la demande en vol.
-    if (rayon === undefined || bilanDe(c, ligne, this._recette(), this.cercles()[plateforme])
-      || (this.file.contient(tache) && this.demandes.get(plateforme) === demande)) return;
-    this.oublierErreur(tache);
-    this.demandes.set(plateforme, demande);
-    this.file.ajouter(tache, () => this.api.cercles(zone, { cible, rayon, seuil: c.seuil, plateforme }),
-      (r) => this._cercles.update((avant) => ({ ...avant, [plateforme]: r })), (e) => this.surEchec(tache, e));
+    // Déjà lu : rien ; déjà demandé à l'identique (double relâchement), `paver` n'en relance pas.
+    if (rayon === undefined || bilanDe(c, ligne, this._recette(), this.cercles()[plateforme])) return;
+    this.taches.paver(plateforme, `${zone}|${cible}|${rayon}|${c.seuil}`, tache,
+      () => this.api.cercles(zone, { cible, rayon, seuil: c.seuil, plateforme }), (r) => this._cercles.update((avant) => ({ ...avant, [plateforme]: r })));
   }
 
   /** La ligne de `plateformes_geo` d'un couple, s'il est au registre. */
@@ -293,13 +288,9 @@ export class JeuZonesService {
     return cleCouverture(this._zoneId() ?? '', this._maj(), this.cible(), decoupage);
   }
 
-  /**
-   * La clé de la tâche qui chiffre ce choix : la couverture requise, ou le pavage de la plateforme. Sans la date de la
-   * zone : la file est vidée quand elle CHANGE, et une date adoptée (`choisirZone`) garde ainsi sa lecture en vol.
-   */
+  /** La clé de la tâche qui chiffre ce choix (`cleTache`). */
   private tache(p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo): string {
-    const besoin = lectureRequise(c, ligne, this._recette());
-    return besoin === 'cercles' ? `cercles|${p}` : `couverture|${this._zoneId()}|${this.cible()}|${besoin}`;
+    return cleTache(p, c, ligne, this._recette(), this._zoneId(), this.cible());
   }
 
   /** La lecture EN MÉMOIRE que requiert ce choix, si elle est là. */
@@ -315,27 +306,10 @@ export class JeuZonesService {
     if (purgee) this._cercles.update((k) => Object.fromEntries(Object.entries(k).filter(([, v]) => v.zone_id !== zone)));
   }
 
-  /** Une zone introuvable (supprimée, d'un autre espace) est retirée et le message reste ; un autre refus est noté. */
-  private surEchec(tache: string, e: unknown): void {
-    const message = messageErreurCouverture(e);
-    if (refusDeLErreur(e) === 'zone_introuvable') {
-      this.choisirZone(null);
-      this._erreur.set(message);
-      return;
-    }
-    this._erreursTaches.update((m) => new Map(m).set(tache, message));
-  }
-
-  private oublierErreur(tache: string): void {
-    const suite = new Map(this._erreursTaches());
-    if (suite.delete(tache)) this._erreursTaches.set(suite);
-  }
-
   private viderResultats(): void {
-    this.file.vider();
+    this.taches.vider();
     this._couvertures.set(new Map());
     this._cercles.set({});
-    this._erreursTaches.set(new Map());
   }
 
   private fermerJeu(): void {
