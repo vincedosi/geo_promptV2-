@@ -47,6 +47,12 @@ obs_part(z)     = livre_fen(z) / Σ_z livre_fen(z)             part observée su
 
 Si `Σ cible_jour = 0` (plan entièrement livré) : pas de correction, poids inchangés, alerte « plan atteint ».
 
+**Dénominateur de la part observée (amendement E8).** `Σ_z livre_fen(z)` porte sur **toutes** les impressions de la plateforme sur la fenêtre : CP du plan + `HORS_ZONE` (amendement E3), et non sur les seuls CP du plan, ce qui gonflerait les parts (la campagne Adform montre 89 CP livrés sans population connue). Les CP de `cp_geoloc_defaut` (ci-dessous) sont retirés du numérateur et du dénominateur.
+
+**Taux de fuite.** Taux de fuite = `obs_part(HORS_ZONE)`. Alerte au-delà d'un seuil réglable par campagne (section 6, P5).
+
+**CP par défaut de géolocalisation.** Table `cp_geoloc_defaut` : liste manuelle + critère statistique proposé (rapport impressions / population > 5 et CP de centre-ville). Ses CP sont neutralisés dans la correction : `corr` forcée à 1, poids gelé, exclus de la part observée, et signalés dans le suivi. Sans cela, un CP par défaut présent dans le plan est corrigé en boucle, et sa baisse de poids pénalise les vrais habitants du CP. Exemple : 75001 reçoit 3,46 % des impressions de la campagne Adform pour 14 421 habitants ; l'hypothèse d'un CP par défaut reste à vérifier par dentsu sur une campagne datée.
+
 ### 2.2 Correction au niveau département (ou sous-zone)
 
 ```
@@ -95,6 +101,8 @@ INV4  un CP avec livre_fen = 0 a corr(cp) = corr_dep(dep(cp))
 INV5  réponse proportionnelle simulée (a = w·r / Σ w·r) : l'erreur log moyenne est multipliée par ≤ 0,25 par itération
 INV6  cible_part reste identique entre deux itérations si la livraison suit exactement cible_jour (pas de dérive de la cible)
 INV7  le ×0,6 n'apparaît nulle part dans la correction (grep)
+INV7b simulation avec un CP par défaut (cp_geoloc_defaut) recevant 3 % des impressions
+      ⇒ poids des autres CP identiques à une simulation sans ce CP (amendement E8)
 ```
 
 ---
@@ -202,6 +210,8 @@ type RebidResult = {
   fenetre_utilisee: number
   moyenne_apres_ecretage: number   // amendement E4
   nb_ecretes: number               // amendement E4
+  taux_fuite: number               // obs_part(HORS_ZONE), amendement E8
+  cp_neutralises: string[]         // CP de cp_geoloc_defaut, amendement E8
   statut: 'ok' | 'pas_de_correction' | 'plan_atteint'
   raison?: string
 }
@@ -221,7 +231,7 @@ type RebidResult = {
 
 **P4. Univers des CP (méthode A).** Évaluer la courbe de pression sur le référentiel complet des codes postaux, pas sur les CP déjà vus en livraison.
 
-**P5. Seuils réglables.** Sortir 0,85 / 1,15 / 1,25 / 70 % / 5 % / ±20 % / alpha / k / bornes de paliers / convention de normalisation (moyenne non pondérée, amendement E4) dans une table `campaign_settings` (ou JSON par campagne) avec les valeurs actuelles comme défaut.
+**P5. Seuils réglables.** Sortir 0,85 / 1,15 / 1,25 / 70 % / 5 % / ±20 % / alpha / k / bornes de paliers / convention de normalisation (moyenne non pondérée, amendement E4) / seuil d'alerte du taux de fuite (amendement E8) dans une table `campaign_settings` (ou JSON par campagne) avec les valeurs actuelles comme défaut.
 
 ---
 
