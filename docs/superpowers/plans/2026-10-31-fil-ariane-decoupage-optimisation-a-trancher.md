@@ -345,7 +345,7 @@ Source : plan de corrections du découpage des zones, issu de la relecture de la
 | ARB-4 | Minimum de ménages à la conversion | Appliqué dès qu'une cible autre que la population totale est choisie | Jamais appliqué, part de population imputée affichée |
 | ARB-5 | Rayon minimal de la recette « rayon autour d'un point » | 250 m | 100 m conservé, prorata de surface des carreaux sous 2 km² |
 | ARB-6 | Dépassement du nombre d'unités d'une maille territoriale | Découpage automatique en N groupes triés par part décroissante | Refus |
-| ARB-7 | Maille par défaut | Par taux utile simulé sous contraintes de la plateforme | Ordre de finesse conservé, cercle classé selon son rayon |
+| ARB-7 | Maille par défaut | Taux utile simulé maximal sous couverture ≥ 80 % (sinon couverture maximale), sous contraintes de la plateforme (amendement E1) | Ordre de finesse conservé, cercle classé selon son rayon |
 
 ### 3.2 Répartition vérifiée ticket par ticket
 
@@ -368,7 +368,7 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
 | Ticket | Objet | Résumé | Porteur | État |
 |---|---|---|---|---|
 | B8 | Rayons : recette, pavage, plateformes | ARB-5 ; tout rayon ajusté aux bornes d'une plateforme est annoncé (« rayon ajusté de X à Y, maille non exacte ») | Nous | À faire |
-| B9 | Maille par défaut | ARB-7 ; défaut expliqué en une ligne (« taux utile simulé 71 % contre 23 % en CP ») | Nous | À faire |
+| B9 | Maille par défaut | ARB-7 (critère en deux temps, E1) ; défaut expliqué en une ligne avec les deux chiffres (« couverture 91 %, taux utile 71 %, contre 10 % / 95 % en CP ») | Nous | À faire |
 | B10 | Rayon par défaut 10 km | R = √(surface / π) / 3, borné par la plateforme ; si trop de cercles, proposer le plus petit rayon qui passe (6 essais au plus) | Nous | À faire |
 | B11 | Comparaison au seuil sur la part arrondie | Comparer la part non arrondie ; à seuil 0, exiger part > 0. **Constat confirmé** : la base arrondit la part au dixième avant que le code ne la compare | Nous | À faire |
 | B12 | Un plan par plateforme | Chaque plateforme au CP reçoit un plan à son propre seuil | Nous | À faire |
@@ -503,7 +503,7 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 - **Q4 — ARB-4, minimum de ménages à la conversion.** A. Appliqué dès qu'une cible autre que la population totale est choisie (R). B. Jamais appliqué, part imputée affichée.
 - **Q5 — ARB-5, rayon minimal autour d'un point.** A. 250 m (R). B. 100 m avec prorata de surface sous 2 km².
 - **Q6 — ARB-6, dépassement du nombre d'unités d'une maille territoriale.** A. Découpage en N blocs par part décroissante (R). B. Refus.
-- **Q7 — ARB-7, maille par défaut.** A. Taux utile simulé sous contraintes de la plateforme (R). B. Ordre de finesse conservé.
+- **Q7 — ARB-7, maille par défaut.** A. Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal) (R) ~~A. Taux utile simulé sous contraintes de la plateforme (R).~~ B. Ordre de finesse conservé. *(Amendement E1 : le taux utile seul favorise la maille qui retient le moins ; si aucune maille n'atteint la couverture cible, celle de couverture maximale ; départage B16 à ± 5 points.)*
 
 **Plan par CP et lien avec le noyau**
 

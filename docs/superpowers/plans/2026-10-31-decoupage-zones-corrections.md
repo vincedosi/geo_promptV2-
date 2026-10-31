@@ -24,7 +24,7 @@ Cocher une option par ligne.
 | ARB-4 | Minimum de ménages à la conversion | [ ] Appliqué dès qu'une cible autre que la population totale est choisie (recommandé). [ ] Jamais appliqué, mais la part de population issue de carreaux imputés est affichée. |
 | ARB-5 | Rayon minimal de la recette « rayon autour d'un point » | [ ] 250 m (recommandé). [ ] 100 m conservé, avec prorata de surface des carreaux sous 2 km². |
 | ARB-6 | Dépassement du nombre d'unités d'une maille territoriale (ex. > 3 000 communes TikTok) | [ ] Découpage automatique en N groupes triés par part décroissante (recommandé). [ ] Refus, comme pour les cercles Meta. |
-| ARB-7 | Choix de la maille par défaut | [ ] Par taux utile simulé sous contraintes de la plateforme (recommandé). [ ] Ordre de finesse conservé, le cercle classé selon son rayon. |
+| ARB-7 | Choix de la maille par défaut | [ ] Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal D1), sous contraintes de la plateforme (recommandé) : parmi les mailles natives et disponibles dont la couverture simulée atteint la couverture cible, celle de taux utile maximal ; si aucune n'atteint la cible, celle de couverture maximale. Le taux utile seul est un critère dégénéré (il favorise la maille qui retient le moins : un CP unique à 95 % couvrant 10 % de la zone battrait des cercles à 70 % couvrant 90 %). [ ] Ordre de finesse conservé, le cercle classé selon son rayon. |
 
 ---
 
@@ -85,8 +85,8 @@ Cocher une option par ligne.
 ### B9. Maille par défaut
 - Fichiers : `lib/zones/conversion.ts` (FINESSE, mailleParDefaut).
 - Constat : l'ordre « polygone, IRIS, CP, cercle, commune, département » classe un cercle de 10 km avant une commune. Résultats : CP proposé pour une zone fine sur DV360 (0 CP à 20 % → refus), cercles de 10 km proposés pour une liste de CP sur Meta.
-- Attendu : appliquer ARB-7. Dans tous les cas, la règle de défaut tient compte de `plateformes_geo.poussee_branchee` (voir B16) et le défaut retenu est expliqué en une ligne à l'écran (« taux utile simulé 71 % contre 23 % en CP »).
-- Test : anneau de 1 km sur DV360 → cercles proposés ; liste de 40 CP sur Meta → CP proposé avec mention « à vérifier », pas cercles.
+- Attendu : appliquer ARB-7, critère en deux temps (amendement E1). Parmi les mailles natives et disponibles dont la couverture simulée atteint la couverture cible (80 % par défaut, paramètre partagé avec le seuil optimal D1 / Q40), retenir celle de taux utile maximal ; si aucune n'atteint la cible, celle de couverture maximale. Départage B16 à ± 5 points de taux utile. Dans tous les cas, la règle de défaut tient compte de `plateformes_geo.poussee_branchee` (voir B16) et le défaut retenu est expliqué en une ligne à l'écran, avec les deux chiffres (« couverture 91 %, taux utile 71 %, contre 10 % / 95 % en CP »).
+- Test : anneau de 1 km sur DV360 → cercles proposés ; liste de 40 CP sur Meta → CP proposé avec mention « à vérifier », pas cercles ; zone où la maille CP retient un CP à 95 % couvrant 10 %, et où les cercles couvrent 90 % à 70 % → cercles proposés (E1).
 
 ### B10. Rayon par défaut 10 km
 - Fichiers : `angular/.../mailles-url.ts`, `lib/zones/conversion-serveur.ts`.
