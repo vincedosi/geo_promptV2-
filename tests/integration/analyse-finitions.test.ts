@@ -239,7 +239,9 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
                                   'couverture_pays_jsonb', 'couverture_zone', 'codes_postaux_de_zone_jsonb', 'compter_zone_pays'))
                                || '|' || (select pg_get_constraintdef(oid) from pg_constraint
                                            where conname = 'custom_geo_zones_recette_forme');`;
-    const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql'].map((f) => readFileSync(f, 'utf8')).join('\n');
+    // sql/303 (B11) redéfinit `couverture_pays_jsonb` (part_brute) : rejouée après 296, l'empreinte est celle de la base.
+    const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql', 'sql/303_seuil_part_non_arrondie.sql']
+      .map((f) => readFileSync(f, 'utf8')).join('\n');
     const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);
     const lignes = r.stdout.trim().split('\n').filter((l) => l.includes('|'));

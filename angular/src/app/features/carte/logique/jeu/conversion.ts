@@ -15,7 +15,7 @@ type Maille = PlateformeGeo['maille'];
 type Plateforme = PlateformeGeo['plateforme'];
 
 /** Ce que le seuil lit d'une ligne de `couverture_geometrie` — rien d'autre, pour accepter aussi une ligne figée. */
-export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part'>;
+export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute'>;
 
 /**
  * Le bilan d'une maille calculée. Deux égalités, toujours (Review Focus 1) : `manques + couverte = population de la
@@ -23,7 +23,7 @@ export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'p
  */
 export interface ResumeMaille {
   exacte: false;
-  /** Unités retenues (part ≥ seuil) — ce qui sera acheté. */
+  /** Unités retenues (part non arrondie ≥ seuil et > 0, {@link estRetenue}) — ce qui sera acheté. */
   n_unites: number;
   /** Unités touchées par la zone, retenues ou non. */
   n_touchees: number;
@@ -66,14 +66,18 @@ export interface Avertissement {
  * LA règle de rétention d'une unité : sa part (en %) atteint le seuil — la borne est retenue, comme dans
  * `appliquer_seuil_zone_set`. Une part NULL (territoire sans dénominateur) ne l'est jamais : on ne sait pas ce qu'on
  * achèterait. Exportée pour que l'extraction marque `retenu` par la MÊME règle que le bilan.
+ *
+ * B11 : la part comparée est `part_brute`, NON arrondie — `part`, au dixième, n'est que l'affichage (19,96 % s'affiche
+ * 20,0 % mais ne passe pas un seuil de 20 %). Une part nulle n'est jamais retenue, même à seuil 0 (on n'achète pas une
+ * unité où la zone n'a personne) ; 0,02 % (affichée 0,0 %) l'est. Même règle en SQL dans `paver_cercles` (sql/303).
  */
-export function estRetenue(ligne: Pick<LigneSeuil, 'part'>, seuil: number): boolean {
-  return ligne.part !== null && ligne.part >= seuil;
+export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'>, seuil: number): boolean {
+  return ligne.part_brute !== null && ligne.part_brute > 0 && ligne.part_brute >= seuil;
 }
 
 /**
  * Retient les unités dont la part (en %) atteint le seuil ({@link estRetenue}) — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
- * Une ligne à `part` NULL (territoire sans dénominateur) n'est jamais retenue : on ne sait pas ce qu'on achèterait.
+ * Une ligne à `part_brute` NULL (territoire sans dénominateur) n'est jamais retenue : on ne sait pas ce qu'on achèterait.
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
  *
  * ⚠ Arrondis : la RPC arrondit à l'entier chaque `pop_en_zone`, `population` et `hors_territoire.population` (sql/275),

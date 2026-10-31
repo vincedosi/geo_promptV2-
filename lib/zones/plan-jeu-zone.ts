@@ -37,7 +37,7 @@ export function planCpDeZone(
   const sources: LigneCouverture[] = [...lignes];
   for (const code of liste ?? []) {
     if (!lignes.some((l) => l.code === code)) {
-      sources.push({ code, nom: null, commune: null, n_carreaux: 0, pop_en_zone: 0, pop_totale: null, part: null });
+      sources.push({ code, nom: null, commune: null, n_carreaux: 0, pop_en_zone: 0, pop_totale: null, part: null, part_brute: null });
     }
   }
 

@@ -122,9 +122,9 @@ describe('mg-colonne-plateforme — une zone pays (⑤ finitions, T4)', () => {
   const departements = {
     ...couvertureCp, decoupage: 'departement', population: 64_000_000, surface_km2: 640_000,
     lignes: [
-      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
-      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100 },
-      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100 },
+      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100, part_brute: 100 },
+      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100, part_brute: 100 },
+      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100, part_brute: 100 },
     ],
   };
   async function surZonePays(code: 'METRO' | 'FR') {

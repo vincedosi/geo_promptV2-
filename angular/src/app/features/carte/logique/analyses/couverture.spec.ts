@@ -7,7 +7,7 @@ import {
 import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
 
 const ligne = (code: string, pop_en_zone: number, part: number | null, nom: string | null = code): LigneCouverture => ({
-  code, nom, commune: null, n_carreaux: 1, pop_en_zone, pop_totale: part === null ? null : 100, part,
+  code, nom, commune: null, n_carreaux: 1, pop_en_zone, pop_totale: part === null ? null : 100, part, part_brute: part,
 });
 
 describe('lireParamCouverture / ecrireParamCouverture', () => {

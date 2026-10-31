@@ -1445,7 +1445,7 @@ describe('CartePage — ⑤ suit un recalcul de sa zone (revue finale du lot 5, 
     });
     const couverture = vi.fn((zone: unknown, cible: unknown, decoupage: unknown) => of({
       zone_id: zone, cible, decoupage, population, surface_km2: 78, n_carreaux: 40, zone_maj: maj,
-      lignes: [{ code: '69005', nom: null, commune: null, n_carreaux: 40, pop_en_zone: population, pop_totale: population, part: 100 }],
+      lignes: [{ code: '69005', nom: null, commune: null, n_carreaux: 40, pop_en_zone: population, pop_totale: population, part: 100, part_brute: 100 }],
     }));
     const recalculer = vi.fn(() => {
       maj = '2026-10-24T09:00:00Z';

@@ -13,7 +13,7 @@ const PALETTE: PaletteCouverture = {
   absente: 'rgb(9, 9, 9)', zone: 'rgb(78, 205, 196)', trait: 'rgba(255, 255, 255, 0.16)', survol: 'rgb(240, 240, 240)',
 };
 const ligne = (code: string, part: number | null): LigneCouverture => ({
-  code, nom: `Nom ${code}`, commune: null, n_carreaux: 1, pop_en_zone: 10, pop_totale: part === null ? null : 100, part,
+  code, nom: `Nom ${code}`, commune: null, n_carreaux: 1, pop_en_zone: 10, pop_totale: part === null ? null : 100, part, part_brute: part,
 });
 const ZONE: GeoJSON.Feature = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[5, 43], [5.5, 43], [5.5, 43.5], [5, 43]]] }, properties: {} };
 const carte = () => {

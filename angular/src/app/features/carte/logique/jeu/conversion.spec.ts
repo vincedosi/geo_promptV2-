@@ -1,4 +1,4 @@
-import { MESSAGES_MAILLE_SANS_OBJET, appliquerSeuil, exactitude, mailleParDefaut, mailleSansObjet, resumeExact, verifierLimites } from './conversion';
+import { MESSAGES_MAILLE_SANS_OBJET, appliquerSeuil, estRetenue, exactitude, mailleParDefaut, mailleSansObjet, resumeExact, verifierLimites } from './conversion';
 import type { PlateformeGeo } from './plateformes';
 
 /**
@@ -13,8 +13,8 @@ const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'm
 
 describe('conversion (copie Angular)', () => {
   const lignes = [
-    { pop_en_zone: 80, pop_totale: 100, part: 80 }, { pop_en_zone: 10, pop_totale: 100, part: 10 },
-    { pop_en_zone: 5, pop_totale: null, part: null },
+    { pop_en_zone: 80, pop_totale: 100, part: 80, part_brute: 80 }, { pop_en_zone: 10, pop_totale: 100, part: 10, part_brute: 10 },
+    { pop_en_zone: 5, pop_totale: null, part: null, part_brute: null },
   ];
   it('manques + couverte = population ; hors_zone + couverte = achetée, à tout seuil', () => {
     for (const seuil of [0, 10, 50, 100]) {
@@ -23,6 +23,11 @@ describe('conversion (copie Angular)', () => {
       expect(r.hors_zone + r.couverte).toBe(r.achetee);
     }
     expect(appliquerSeuil(lignes, 95, 50)).toMatchObject({ n_unites: 1, n_touchees: 3, couverte: 80, achetee: 100, taux_utile: 80 });
+  });
+  it('B11 : le seuil compare la part NON arrondie ; à seuil 0, une part nulle n’est pas retenue', () => {
+    expect(estRetenue({ part_brute: 19.96 }, 20)).toBe(false);
+    expect(estRetenue({ part_brute: 0.02 }, 0)).toBe(true);
+    expect(estRetenue({ part_brute: 0 }, 0)).toBe(false);
   });
   it('une maille exacte : aucune perte, aucun calcul', () => {
     expect(resumeExact(1234, 5.5)).toMatchObject({ exacte: true, manques: 0, hors_zone: 0, taux_utile: 100, n_unites: 1 });

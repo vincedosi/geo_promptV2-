@@ -21,7 +21,7 @@ const A = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const B = '1f8fad5b-d9cb-469f-a165-70867728950e';
 const resultat = (zone_id: string, decoupage: ResultatCouverture['decoupage']): ResultatCouverture => ({
   zone_id, cible: 'ind', decoupage, surface_km2: 10, n_carreaux: 2, population: 30,
-  lignes: decoupage === 'forme' ? [] : [{ code: '13100', nom: 'Aix', commune: null, n_carreaux: 2, pop_en_zone: 30, pop_totale: 30, part: 100 }],
+  lignes: decoupage === 'forme' ? [] : [{ code: '13100', nom: 'Aix', commune: null, n_carreaux: 2, pop_en_zone: 30, pop_totale: 30, part: 100, part_brute: 100 }],
   hors_territoire: { n_carreaux: 0, population: 0 }, n_territoires: decoupage === 'forme' ? 0 : 1, motif_vide: null,
   territoires_non_carroyes: [], reference: { source: 's', millesime: 2021, population_france: 63783569, n_carreaux_france: 2324577 },
   base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false, zone_maj: '2026-10-22T09:00:00+00:00',

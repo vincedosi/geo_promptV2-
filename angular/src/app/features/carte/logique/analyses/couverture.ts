@@ -59,7 +59,10 @@ export interface LigneCouverture {
   n_carreaux: number;
   pop_en_zone: number;
   pop_totale: number | null;
+  /** En %, arrondie au dixième : l'AFFICHAGE. */
   part: number | null;
+  /** B11 (sql/303) : la même part SANS arrondi, la seule que compare le seuil (`estRetenue`) ; NULL comme `part`. */
+  part_brute: number | null;
 }
 
 /** La réponse 200 de la route : un chiffrage, servi du cache (`cache: true`) ou calculé. */

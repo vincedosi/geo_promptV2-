@@ -56,8 +56,8 @@ describe('conversion d’une zone : Angular = serveur', () => {
   });
   it('mêmes réponses sur les mêmes cas', () => {
     const lignes = [
-      { pop_en_zone: 80, pop_totale: 100, part: 80 }, { pop_en_zone: 10, pop_totale: 100, part: 10 },
-      { pop_en_zone: 5, pop_totale: null, part: null }, { pop_en_zone: 20, pop_totale: 100, part: 20 },
+      { pop_en_zone: 80, pop_totale: 100, part: 80, part_brute: 80 }, { pop_en_zone: 10, pop_totale: 100, part: 10, part_brute: 10 },
+      { pop_en_zone: 5, pop_totale: null, part: null, part_brute: null }, { pop_en_zone: 20, pop_totale: 100, part: 20, part_brute: 20 },
     ];
     for (const seuil of [0, 10, 20, 50, 100]) expect(A.appliquerSeuil(lignes, 130, seuil)).toEqual(S.appliquerSeuil(lignes, 130, seuil));
     expect(A.resumeExact(500, 3, 4)).toEqual(S.resumeExact(500, 3, 4));
@@ -85,7 +85,9 @@ describe('conversion d’une zone : Angular = serveur', () => {
       expect(A.verifierLimites(A.appliquerSeuil(lignes, 130, 10), l)).toEqual(S.verifierLimites(S.appliquerSeuil(lignes, 130, 10), l));
       expect(A.verifierLimites(A.resumeExact(500, 3, 4), l)).toEqual(S.verifierLimites(S.resumeExact(500, 3, 4), l));
     }
-    expect(A.estRetenue({ part: 20 }, 20)).toBe(S.estRetenue({ part: 20 }, 20));
+    for (const part_brute of [20, 19.96, 0.02, 0, null]) {
+      for (const seuil of [0, 20]) expect(A.estRetenue({ part_brute }, seuil)).toBe(S.estRetenue({ part_brute }, seuil));
+    }
   });
 });
 

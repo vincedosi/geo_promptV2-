@@ -22,9 +22,9 @@ const regle = (plateforme: string, maille: string, limites: Record<string, numbe
 const COUVERTURE = {
   population: 10_000, surface_km2: 78.5,
   lignes: [
-    { code: '69001', nom: 'Lyon 1', commune: null, n_carreaux: 5, pop_en_zone: 6_000, pop_totale: 6_500, part: 92.3 },
-    { code: '69002', nom: 'Lyon 2', commune: null, n_carreaux: 5, pop_en_zone: 3_000, pop_totale: 10_000, part: 30 },
-    { code: '69003', nom: 'Lyon 3', commune: null, n_carreaux: 1, pop_en_zone: 1_000, pop_totale: 50_000, part: 2 },
+    { code: '69001', nom: 'Lyon 1', commune: null, n_carreaux: 5, pop_en_zone: 6_000, pop_totale: 6_500, part: 92.3, part_brute: 92.3 },
+    { code: '69002', nom: 'Lyon 2', commune: null, n_carreaux: 5, pop_en_zone: 3_000, pop_totale: 10_000, part: 30, part_brute: 30 },
+    { code: '69003', nom: 'Lyon 3', commune: null, n_carreaux: 1, pop_en_zone: 1_000, pop_totale: 50_000, part: 2, part_brute: 2 },
   ],
 };
 
@@ -157,9 +157,9 @@ describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans 
           data: {
             population, surface_km2: 547_779,
             lignes: [
-              { code: '13', nom: 'Bouches-du-Rhône', commune: null, n_carreaux: 9, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
-              { code: '972', nom: 'Martinique', commune: null, n_carreaux: 9, pop_en_zone: 306_745, pop_totale: 306_745, part: 100 },
-              { code: '974', nom: 'La Reunion', commune: null, n_carreaux: 9, pop_en_zone: 884_165, pop_totale: 884_165, part: 100 },
+              { code: '13', nom: 'Bouches-du-Rhône', commune: null, n_carreaux: 9, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100, part_brute: 100 },
+              { code: '972', nom: 'Martinique', commune: null, n_carreaux: 9, pop_en_zone: 306_745, pop_totale: 306_745, part: 100, part_brute: 100 },
+              { code: '974', nom: 'La Reunion', commune: null, n_carreaux: 9, pop_en_zone: 884_165, pop_totale: 884_165, part: 100, part_brute: 100 },
             ],
           },
           error: null,

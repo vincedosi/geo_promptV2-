@@ -183,7 +183,7 @@ describe('mg-outil-couverture (lot 4, T8)', () => {
     const { el, z, stable } = await monter();
     z.resultat.set({
       ...BASE, decoupage: 'cp', n_territoires: 1, cache: true, hors_territoire: { n_carreaux: 12, population: 1786 },
-      lignes: [{ code: '13100', nom: 'Aix-en-Provence', commune: null, n_carreaux: 10, pop_en_zone: 97172, pop_totale: 97172, part: 100 }],
+      lignes: [{ code: '13100', nom: 'Aix-en-Provence', commune: null, n_carreaux: 10, pop_en_zone: 97172, pop_totale: 97172, part: 100, part_brute: 100 }],
     });
     await stable();
     expect(el.querySelector('[data-ligne="13100"]')).not.toBeNull();
@@ -283,8 +283,8 @@ describe('mg-outil-couverture — zone pays', () => {
     m.z.resultat.set({
       ...BASE, decoupage: 'cp', n_territoires: 2, population: 30,
       lignes: [
-        { code: '75001', nom: 'Paris', commune: null, n_carreaux: 10, pop_en_zone: 20, pop_totale: 20, part: 100 },
-        { code: '01000', nom: 'Bourg-en-Bresse', commune: null, n_carreaux: 5, pop_en_zone: 10, pop_totale: 10, part: 100 },
+        { code: '75001', nom: 'Paris', commune: null, n_carreaux: 10, pop_en_zone: 20, pop_totale: 20, part: 100, part_brute: 100 },
+        { code: '01000', nom: 'Bourg-en-Bresse', commune: null, n_carreaux: 5, pop_en_zone: 10, pop_totale: 10, part: 100, part_brute: 100 },
       ],
     });
     await m.stable();

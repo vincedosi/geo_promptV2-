@@ -10,7 +10,7 @@ import { planCpDeZone } from '@/lib/zones/plan-jeu-zone';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 
 const cp = (code: string, pop_en_zone: number, pop_totale: number | null, part: number | null): LigneCouverture =>
-  ({ code, nom: null, commune: null, n_carreaux: 1, pop_en_zone, pop_totale, part });
+  ({ code, nom: null, commune: null, n_carreaux: 1, pop_en_zone, pop_totale, part, part_brute: part });
 
 const LIGNES = [cp('44000', 50_000, 100_000, 50), cp('44400', 1_000, 10_000, 10), cp('44500', 30, null, null)];
 // Nantes : quatre codes postaux, une géométrie (cp_groupe) — le canonique compris.

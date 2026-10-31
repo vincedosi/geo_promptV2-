@@ -17,7 +17,7 @@ import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { Recette } from '@/lib/zones/recette';
 
-type LigneFixture = Pick<LigneCouverture, 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part'>;
+type LigneFixture = Pick<LigneCouverture, 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute'>;
 const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-composite-cp.json', 'utf8')) as {
   population: number; hors_territoire: { population: number }; lignes: LigneFixture[];
 };
@@ -31,7 +31,7 @@ const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-
  * de carreaux sont fractionnaires (des demi-habitants). Écart au plus ½ par terme arrondi : ½ × (lignes + 2).
  */
 function verifierManques(r: ReturnType<typeof appliquerSeuil>, seuil: number) {
-  const ecartees = composite.lignes.filter((l) => l.part === null || l.part < seuil).reduce((t, l) => t + l.pop_en_zone, 0);
+  const ecartees = composite.lignes.filter((l) => l.part_brute === null || l.part_brute < seuil).reduce((t, l) => t + l.pop_en_zone, 0);
   const attendu = ecartees + composite.hors_territoire.population;
   expect(Math.abs(r.manques - attendu)).toBeLessThanOrEqual((r.n_touchees + 2) / 2);
   return r.manques - attendu;
@@ -40,16 +40,18 @@ function verifierManques(r: ReturnType<typeof appliquerSeuil>, seuil: number) {
 describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
   const pop = composite.population;
 
-  it('seuil 20 : 617 CP sur 895, 57,6 % d’utile, 7 541 431 achetés hors zone', () => {
+  // B11 (31/10) : attendus changés, le seuil compare la part NON arrondie — 06130 (19,993 %), 57230 (19,963 %) et 79180
+  // (19,969 %), affichés 20,0 %, sortent : 617 → 614 CP, 57,6 → 57,7 % d'utile, 7 541 431 → 7 489 082 hors zone.
+  it('seuil 20 : 614 CP sur 895, 57,7 % d’utile, 7 489 082 achetés hors zone', () => {
     const r = appliquerSeuil(composite.lignes, pop, 20);
-    expect(r).toMatchObject({ n_unites: 617, n_touchees: 895, taux_utile: 57.6, hors_zone: 7_541_431 });
-    // M2 : 977 538 habitants manqués DANS les CP écartés ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
-    expect(composite.lignes.filter((l) => l.part === null || l.part < 20).reduce((t, l) => t + l.pop_en_zone, 0)).toBe(977_538);
+    expect(r).toMatchObject({ n_unites: 614, n_touchees: 895, taux_utile: 57.7, hors_zone: 7_489_082 });
+    // M2 : 990 615 habitants manqués DANS les CP écartés (977 538 avant B11) ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
+    expect(composite.lignes.filter((l) => l.part_brute === null || l.part_brute < 20).reduce((t, l) => t + l.pop_en_zone, 0)).toBe(990_615);
     expect(composite.hors_territoire.population).toBe(3_273);
     // −230 : mesuré en base le 24/10, Σ round(pop_en_zone) = 11 221 886 contre Σ pop_en_zone brute = 11 221 655,5 —
     // les demi-habitants arrondis vers le haut, CP par CP. Même écart à tout seuil : il ne dépend que de l'arrondi.
     expect(verifierManques(r, 20)).toBe(-230);
-    expect(r.manques).toBe(980_581);
+    expect(r.manques).toBe(993_658);
   });
 
   it('seuil 0 : tout est retenu, seul le hors-territoire est manqué (à l’arrondi près)', () => {
@@ -58,14 +60,15 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
     expect(verifierManques(r, 0)).toBe(-230);
   });
 
-  it('seuil 50 : 358 CP, 76,6 %', () => {
+  // B11 : 31880 (49,965 %, affiché 50,0 %) sort — 358 → 357 CP, 76,6 → 76,7 %, 2 302 112 → 2 297 867 hors zone.
+  it('seuil 50 : 357 CP, 76,7 %', () => {
     const r = appliquerSeuil(composite.lignes, pop, 50);
-    expect(r).toMatchObject({ n_unites: 358, taux_utile: 76.6, hors_zone: 2_302_112 });
+    expect(r).toMatchObject({ n_unites: 357, taux_utile: 76.7, hors_zone: 2_297_867 });
     expect(verifierManques(r, 50)).toBe(-230);
   });
 
   it('un CP entièrement dans la zone vaut 100 % et n’achète rien hors zone', () => {
-    const r = appliquerSeuil([{ pop_en_zone: 500, pop_totale: 500, part: 100 }], 500, 20);
+    const r = appliquerSeuil([{ pop_en_zone: 500, pop_totale: 500, part: 100, part_brute: 100 }], 500, 20);
     expect(r).toEqual({ exacte: false, n_unites: 1, n_touchees: 1, couverte: 500, achetee: 500, manques: 0, hors_zone: 0, taux_utile: 100 });
   });
 });
@@ -73,14 +76,14 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
 describe('appliquerSeuil — cas limites', () => {
   it('une part NULL n’est jamais retenue, même au seuil 0, mais compte comme touchée et manquée', () => {
     const r = appliquerSeuil([
-      { pop_en_zone: 300, pop_totale: 1000, part: 30 },
-      { pop_en_zone: 200, pop_totale: null, part: null },
+      { pop_en_zone: 300, pop_totale: 1000, part: 30, part_brute: 30 },
+      { pop_en_zone: 200, pop_totale: null, part: null, part_brute: null },
     ], 500, 0);
     expect(r).toEqual({ exacte: false, n_unites: 1, n_touchees: 2, couverte: 300, achetee: 1000, manques: 200, hors_zone: 700, taux_utile: 30 });
   });
 
   it('aucune unité retenue : taux d’utile null (pas 0 : rien n’est acheté), tout est manqué', () => {
-    const r = appliquerSeuil([{ pop_en_zone: 10, pop_totale: 1000, part: 1 }], 10, 20);
+    const r = appliquerSeuil([{ pop_en_zone: 10, pop_totale: 1000, part: 1, part_brute: 1 }], 10, 20);
     expect(r).toEqual({ exacte: false, n_unites: 0, n_touchees: 1, couverte: 0, achetee: 0, manques: 10, hors_zone: 0, taux_utile: null });
   });
 
@@ -89,7 +92,15 @@ describe('appliquerSeuil — cas limites', () => {
   });
 
   it('la borne appartient aux retenues (part ≥ seuil)', () => {
-    expect(appliquerSeuil([{ pop_en_zone: 20, pop_totale: 100, part: 20 }], 20, 20).n_unites).toBe(1);
+    expect(appliquerSeuil([{ pop_en_zone: 20, pop_totale: 100, part: 20, part_brute: 20 }], 20, 20).n_unites).toBe(1);
+  });
+
+  it('B11 : le seuil compare la part NON arrondie — 19,96 % (affichée 20,0 %) ne passe pas 20 % ; bilan cohérent', () => {
+    const r = appliquerSeuil([
+      { pop_en_zone: 1996, pop_totale: 10_000, part: 20, part_brute: 19.96 },
+      { pop_en_zone: 2000, pop_totale: 10_000, part: 20, part_brute: 20 },
+    ], 3996, 20);
+    expect(r).toMatchObject({ n_unites: 1, n_touchees: 2, couverte: 2000, achetee: 10_000, manques: 1996 });
   });
 });
 
@@ -106,9 +117,16 @@ describe('resumeExact — une maille exacte ne calcule rien', () => {
 
 describe('estRetenue — la règle du seuil, une seule fois', () => {
   it('la borne est retenue ; une part NULL ne l’est jamais', () => {
-    expect(estRetenue({ part: 20 }, 20)).toBe(true);
-    expect(estRetenue({ part: 19.9 }, 20)).toBe(false);
-    expect(estRetenue({ part: null }, 0)).toBe(false);
+    expect(estRetenue({ part_brute: 20 }, 20)).toBe(true);
+    expect(estRetenue({ part_brute: 19.9 }, 20)).toBe(false);
+    expect(estRetenue({ part_brute: null }, 0)).toBe(false);
+  });
+  it('B11 : part 19,96 % et seuil 20 % → non retenue (l’arrondi au dixième, 20,0 %, ne compte plus)', () => {
+    expect(estRetenue({ part_brute: 19.96 }, 20)).toBe(false);
+  });
+  it('B11 : à seuil 0, part 0,02 % (affichée 0,0 %) → retenue ; part 0 → non retenue', () => {
+    expect(estRetenue({ part_brute: 0.02 }, 0)).toBe(true);
+    expect(estRetenue({ part_brute: 0 }, 0)).toBe(false);
   });
 });
 
@@ -326,7 +344,7 @@ describe('unitesPays — les unités d’une plateforme au pays (⑤ finitions, 
 });
 
 describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune', () => {
-  const resume = appliquerSeuil([{ pop_en_zone: 40, pop_totale: 60, part: 66.7 }, { pop_en_zone: 30, pop_totale: 30, part: 100 }], 70, 20);
+  const resume = appliquerSeuil([{ pop_en_zone: 40, pop_totale: 60, part: 66.7, part_brute: 66.7 }, { pop_en_zone: 30, pop_totale: 30, part: 100, part_brute: 100 }], 70, 20);
   it('dans les limites : aucun avertissement ; aucune limite : aucun', () => {
     expect(verifierLimites(resume, ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 2, pop_min_groupe: 90 } }))).toEqual([]);
     expect(verifierLimites(resume, ligne({ plateforme: 'ttd', maille: 'cp' }))).toEqual([]);

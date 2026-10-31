@@ -6,7 +6,7 @@ import { TableauCouvertureZoneComponent } from './tableau-couverture-zone.compon
 
 const lignes = (n: number): LigneCouverture[] => Array.from({ length: n }, (_, i) => ({
   code: `13${String(i).padStart(7, '0')}`, nom: `IRIS ${i}`, commune: 'Aix-en-Provence', n_carreaux: 1,
-  pop_en_zone: 1000 - i, pop_totale: i === 3 ? null : 2000, part: i === 3 ? null : (1000 - i) / 20,
+  pop_en_zone: 1000 - i, pop_totale: i === 3 ? null : 2000, part: i === 3 ? null : (1000 - i) / 20, part_brute: i === 3 ? null : (1000 - i) / 20,
 }));
 
 async function monter(l: LigneCouverture[], decoupage: 'cp' | 'iris' = 'iris') {

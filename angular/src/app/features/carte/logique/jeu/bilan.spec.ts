@@ -8,7 +8,7 @@ const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'm
 });
 const couverture = (decoupage: string, zone_maj: string, population = 1000) => ({
   decoupage, zone_maj, population, surface_km2: 10,
-  lignes: [{ code: 'a', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 600, pop_totale: 1000, part: 60 }],
+  lignes: [{ code: 'a', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 600, pop_totale: 1000, part: 60, part_brute: 60 }],
 } as unknown as ResultatCouverture);
 const pavage = { rayon_m: 5000, seuil: 20, n_cercles: 3, n_candidates: 9, couverte: 900, achetee: 1200, manques: 100, hors_zone: 300, taux_utile: 75 } as ResultatCercles;
 
@@ -85,10 +85,10 @@ describe('bilan d’une zone pays (⑤ finitions, T4)', () => {
   const departements = {
     decoupage: 'departement', zone_maj: 'v1', population: 64_000_000, surface_km2: 640_000,
     lignes: [
-      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100 },
-      { code: '971', nom: null, commune: null, n_carreaux: 0, pop_en_zone: 0, pop_totale: null, part: null },
-      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100 },
-      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100 },
+      { code: '13', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 2_000_000, pop_totale: 2_000_000, part: 100, part_brute: 100 },
+      { code: '971', nom: null, commune: null, n_carreaux: 0, pop_en_zone: 0, pop_totale: null, part: null, part_brute: null },
+      { code: '972', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 300_000, pop_totale: 300_000, part: 100, part_brute: 100 },
+      { code: '974', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 800_000, pop_totale: 800_000, part: 100, part_brute: 100 },
     ],
   } as unknown as ResultatCouverture;
 
