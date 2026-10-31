@@ -47,6 +47,13 @@ export type TypeJeu = (typeof TYPES_JEU)[number];
 /** Les deux façons de traduire un jeu de zones en plan de campagne. */
 export const MODES_PLAN = ['pondere', 'exclusif'] as const;
 
+/**
+ * Le mode de plan par défaut d'un jeu de ZONE (étape ⑤) : exclusif — arbitrage ARB-2 du 31/10 (ticket A1), « tant
+ * qu'une seule classe est définie ». Un jeu de zone n'en a qu'une (`zone`) : en pondéré, le hors-zone pèserait autant
+ * que la zone et le plan ne distinguerait rien. Les jeux RISQUE (plusieurs classes) gardent `JEU_DEFAUT.mode_plan`.
+ */
+export const MODE_PLAN_DEFAUT_ZONE = 'exclusif' satisfies (typeof MODES_PLAN)[number];
+
 type ModePlan = (typeof MODES_PLAN)[number];
 
 /** Multiplicateur d'enchère minimal. Zéro = la classe ne reçoit rien. */

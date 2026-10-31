@@ -124,6 +124,7 @@ describe('cercle et palettes de données', () => {
 describe('jeu de zones et échelle divergente', () => {
   it('constantes du jeu', () => {
     expect(Aj.MODES_PLAN).toEqual(Rj.MODES_PLAN);
+    expect(Aj.MODE_PLAN_DEFAUT_ZONE).toBe(Rj.MODE_PLAN_DEFAUT_ZONE);
     expect(Aj.POIDS_MIN).toBe(Rj.POIDS_MIN);
     expect(Aj.POIDS_MAX).toBe(Rj.POIDS_MAX);
     expect(Aj.MOTIF_CLASSE.source).toBe(Rj.MOTIF_CLASSE.source);

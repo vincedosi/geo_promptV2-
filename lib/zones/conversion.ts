@@ -19,7 +19,7 @@ type Maille = PlateformeGeo['maille'];
 type Plateforme = PlateformeGeo['plateforme'];
 
 /** Ce que le seuil lit d'une ligne de `couverture_geometrie` — rien d'autre, pour accepter aussi une ligne figée. */
-export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute'>;
+export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute' | 'membres'>;
 
 /**
  * Le bilan d'une maille calculée. Deux égalités, toujours (Review Focus 1) : `manques + couverte = population de la
@@ -31,6 +31,11 @@ export interface ResumeMaille {
   n_unites: number;
   /** Unités touchées par la zone, retenues ou non. */
   n_touchees: number;
+  /**
+   * Maille CP (lignes à `membres`, sql/304) : les CODES achetés, membres des groupes retenus développés — ce que la
+   * plateforme reçoit, et ce que comptent ses limites (A1, relecture de A2 : 981 codes pour 895 unités). Absent sinon.
+   */
+  n_codes?: number;
   /** Habitants de la zone dans les unités retenues. */
   couverte: number;
   /** Habitants des unités retenues, dans la zone ou non : la diffusion achetée. */
@@ -48,6 +53,8 @@ export interface ResumeExact {
   exacte: true;
   /** Unités achetées : une (le polygone, le cercle de la recette), ou une par code d'une liste de codes postaux. */
   n_unites: number;
+  /** Liste de codes postaux exacte : les codes de la liste (A1) ; absent sinon. */
+  n_codes?: number;
   population: number;
   surface_km2: number;
   couverte: number;
@@ -59,11 +66,22 @@ export interface ResumeExact {
 
 export type Resume = ResumeMaille | ResumeExact;
 
-/** Un dépassement d'une limite de la plateforme : un avertissement, jamais un refus (A-9). */
+/**
+ * Un dépassement d'une limite de la plateforme : un avertissement, jamais un refus (A-9). Depuis A1, aussi ce que le
+ * mécanisme de poids (`plateformes_poids`, sql/305) a fait au plan CP :
+ * - `multiplicateur_min` / `multiplicateur_max` : des multiplicateurs ramenés à la plage — `valeur` le plus extrême
+ *   calculé (avant), `limite` la borne (après), `n` le nombre de codes envoyés ramenés ;
+ * - `nb_max_entrees` : `valeur` codes envoyés pour `limite` par envoi, découpés en `n` envois.
+ * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
+ */
 export interface Avertissement {
-  code: 'max_unites' | 'pop_min_groupe';
+  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees';
   limite: number;
   valeur: number;
+  n?: number;
+  /** `nb_max_entrees` : le mécanisme qui porte la limite (`script`…). */
+  mecanisme?: string;
+  a_verifier?: true;
 }
 
 /**
@@ -92,11 +110,13 @@ export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'>, seuil: number)
  */
 export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number, seuil: number): ResumeMaille {
   let n_unites = 0;
+  let n_codes = 0;
   let couverte = 0;
   let achetee = 0;
   for (const l of lignes) {
     if (!estRetenue(l, seuil)) continue;
     n_unites += 1;
+    n_codes += l.membres?.length || 1;
     couverte += l.pop_en_zone;
     // Une part non nulle a un dénominateur ; `?? 0` ne sert que le typage.
     achetee += l.pop_totale ?? 0;
@@ -105,6 +125,8 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     exacte: false,
     n_unites,
     n_touchees: lignes.length,
+    // Les codes, seulement pour une maille qui en a (lignes CP à `membres`, sql/304).
+    ...(lignes.some((l) => l.membres !== undefined) ? { n_codes } : {}),
     couverte,
     achetee,
     manques: population - couverte,
@@ -119,9 +141,9 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
  * Le bilan d'une maille exacte (le polygone, ou une maille exacte pour la recette) : la zone telle quelle. `n_unites` :
  * une par défaut ; le nombre de codes d'une recette `codes_postaux` achetée au CP.
  */
-export function resumeExact(population: number, surface_km2: number, n_unites = 1): ResumeExact {
+export function resumeExact(population: number, surface_km2: number, n_unites = 1, n_codes?: number): ResumeExact {
   return {
-    exacte: true, n_unites, population, surface_km2, couverte: population, achetee: population, manques: 0, hors_zone: 0, taux_utile: 100,
+    exacte: true, n_unites, ...(n_codes !== undefined ? { n_codes } : {}), population, surface_km2, couverte: population, achetee: population, manques: 0, hors_zone: 0, taux_utile: 100,
   };
 }
 
@@ -266,7 +288,8 @@ export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Pl
 }
 
 /**
- * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités achetées, maille exacte comprise :
+ * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités achetées — en CODES au CP
+ * (`n_codes`, groupes développés, A1) —, maille exacte comprise :
  * une liste de codes postaux exacte au CP peut dépasser le plafond de la plateforme (relecture T5). `pop_min_groupe`
  * porte sur la diffusion achetée — le palier unique d'A-9. `max_sommets` n'est pas vérifié ici : aucune forme n'est
  * simplifiée par ce module (le polygone part tel que ③ l'a enregistré).
@@ -274,8 +297,10 @@ export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Pl
 export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertissement[] {
   const { max_unites, pop_min_groupe } = ligne.limites;
   const avertissements: Avertissement[] = [];
-  if (max_unites !== undefined && resume.n_unites > max_unites) {
-    avertissements.push({ code: 'max_unites', limite: max_unites, valeur: resume.n_unites });
+  // Au CP, la plateforme reçoit des CODES (groupes développés) : c'est eux que la limite compte (A1).
+  const achetees = resume.n_codes ?? resume.n_unites;
+  if (max_unites !== undefined && achetees > max_unites) {
+    avertissements.push({ code: 'max_unites', limite: max_unites, valeur: achetees });
   }
   if (pop_min_groupe !== undefined && resume.achetee < pop_min_groupe) {
     avertissements.push({ code: 'pop_min_groupe', limite: pop_min_groupe, valeur: resume.achetee });

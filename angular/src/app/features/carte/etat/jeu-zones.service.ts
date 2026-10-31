@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
 import { type DetailJeuZone, JeuxApi, type ModePlan } from '../data/jeux.api';
-import { MODES_PLAN } from '../../risques/logique/jeu';
+import { MODE_PLAN_DEFAUT_ZONE } from '../../risques/logique/jeu';
 import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
@@ -93,8 +93,8 @@ export class JeuZonesService {
   readonly jeu: Signal<DetailJeuZone | null> = this.lectureJeu.resultat.asReadonly();
   /** La cible comptée : celle du jeu ouvert (elle ne change pas, PATCH), sinon la choisie, sinon la population totale. */
   readonly cible: Signal<string> = computed(() => this.jeu()?.jeu.cible ?? this._cibleChoisie() ?? CIBLE_PAR_DEFAUT);
-  /** Le mode de plan : le choisi (un jeu ouvert l'enregistre par « Enregistrer les réglages »), sinon celui du jeu, sinon pondéré. */
-  readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODES_PLAN[0]);
+  /** Le mode de plan : le choisi (enregistré par « Enregistrer les réglages »), sinon celui du jeu, sinon exclusif (ARB-2, A1). */
+  readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODE_PLAN_DEFAUT_ZONE);
   /** Le registre `plateformes_geo`, lu une fois par page. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() => this.lecturePlateformes.resultat() ?? []);
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */

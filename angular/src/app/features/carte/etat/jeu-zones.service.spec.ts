@@ -310,11 +310,11 @@ describe('JeuZonesService — la conversion', () => {
     expect(hote.jeu.modifie()).toBe(true);
     http.verify();
   });
-  it('choisirMode : le mode de plan avant enregistrement (pondéré par défaut)', async () => {
+  it('choisirMode : le mode de plan avant enregistrement (exclusif par défaut, ARB-2, ticket A1)', async () => {
     const { hote } = await ouvrirAvecZone();
-    expect(hote.jeu.modePlan()).toBe('pondere');
-    hote.jeu.choisirMode('exclusif');
     expect(hote.jeu.modePlan()).toBe('exclusif');
+    hote.jeu.choisirMode('pondere');
+    expect(hote.jeu.modePlan()).toBe('pondere');
   });
   it('erreur d’une conversion : message pour les plateformes de cette maille, la zone reste', async () => {
     const { hote, http } = await ouvrirAvecZone();

@@ -146,6 +146,25 @@ describe('cartesActivation — cas aux bords', () => {
     expect(courant.avertissements).toEqual(['63 codes postaux pour 60 admis par la plateforme.']);
   });
 
+  it('A1 : écrêtages du plan (avant / après, « à vérifier » à côté de la borne) et envois découpés, dits sur la carte', () => {
+    const c = cartesActivation({
+      canaux: ['dv360'], prevol: prevol('reel'), registre: REGISTRE,
+      extraction: extraction([{
+        ...RESUMES[0],
+        avertissements: [
+          { code: 'multiplicateur_max', limite: 10, valeur: 14.2, n: 3, a_verifier: true },
+          { code: 'multiplicateur_min', limite: 0.1, valeur: 0.02, n: 1, a_verifier: true },
+          { code: 'nb_max_entrees', limite: 2000, valeur: 6000, n: 3, mecanisme: 'script', a_verifier: true },
+        ],
+      }]),
+    })[0];
+    expect(c.avertissements).toEqual([
+      '3 codes postaux ramenés à ×10 (à vérifier), le maximum admis par la plateforme (×14,2 calculé au plus extrême).',
+      '1 code postal ramené à ×0,1 (à vérifier), le minimum admis par la plateforme (×0,02 calculé).',
+      `${(6000).toLocaleString('fr-FR')} codes postaux pour ${(2000).toLocaleString('fr-FR')} (à vérifier) par envoi au script de custom bidding : découpés en 3 envois.`,
+    ]);
+  });
+
   it('« à vérifier » : lu dans la règle (plateforme, maille) du registre, jamais sur une carte muette (T5)', () => {
     const registre = [ligne('dv360', 'cp', 10), { ...ligne('ttd', 'polygone', 20), a_verifier: true }];
     const c = cartesActivation({ canaux: ['dv360', 'ttd'], extraction: extraction(RESUMES), prevol: prevol('reel'), registre });

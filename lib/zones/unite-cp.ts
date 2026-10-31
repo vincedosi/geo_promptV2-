@@ -18,8 +18,9 @@
  * lirait « personne ».
  *
  * ⚠ « Même multiplicateur » ou « divisé par le nombre de membres » dépend de la façon dont la plateforme cumule les
- * poids d'une impression ; ce n'est PAS tranché ici. Le registre le porte (`plateformes_geo.poids_groupe_cp`, seed
- * `meme`) et le marque « à vérifier » (`parametres_a_verifier`). Le chemin RISQUE (`genererPlanCp` avec ses
+ * poids d'une impression ; ce n'est PAS tranché ici. Le registre des mécanismes le porte, plateforme par plateforme
+ * (`plateformes_poids.poids_groupe_cp`, sql/305, A1 ; sql/304 l'avait posé dans `plateformes_geo`, seed `meme`), et
+ * le marque « à vérifier » (`parametres_a_verifier`) ; l'extraction l'applique (`plan-jeu-zone.ts`). Le chemin RISQUE (`genererPlanCp` avec ses
  * `membres`, `etendreAuxGroupes`) garde la division, inchangé (ruling A1 ↔ ⑥ du lot 1).
  */
 import type { MembresParCanonique } from './plan';

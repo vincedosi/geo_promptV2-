@@ -75,6 +75,15 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
     expect(appliquerSeuil(composite.lignes, pop, seuil).n_unites).toBe(unites);
     expect(retenues.length).toBe(unites);
     expect(retenues.reduce((t, l) => t + (l.membres ?? [l.code]).length, 0)).toBe(codes);
+    // A1 : le bilan porte lui-même les codes envoyés (`n_codes`), ce que comptent les limites de la plateforme.
+    expect(appliquerSeuil(composite.lignes, pop, seuil).n_codes).toBe(codes);
+  });
+
+  // A1 (relecture de A2, M-2) : une limite d'unités se compte en CODES envoyés au CP — 981 codes pour 895 unités.
+  it('verifierLimites au CP : la limite compte les codes (981), pas les unités (895)', () => {
+    const r = appliquerSeuil(composite.lignes, pop, 0);
+    const cp = ligne({ plateforme: 'meta', maille: 'cp', limites: { max_unites: 900 } });
+    expect(verifierLimites(r, cp)).toEqual([{ code: 'max_unites', limite: 900, valeur: 981 }]);
   });
 
   it('chaque ligne nomme ses membres, son code compris ; 53 groupes', () => {
@@ -127,6 +136,9 @@ describe('resumeExact — une maille exacte ne calcule rien', () => {
   });
   it('une liste de codes postaux exacte compte ses unités (une par code)', () => {
     expect(resumeExact(100, 2, 4).n_unites).toBe(4);
+    // A1 : et ses codes, quand on les donne ; absent sinon (aucun chiffre existant ne change).
+    expect(resumeExact(100, 2, 4, 4).n_codes).toBe(4);
+    expect('n_codes' in resumeExact(100, 2, 4)).toBe(false);
   });
 });
 

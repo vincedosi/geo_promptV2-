@@ -44,21 +44,22 @@ describe('JeuZonesService — E6 : la cible et le mode dans l’URL (⑤ finitio
   it('choisis avant enregistrement : écrits (`?cibleJeu=`, `?modeJeu=`), retirés au retour aux défauts', async () => {
     const { jeu, router, stable } = await monter(`/carte?zoneJeu=${Z1}`);
     jeu.choisirCible('jeunes_15_29');
-    jeu.choisirMode('exclusif');
-    await stable();
-    expect([parametre(router.url, 'cibleJeu'), parametre(router.url, 'modeJeu')]).toEqual(['jeunes_15_29', 'exclusif']);
-    jeu.choisirCible('ind');
+    // ARB-2 (ticket A1) : le défaut d'un jeu de zone est exclusif — c'est pondéré qui s'écrit.
     jeu.choisirMode('pondere');
+    await stable();
+    expect([parametre(router.url, 'cibleJeu'), parametre(router.url, 'modeJeu')]).toEqual(['jeunes_15_29', 'pondere']);
+    jeu.choisirCible('ind');
+    jeu.choisirMode('exclusif');
     await stable();
     expect([parametre(router.url, 'cibleJeu'), parametre(router.url, 'modeJeu')]).toEqual([null, null]);
   });
   it('relus au chargement : un lien partagé rouvre ⑤ sur la même cible et le même mode', async () => {
-    const { jeu } = await monter(`/carte?zoneJeu=${Z1}&cibleJeu=jeunes_15_29&modeJeu=exclusif`);
-    expect([jeu.cible(), jeu.modePlan()]).toEqual(['jeunes_15_29', 'exclusif']);
+    const { jeu } = await monter(`/carte?zoneJeu=${Z1}&cibleJeu=jeunes_15_29&modeJeu=pondere`);
+    expect([jeu.cible(), jeu.modePlan()]).toEqual(['jeunes_15_29', 'pondere']);
   });
   it('illisibles : les défauts, sans lever, et l’URL réécrite sans eux', async () => {
     const { jeu, router } = await monter(`/carte?zoneJeu=${Z1}&cibleJeu=Pas%20une%20cible&modeJeu=zz`);
-    expect([jeu.cible(), jeu.modePlan()]).toEqual(['ind', 'pondere']);
+    expect([jeu.cible(), jeu.modePlan()]).toEqual(['ind', 'exclusif']);
     expect([parametre(router.url, 'cibleJeu'), parametre(router.url, 'modeJeu')]).toEqual([null, null]);
   });
   it('retirés quand `?jeu=` est posé : le jeu enregistré porte sa cible et son mode', async () => {

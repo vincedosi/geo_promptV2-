@@ -20,7 +20,7 @@ export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cer
  */
 export const MAX_PLATEFORMES_GEO = 50;
 
-/** Les valeurs de `poids_groupe_cp` (CHECK `plateformes_geo_poids_groupe_cp_valide`, sql/304). */
+/** Les valeurs de `poids_groupe_cp` (CHECK `plateformes_geo_poids_groupe_cp_valide`, sql/304 ; `plateformes_poids_groupe_cp_valide`, sql/305). */
 export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 
 /**
@@ -75,6 +75,8 @@ export const PlateformeGeoSchema = z.object({
   /**
    * Ligne CP (sql/304, A2) : ce que reçoit chaque membre d'un groupe de CP indiscernables — `meme` (le multiplicateur
    * de l'unité, répété) ou `divise` (divisé par le nombre de membres). `null` hors CP ; absent = `null`.
+   * ⚠ REMPLACÉE par `plateformes_poids.poids_groupe_cp` (sql/305, A1) : la règle dépend du mécanisme de poids. Lue
+   * ici pour ne pas refuser la ligne, appliquée nulle part.
    */
   poids_groupe_cp: z.enum(POIDS_GROUPE_CP).nullable().optional(),
   /** Les paramètres de la ligne non confirmés (sql/304, amendement E9) ; absent ou vide = aucun parmi eux. */
@@ -82,3 +84,41 @@ export const PlateformeGeoSchema = z.object({
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;
+
+/** Les mécanismes de poids (CHECK de `plateformes_poids.mecanisme`, sql/305, A1, amendement E2). */
+export const MECANISMES_POIDS = ['multiplicateur', 'script', 'budget_ligne', 'aucun'] as const;
+
+/** Les paramètres qu'une ligne de `plateformes_poids` peut déclarer « à vérifier » (`plateformes_poids_parametres_valides`). */
+export const PARAMETRES_POIDS_VERIFIABLES = [
+  'mecanisme', 'valeur_min', 'valeur_max', 'pas', 'nb_max_entrees', 'nb_paliers_max', 'poids_groupe_cp', 'branche',
+] as const;
+
+/** Borne écrite de la lecture : 4 plateformes × 7 mailles × 4 mécanismes = 112 au plus ; la route lit une ligne de plus. */
+export const MAX_PLATEFORMES_POIDS = 150;
+
+/** PostgREST rend un `numeric` en nombre ou en chaîne selon sa précision : les deux sont lus, `null` reste `null`. */
+const nombre = z.union([z.number(), z.string().regex(/^-?\d+(\.\d+)?$/).transform(Number)]).nullable();
+
+/**
+ * Une ligne de `plateformes_poids` (sql/305, A1) : un MÉCANISME par lequel les poids d'un plan partent chez une
+ * plateforme, à une maille. Aucune valeur n'est écrite dans le code : plage, pas, entrées par envoi (comptées en CODES
+ * envoyés), paliers et règle d'un groupe de CP se corrigent par une `update`.
+ */
+export const PlateformePoidsSchema = z.object({
+  plateforme: z.enum(PLATEFORMES),
+  maille: z.enum(MAILLES),
+  mecanisme: z.enum(MECANISMES_POIDS),
+  valeur_min: nombre,
+  valeur_max: nombre,
+  pas: nombre,
+  nb_max_entrees: z.number().int().positive().nullable(),
+  nb_paliers_max: z.number().int().positive().nullable(),
+  /** Ligne CP : `meme` (poids de l'unité répété sur chaque membre) ou `divise` ; `null` hors CP. */
+  poids_groupe_cp: z.enum(POIDS_GROUPE_CP).nullable(),
+  branche: z.boolean(),
+  parametres_a_verifier: z.array(z.enum(PARAMETRES_POIDS_VERIFIABLES)),
+  note: z.string().nullable(),
+  releve_le: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export type PlateformePoids = z.infer<typeof PlateformePoidsSchema>;

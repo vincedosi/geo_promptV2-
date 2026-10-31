@@ -19,16 +19,29 @@ const regle = (plateforme: string, maille: string, limites: Record<string, numbe
   plateforme, maille, libelle: maille, natif: true, disponible: true, limites, doc_url: null, releve_le: '2026-10-14',
   a_verifier: false, note: null, ordre: 1,
 });
+// A1 : `membres` ajouté aux lignes (contrat CP de sql/304) — le bilan en tire `n_codes`, que comptent les limites.
 const COUVERTURE = {
   population: 10_000, surface_km2: 78.5,
   lignes: [
-    { code: '69001', nom: 'Lyon 1', commune: null, n_carreaux: 5, pop_en_zone: 6_000, pop_totale: 6_500, part: 92.3, part_brute: 92.3 },
-    { code: '69002', nom: 'Lyon 2', commune: null, n_carreaux: 5, pop_en_zone: 3_000, pop_totale: 10_000, part: 30, part_brute: 30 },
-    { code: '69003', nom: 'Lyon 3', commune: null, n_carreaux: 1, pop_en_zone: 1_000, pop_totale: 50_000, part: 2, part_brute: 2 },
+    { code: '69001', nom: 'Lyon 1', commune: null, n_carreaux: 5, pop_en_zone: 6_000, pop_totale: 6_500, part: 92.3, part_brute: 92.3, membres: ['69001'] },
+    { code: '69002', nom: 'Lyon 2', commune: null, n_carreaux: 5, pop_en_zone: 3_000, pop_totale: 10_000, part: 30, part_brute: 30, membres: ['69002'] },
+    { code: '69003', nom: 'Lyon 3', commune: null, n_carreaux: 1, pop_en_zone: 1_000, pop_totale: 50_000, part: 2, part_brute: 2, membres: ['69003'] },
   ],
 };
 
+/** Les mécanismes de poids au CP (`plateformes_poids`, sql/305, A1) : le seed du 31/10. */
+const poids = (plateforme: string, mecanisme: string, p: Record<string, unknown> = {}) => ({
+  plateforme, maille: 'cp', mecanisme, valeur_min: null, valeur_max: null, pas: null, nb_max_entrees: null, nb_paliers_max: null,
+  poids_groupe_cp: 'meme', branche: false, parametres_a_verifier: [], note: null, releve_le: '2026-10-31', ...p,
+});
+const POIDS_SEED = [
+  poids('dv360', 'multiplicateur', { valeur_min: 0.1, valeur_max: 10, parametres_a_verifier: ['valeur_min', 'valeur_max', 'poids_groupe_cp'] }),
+  poids('dv360', 'script', { nb_max_entrees: 2000, parametres_a_verifier: ['nb_max_entrees', 'poids_groupe_cp'] }),
+  poids('ttd', 'budget_ligne'), poids('meta', 'aucun'), poids('tiktok', 'aucun'),
+];
+
 function jeuAvec(choix: object[], recette: object, regles: object[]) {
+  etat.tables.plateformes_poids = { data: POIDS_SEED, error: null };
   etat.tables.zone_set_plateformes = { data: choix, error: null };
   etat.tables.custom_geo_zones = { data: { recette }, error: null };
   etat.tables.plateformes_geo = { data: regles, error: null };
@@ -90,7 +103,51 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
       { plateforme: 'dv360', maille: 'cp', code: '69002', retenu: true },
     ]);
     expect(argsCreation().p_cp.filter((l) => l.retenu).map((l) => l.code_postal)).toEqual(['69001', '69002']);
-    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 2, manques: 0 });
+    // Attendu complété par A1 : les codes de la liste et ce que la plateforme reçoit par mécanisme de poids.
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 2, n_codes: 2, manques: 0 });
+    expect(argsCreation().p_resume.plateformes[0].poids).toEqual([
+      { mecanisme: 'multiplicateur', branche: false, poids_groupe_cp: 'meme', parametres_a_verifier: ['valeur_min', 'valeur_max', 'poids_groupe_cp'], n_codes: 2, valeur_min: 0.1, valeur_max: 10 },
+      { mecanisme: 'script', branche: false, poids_groupe_cp: 'meme', parametres_a_verifier: ['nb_max_entrees', 'poids_groupe_cp'], n_codes: 2, nb_max_entrees: 2000, n_envois: 1 },
+    ]);
+  });
+
+  it('A1 : CP calculé — seuls les CP retenus au plan, moyenne 1, bilan E4 et ligne HORS_ZONE figés dans le résumé', async () => {
+    // Parts 92,3 / 30 / 2 %, seuil 20 % : deux CP au plan ; 92,3 ÷ 61,15 = 1,509, 30 ÷ 61,15 = 0,491 ; 69003 à 0.
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], DESSIN, [regle('dv360', 'cp')]);
+    expect((await extraire()).status).toBe(201);
+    const mult = Object.fromEntries((argsCreation().p_cp as unknown as { code_postal: string; multiplicateur: number }[])
+      .map((l) => [l.code_postal, l.multiplicateur]));
+    expect(mult).toEqual({ 69001: 1.509, 69002: 0.491, 69003: 0 });
+    const resume = argsCreation().p_resume as unknown as Record<string, unknown>;
+    expect(resume).toMatchObject({
+      n_cp: 3, n_retenus: 2, n_codes: 2, part_plan_en_zone: 100,
+      multiplicateur: {
+        normalisation: 'non_ponderee', bornes: { min: 0.1, max: 10 }, moyenne_avant_ecretage: 1, moyenne_apres_ecretage: 1,
+        n_ecretes: 0, ajustements: [], poids_groupe_cp: 'meme',
+        // Le jeu est pondéré → mode national : plancher 0,8 × 0,491.
+        hors_zone: { code: 'HORS_ZONE', mode: 'national', multiplicateur: 0.393 },
+      },
+    });
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ n_unites: 2, n_codes: 2, avertissements: [] });
+  });
+
+  it('A1 : une règle de groupe divergente entre plateformes au CP refuse l’extraction en le disant (422)', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 20, rayon_m: null }],
+      DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);
+    etat.tables.plateformes_poids = { data: [POIDS_SEED[0], poids('ttd', 'budget_ligne', { poids_groupe_cp: 'divise' })], error: null };
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toMatch(/divergente.*dv360 \(multiplicateur\) : le même multiplicateur ; ttd \(budget_ligne\) : le multiplicateur divisé/);
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('A1 : registre des mécanismes illisible : 500 neutre, rien d’écrit', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], DESSIN, [regle('dv360', 'cp')]);
+    etat.tables.plateformes_poids = { data: null, error: { message: 'secret' } };
+    const r = await extraire();
+    expect(r.status).toBe(500);
+    expect(JSON.stringify(await r.json())).not.toContain('secret');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
   });
 
   it('polygone : la population de la zone dans le résumé (exacte, aucune perte, chiffré)', async () => {

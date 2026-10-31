@@ -40,13 +40,13 @@ import {
   MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
-import { lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
+import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
-import { planCpDeZone } from './plan-jeu-zone';
+import { planCpDeZone, reglageDuPlan, sortiesPoids, type ReglagePlan, type SortiePoids } from './plan-jeu-zone';
 import { lireGroupesCp } from './groupes';
 import { lireRecette } from './recette-schema';
-import type { PlateformeGeo } from './plateformes';
+import type { PlateformeGeo, PlateformePoids } from './plateformes';
 import type { Recette } from './recette';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -79,6 +79,10 @@ interface ResumePlateforme {
   couverte: number; achetee: number; manques: number; hors_zone: number; taux_utile: number | null;
   /** Maille pays : le ciblage n'est pas confirmé pour CETTE recette (`paysAVerifier`, relecture 1) ; absent sinon. */
   pays_a_verifier?: true;
+  /** Maille CP : les CODES achetés (groupes développés, A1) — ce que comptent les limites de la plateforme. */
+  n_codes?: number;
+  /** Maille CP : ce que la plateforme reçoit par chacun de ses mécanismes de poids (`plateformes_poids`, A1). */
+  poids?: SortiePoids[];
 }
 
 type Echec = { ok: false; reponse: NextResponse };
@@ -161,6 +165,9 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   } else if (c.maille === 'cp' && r?.type === 'codes_postaux') {
     // La liste de la recette, seuil ignoré ; leurs populations sont portées par le plan CP (par canonique).
     unites = [...new Set(r.codes)].map((code) => ({ plateforme: c.plateforme, maille: 'cp', code, retenu: true }));
+    // Les codes de la liste (A1) ; un membre de groupe nommé seul achète son groupe (B15, M-5 de la relecture A2).
+    const bilanCp = resumeExact(forme.population, forme.surface_km2, unites.length, unites.length);
+    return { ok: true, unites, resume: { ...bilanCp, plateforme: c.plateforme, avertissements: verifierLimites(bilanCp, regle) } };
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
     unites = [{ plateforme: c.plateforme, maille: 'cercle', lon: r.lon, lat: r.lat, rayon_m: r.rayon_m, ...toute }];
   } else {
@@ -252,8 +259,13 @@ const MESSAGES_RPC: Record<string, string> = {
   unites_hors_choix: 'Le choix des plateformes a changé pendant l’extraction : relancez-la.',
 };
 
-/** Le plan CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle. */
-async function planCp(ctx: Contexte, auCp: readonly Choix[]): Promise<ReturnType<typeof planCpDeZone> | null | Echec> {
+/**
+ * Le plan CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle, et le
+ * réglage du registre des mécanismes de poids (`reglageDuPlan` : plage la plus étroite, règle de groupe unique, A1).
+ */
+async function planCp(
+  ctx: Contexte, auCp: readonly Choix[], reglage: ReglagePlan,
+): Promise<ReturnType<typeof planCpDeZone> | null | Echec> {
   if (auCp.length === 0) return null;
   let groupes: MembresParCanonique;
   try {
@@ -266,7 +278,7 @@ async function planCp(ctx: Contexte, auCp: readonly Choix[]): Promise<ReturnType
   if (estEchec(cp)) return cp;
   const r = ctx.recette;
   const liste = r?.type === 'codes_postaux' && exactitude(r, 'cp') === 'exacte' ? r.codes : undefined;
-  return planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), ctx.jeu.mode_plan as ModePlan, groupes, liste);
+  return planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), ctx.jeu.mode_plan as ModePlan, groupes, liste, reglage);
 }
 
 /**
@@ -306,8 +318,34 @@ export async function extraireJeuZone(
     resumes.push(issue.resume);
   }
 
-  const plan = await planCp(ctx, choix.filter((c) => c.maille === 'cp'));
+  // A1 : les mécanismes de poids des plateformes au CP (`plateformes_poids`), lus une fois ; une règle de groupe
+  // divergente ou une plateforme sans mécanisme refuse l'extraction en le disant (règle 5).
+  const auCp = choix.filter((c) => c.maille === 'cp');
+  let poids: PlateformePoids[] = [];
+  let reglage: ReglagePlan = {};
+  if (auCp.length > 0) {
+    try {
+      poids = await lirePoids(supabase, auCp.map((c) => c.plateforme), 'cp');
+    } catch (e) {
+      return panne('mécanismes de poids', e).reponse;
+    }
+    const r = reglageDuPlan(poids, auCp.map((c) => c.plateforme));
+    if (!r.ok) return erreur(`${r.message} Réglez à nouveau le jeu avant d’extraire.`, 422).reponse;
+    reglage = r.reglage;
+  }
+
+  const plan = await planCp(ctx, auCp, reglage);
   if (plan && 'ok' in plan) return plan.reponse;
+  // A1, règle 5 : ce que le mécanisme de poids fait au plan est DIT sur chaque plateforme au CP — écrêtages (avant /
+  // après, comptés en codes, borne « à vérifier »), envois découpés au-delà de `nb_max_entrees` (comptés en codes).
+  if (plan) {
+    for (const r of resumes) {
+      if (!auCp.some((c) => c.plateforme === r.plateforme)) continue;
+      const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur, reglage.a_verifier);
+      r.poids = s.sorties;
+      r.avertissements.push(...s.avertissements);
+    }
+  }
 
   const { data: brut, error } = await supabase.rpc('creer_extraction_jeu_zone', {
     p_zone_set_id: jeu.id,

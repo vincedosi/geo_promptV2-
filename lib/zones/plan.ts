@@ -143,6 +143,11 @@ interface LignePlan {
   multiplicateur: number;
   classe: string;
   retenu: boolean;
+  /**
+   * Sémantique `'multiplicateur'` : le multiplicateur normalisé AVANT écrêtage et arrondi (étape (2) de E4), pour que
+   * le développement des groupes re-borne au code près et dise combien de CODES envoyés ont été écrêtés. Absent sinon.
+   */
+  multiplicateur_calcule?: number;
 }
 
 export interface Plan {
@@ -158,6 +163,75 @@ export interface Plan {
    */
   taux_utile: number | null;
   n_retenus: number;
+  /**
+   * Sémantique `'multiplicateur'` seulement (jeu de ZONE, A1) : ce que l'écrêtage a fait et la ligne `HORS_ZONE`.
+   * Absent en sémantique `'repartition'` (chemin risque, inchangé).
+   */
+  multiplicateur?: BilanMultiplicateur;
+}
+
+/** La plage d'un poids envoyé : celle du mécanisme de la plateforme (`plateformes_poids`, sql/305), ou la technique. */
+export interface BornesMultiplicateur { min: number; max: number }
+
+/**
+ * La convention de normalisation (Q32) : moyenne arithmétique NON PONDÉRÉE des unités retenues = 1. Paramètre
+ * explicite parce qu'il fixe la dérive du coût moyen après correction (`docs/rebid-v2.md` § 2.4) ; une seule valeur
+ * admise aujourd'hui.
+ */
+export const NORMALISATION_PLAN = 'non_ponderee' as const;
+
+/** Le code de la pseudo-ligne qui porte le hors zone du plan (amendement E3). Jamais un code postal. */
+export const CODE_HORS_ZONE = 'HORS_ZONE' as const;
+
+/**
+ * Mode national : poids hors zone = ce facteur × le plus petit multiplicateur envoyé des CP du plan (`docs/rebid-v2.md`
+ * D7 et § 3.2). Un paramètre de MÉTHODE, pas de plateforme : il garantit INV9 (tout CP du plan pèse plus que le hors
+ * zone).
+ */
+export const FACTEUR_HORS_ZONE_NATIONAL = 0.8;
+
+/**
+ * La ligne pseudo-CP `HORS_ZONE` du plan (amendement E3) : toute impression livrée sur un CP absent du plan lui est
+ * imputée. Mode figé à l'extraction : `strict` (jeu exclusif) → poids 0 ; `national` (jeu pondéré) → plancher. Sa
+ * part prévue (volume attendu : populations totales des CP non retenus) est l'affaire du ticket A8.
+ */
+interface LigneHorsZone {
+  code: typeof CODE_HORS_ZONE;
+  mode: 'strict' | 'national';
+  multiplicateur: number;
+}
+
+/** Des multiplicateurs ramenés à une borne : `valeur` le plus extrême calculé (avant), `limite` la borne (après). */
+interface AjustementMultiplicateur {
+  code: 'multiplicateur_min' | 'multiplicateur_max';
+  limite: number;
+  valeur: number;
+  /** Nombre de lignes ramenées à cette borne (unités dans `genererPlanCp`, codes envoyés après développement). */
+  n: number;
+}
+
+/** Le bilan d'un plan en multiplicateur d'enchère (séquence E4). */
+export interface BilanMultiplicateur {
+  normalisation: typeof NORMALISATION_PLAN;
+  bornes: BornesMultiplicateur;
+  /** Moyenne des multiplicateurs des unités retenues à population connue AVANT écrêtage : 1 (à l'arrondi près). */
+  moyenne_avant_ecretage: number | null;
+  /** La même moyenne sur les multiplicateurs ENVOYÉS (écrêtés, arrondis) ; pas de renormalisation (E4 (4)). */
+  moyenne_apres_ecretage: number | null;
+  /** Unités retenues ramenées à une borne. */
+  n_ecretes: number;
+  ajustements: AjustementMultiplicateur[];
+  hors_zone: LigneHorsZone;
+}
+
+/**
+ * Ce que dit le plan : `'repartition'` (défaut, inchangé — jeux RISQUE : `rattacher`, `export`, `cp-geo`,
+ * `extractions`) ou `'multiplicateur'` (jeu de ZONE, A1, ARB-1, séquence E4).
+ */
+export interface OptionsPlan {
+  semantique?: 'repartition' | 'multiplicateur';
+  /** Sémantique `'multiplicateur'` : la plage du mécanisme. Absente = bornes techniques de `numeric(6,3)`. */
+  bornes?: BornesMultiplicateur;
 }
 
 /**
@@ -178,7 +252,7 @@ export interface Plan {
 export type MembresParCanonique = ReadonlyMap<string, readonly string[]>;
 
 /** Plafond de `bidding_zone_configs.bid_multiplier` (`numeric(6,3)`). */
-const MULT_MAX = 999.999;
+export const MULT_MAX = 999.999;
 
 /**
  * Plancher d'un multiplicateur NON NUL.
@@ -188,7 +262,7 @@ const MULT_MAX = 999.999;
  * silence, sans jamais apparaître comme exclu. Un zéro DÉCIDÉ (mode exclusif,
  * poids nul) reste zéro ; un zéro d'arrondi devient 0,001.
  */
-const MULT_MIN_NON_NUL = 0.001;
+export const MULT_MIN_NON_NUL = 0.001;
 
 /**
  * Traduit un jeu de zones en plan à la maille code postal.
@@ -204,8 +278,13 @@ const MULT_MIN_NON_NUL = 0.001;
  * dans ce mode — un code postal couvert à 2 % recevrait le poids de sa classe
  * comme s'il l'était entièrement.
  *
+ * **Sémantique `'multiplicateur'`** (`options`, jeu de ZONE seulement, A1) : voir `planMultiplicateur`. Sans
+ * `options`, rien ne change : c'est le chemin des jeux risque (ruling A1 ↔ ⑥ du lot 1).
+ *
  * @param cps - Les codes postaux du jeu, tels que `zone_set_cp` les porte.
  * @param jeu - Le jeu normalisé, avec ses poids et son mode.
+ * @param membres - Les groupes de codes postaux indiscernables (sql/228), chemin risque.
+ * @param options - La sémantique du plan et, en multiplicateur, la plage du mécanisme.
  * @returns Le plan, et les deux chiffres qui doivent voyager avec lui.
  *
  * @example
@@ -215,12 +294,17 @@ export function genererPlanCp(
   entrees: CpZone[],
   jeu: Pick<JeuDeZones, 'mode_plan' | 'poids'>,
   membres?: MembresParCanonique,
+  options: OptionsPlan = {},
 ): Plan {
   const exclusif = jeu.mode_plan === 'exclusif';
 
   // ⚠ Replié AVANT tout calcul : depuis sql/225 il y a une ligne par grappe,
   // et le DSP ne sait porter qu'un multiplicateur par code postal.
   const cps = regrouperParCodePostal(entrees, jeu);
+
+  if (options.semantique === 'multiplicateur') {
+    return planMultiplicateur(cps, exclusif, options.bornes ?? { min: MULT_MIN_NON_NUL, max: MULT_MAX });
+  }
 
   // Le poids brut de chaque code postal, avant normalisation.
   const bruts = cps.map((cp) => {
@@ -289,6 +373,103 @@ export function genererPlanCp(
 }
 
 /**
+ * Le plan d'un jeu de ZONE en MULTIPLICATEUR D'ENCHÈRE (A1, ARB-1 option 1, Q1 = A avec la séquence E4). Une seule
+ * séquence, la même que le noyau d'optimisation (`docs/rebid-v2.md` § 2.4) :
+ *
+ *     (1) brut(u)  = part(u) × poids de classe(u)          unités retenues seulement
+ *     (2) m(u)     = brut(u) ÷ moyenne(brut)                moyenne arithmétique NON PONDÉRÉE = 1
+ *     (3) m(u)     = clamp(m(u), bornes du mécanisme)       puis arrondi au millième (`numeric(6,3)`)
+ *     (4) pas de renormalisation après écrêtage
+ *
+ * `part(u)` = population en zone ÷ population totale de l'unité — la couverture, celle que compare le seuil. LA
+ * POPULATION N'ENTRE PAS dans la formule : un multiplicateur d'enchère s'applique à chaque impression de l'unité, c'est
+ * son volume qui en fait le poids. Deux unités couvertes à 50 % reçoivent le même multiplicateur.
+ *
+ * ⚠ SEULES LES UNITÉS RETENUES ENTRENT AU PLAN, dans les deux modes. Avant A1, le mode pondéré donnait à chaque CP
+ * touché `population totale × poids` : le seuil ne changeait rien au plan, les non-retenus entraient dans « nombre de
+ * CP », et le plan était uniforme par habitant. Un non-retenu reçoit 0. Le mode ne joue plus que sur la ligne
+ * `HORS_ZONE` (E3) : exclusif → `strict` (0), pondéré → `national` (`FACTEUR_HORS_ZONE_NATIONAL` × le plus petit
+ * multiplicateur envoyé).
+ *
+ * La moyenne vaut 1 AVANT écrêtage ; le bilan rend la moyenne APRÈS et le nombre d'unités écrêtées (E4). Une unité
+ * retenue SANS population connue (liste exacte sans carreau, ARB-3) n'a pas de part : elle reçoit le multiplicateur
+ * neutre × son poids de classe, écrêté, et n'entre dans aucune des deux moyennes.
+ */
+function planMultiplicateur(cps: CpAgrege[], exclusif: boolean, bornes: BornesMultiplicateur): Plan {
+  const enPlan = (cp: CpAgrege) => cp.retenu && cp.classe !== HORS_ZONE;
+  const partDe = (cp: CpAgrege) => (cp.pop_totale > 0 ? cp.pop_en_zone / cp.pop_totale : null);
+  // (1) le brut des unités retenues à population connue
+  const bruts = cps.map((cp) => {
+    const part = partDe(cp);
+    return enPlan(cp) && part !== null ? part * cp.poids : null;
+  });
+  const connus = bruts.filter((b): b is number => b !== null);
+  const moyenneBrut = connus.length > 0 ? connus.reduce((t, b) => t + b, 0) / connus.length : 0;
+
+  const journal: JournalBornes = new Map();
+  const normalises: number[] = [];
+  const envoyes: number[] = [];
+  const lignes: LignePlan[] = cps.map((cp, i) => {
+    const b = bruts[i];
+    // (2) normalisé ; une unité retenue sans part : le neutre × son poids
+    const m = !enPlan(cp) ? 0 : b === null ? cp.poids : moyenneBrut > 0 ? b / moyenneBrut : 0;
+    // (3) écrêté puis arrondi ; un zéro décidé (non retenu, poids nul) reste zéro
+    const multiplicateur = m > 0 ? bornerMultiplicateur(m, bornes, journal) : 0;
+    if (enPlan(cp) && b !== null) {
+      normalises.push(m);
+      envoyes.push(multiplicateur);
+    }
+    return { code_postal: cp.code_postal, part_plan: 0, multiplicateur, multiplicateur_calcule: m, classe: cp.classe, retenu: cp.retenu };
+  });
+  // La part que `refresh_campaign_rollups` recalcule (m ÷ Σ m) ; la part PRÉVUE découplée est le ticket A8.
+  const total = lignes.reduce((t, l) => t + l.multiplicateur, 0);
+  for (const l of lignes) l.part_plan = total > 0 ? l.multiplicateur / total : 0;
+
+  const moyenne = (xs: number[]) => (xs.length > 0 ? Math.round((xs.reduce((t, x) => t + x, 0) / xs.length) * 1000) / 1000 : null);
+  const positifs = lignes.filter((l) => l.multiplicateur > 0).map((l) => l.multiplicateur);
+  const plancher = positifs.length > 0
+    ? Math.max(MULT_MIN_NON_NUL, Math.round(FACTEUR_HORS_ZONE_NATIONAL * Math.min(...positifs) * 1000) / 1000)
+    : 0;
+  const ajustements = [...journal.values()];
+
+  return {
+    lignes,
+    // Tout le plan tombe en zone par construction ; `null` quand il est vide.
+    part_plan_en_zone: total > 0 ? 100 : null,
+    taux_utile: tauxUtile(cps),
+    n_retenus: cps.filter((c) => c.retenu).length,
+    multiplicateur: {
+      normalisation: NORMALISATION_PLAN,
+      bornes,
+      moyenne_avant_ecretage: moyenne(normalises),
+      moyenne_apres_ecretage: moyenne(envoyes),
+      n_ecretes: ajustements.reduce((t, a) => t + a.n, 0),
+      ajustements,
+      hors_zone: { code: CODE_HORS_ZONE, mode: exclusif ? 'strict' : 'national', multiplicateur: exclusif ? 0 : plancher },
+    },
+  };
+}
+
+/** Le journal des bornes franchies, une entrée par borne. */
+export type JournalBornes = Map<AjustementMultiplicateur['code'], AjustementMultiplicateur>;
+
+/**
+ * Ramène un multiplicateur calculé à la plage, PUIS l'arrondit au millième ; une borne franchie est consignée dans
+ * `journal` (le nombre de lignes et la valeur calculée la plus extrême, arrondie au millième pour l'affichage).
+ * Exportée pour le développement des groupes en `divise` (`plan-jeu-zone.ts`), qui re-borne après division.
+ */
+export function bornerMultiplicateur(m: number, bornes: BornesMultiplicateur, journal: JournalBornes): number {
+  if (m >= bornes.min && m <= bornes.max) return Math.round(m * 1000) / 1000;
+  const code = m < bornes.min ? 'multiplicateur_min' : 'multiplicateur_max';
+  const limite = code === 'multiplicateur_min' ? bornes.min : bornes.max;
+  const calcule = Math.round(m * 1000) / 1000;
+  const deja = journal.get(code);
+  const valeur = !deja ? calcule : code === 'multiplicateur_min' ? Math.min(deja.valeur, calcule) : Math.max(deja.valeur, calcule);
+  journal.set(code, { code, limite, valeur, n: (deja?.n ?? 0) + 1 });
+  return Math.round(limite * 1000) / 1000;
+}
+
+/**
  * Étale chaque ligne sur tous les codes postaux de son groupe.
  *
  * ⚠ **LE MULTIPLICATEUR EST DIVISÉ PAR LE NOMBRE DE MEMBRES, et c'est le
@@ -309,7 +490,7 @@ export function genererPlanCp(
  * ⚠ CHEMIN RISQUE SEULEMENT depuis A2 (2026-10-31). Le plan d'un jeu de ZONE ne
  * passe plus de `membres` : il développe ses unités CP au MÊME multiplicateur
  * (`lib/zones/unite-cp.ts`, `plan-jeu-zone.ts`), et la règle par plateforme est
- * un paramètre « à vérifier » du registre (`plateformes_geo.poids_groupe_cp`).
+ * un paramètre « à vérifier » du registre des mécanismes (`plateformes_poids.poids_groupe_cp`, sql/305, A1).
  */
 function etendreAuxGroupes(lignes: LignePlan[], membres?: MembresParCanonique): LignePlan[] {
   if (!membres || membres.size === 0) return lignes;

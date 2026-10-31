@@ -89,11 +89,12 @@ describe('?mailles= — la maille pays (⑤ finitions, T4)', () => {
 
 describe('?cibleJeu= et ?modeJeu= (⑤ finitions, T5, Q-5)', () => {
   it('écrits avec une zone seulement, hors défauts ; jamais avec un jeu (il les porte)', () => {
-    const avant = { cible: 'jeunes_15_29', mode: 'exclusif' } as const;
-    expect(parametresDe(null, 'z', {}, null, avant)).toMatchObject({ cibleJeu: 'jeunes_15_29', modeJeu: 'exclusif' });
+    // ARB-2 (ticket A1) : le défaut d'un jeu de zone est exclusif — c'est pondéré qui s'écrit.
+    const avant = { cible: 'jeunes_15_29', mode: 'pondere' } as const;
+    expect(parametresDe(null, 'z', {}, null, avant)).toMatchObject({ cibleJeu: 'jeunes_15_29', modeJeu: 'pondere' });
     expect(parametresDe('j', 'z', {}, null, avant)).toMatchObject({ cibleJeu: null, modeJeu: null });
     expect(parametresDe(null, null, {}, null, avant)).toMatchObject({ cibleJeu: null, modeJeu: null });
-    expect(parametresDe(null, 'z', {}, null, { cible: 'ind', mode: 'pondere' })).toMatchObject({ cibleJeu: null, modeJeu: null });
+    expect(parametresDe(null, 'z', {}, null, { cible: 'ind', mode: 'exclusif' })).toMatchObject({ cibleJeu: null, modeJeu: null });
   });
   it('le mode : un des modes de plan, sinon null, sans lever', () => {
     expect(lireModeJeu('exclusif')).toBe('exclusif');

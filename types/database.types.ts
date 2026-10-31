@@ -4809,6 +4809,62 @@ export type Database = {
         }
         Relationships: []
       }
+      plateformes_poids: {
+        Row: {
+          branche: boolean
+          maille: string
+          mecanisme: string
+          nb_max_entrees: number | null
+          nb_paliers_max: number | null
+          note: string | null
+          parametres_a_verifier: string[]
+          pas: number | null
+          plateforme: string
+          poids_groupe_cp: string | null
+          releve_le: string
+          valeur_max: number | null
+          valeur_min: number | null
+        }
+        Insert: {
+          branche?: boolean
+          maille: string
+          mecanisme: string
+          nb_max_entrees?: number | null
+          nb_paliers_max?: number | null
+          note?: string | null
+          parametres_a_verifier?: string[]
+          pas?: number | null
+          plateforme: string
+          poids_groupe_cp?: string | null
+          releve_le: string
+          valeur_max?: number | null
+          valeur_min?: number | null
+        }
+        Update: {
+          branche?: boolean
+          maille?: string
+          mecanisme?: string
+          nb_max_entrees?: number | null
+          nb_paliers_max?: number | null
+          note?: string | null
+          parametres_a_verifier?: string[]
+          pas?: number | null
+          plateforme?: string
+          poids_groupe_cp?: string | null
+          releve_le?: string
+          valeur_max?: number | null
+          valeur_min?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plateformes_poids_plateforme_maille_fkey"
+            columns: ["plateforme", "maille"]
+            isOneToOne: false
+            referencedRelation: "plateformes_geo"
+            referencedColumns: ["plateforme", "maille"]
+          },
+        ]
+      }
       poi_categories: {
         Row: {
           actif: boolean | null

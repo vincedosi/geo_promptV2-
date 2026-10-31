@@ -13,7 +13,9 @@
 import { z } from 'zod';
 import type { createAdminClient } from '@/lib/auth';
 import { formaterNombre } from '@/lib/format/nombre';
-import { MAX_PLATEFORMES_GEO, PlateformeGeoSchema, type PlateformeGeo } from './plateformes';
+import {
+  MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PlateformeGeoSchema, PlateformePoidsSchema, type PlateformeGeo, type PlateformePoids,
+} from './plateformes';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
@@ -36,6 +38,29 @@ export async function lireRegles(supabase: ClientAdmin, plateformes?: readonly s
   if (error) throw new Error(`lecture de plateformes_geo : ${error.message}`);
   if ((data ?? []).length > MAX_PLATEFORMES_GEO) throw new Error('plateformes_geo : borne de lecture dépassée');
   return z.array(PlateformeGeoSchema).parse(data ?? []);
+}
+
+/** Les colonnes d'une ligne de `plateformes_poids` (sql/305, A1) — chaîne littérale, comme ci-dessus. */
+const COLONNES_PLATEFORMES_POIDS =
+  'plateforme, maille, mecanisme, valeur_min, valeur_max, pas, nb_max_entrees, nb_paliers_max, poids_groupe_cp, branche, parametres_a_verifier, note, releve_le';
+
+/**
+ * Les mécanismes de poids des plateformes demandées à une maille (`plateformes_poids`, sql/305, A1, amendement E2),
+ * validés par le schéma. Bornée par construction (clé primaire) et par `MAX_PLATEFORMES_POIDS + 1` lue. Lève sur une
+ * erreur de lecture ou une ligne hors schéma, comme `lireRegles`.
+ */
+export async function lirePoids(
+  supabase: ClientAdmin, plateformes: readonly string[], maille: string,
+): Promise<PlateformePoids[]> {
+  const { data, error } = await supabase.from('plateformes_poids').select(COLONNES_PLATEFORMES_POIDS)
+    .in('plateforme', [...new Set(plateformes)])
+    .eq('maille', maille)
+    .order('plateforme', { ascending: true })
+    .order('mecanisme', { ascending: true })
+    .limit(MAX_PLATEFORMES_POIDS + 1);
+  if (error) throw new Error(`lecture de plateformes_poids : ${error.message}`);
+  if ((data ?? []).length > MAX_PLATEFORMES_POIDS) throw new Error('plateformes_poids : borne de lecture dépassée');
+  return z.array(PlateformePoidsSchema).parse(data ?? []);
 }
 
 /** Ce qu'un choix de plateforme demande : la maille et, pour un cercle, le rayon. */

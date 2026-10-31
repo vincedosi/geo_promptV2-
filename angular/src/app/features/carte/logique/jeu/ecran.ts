@@ -61,6 +61,18 @@ export function nombreUnites(n: number, maille: Maille): string {
  * du bilan : modifier le registre change la phrase sans livraison (Review Focus 5).
  */
 export function texteAvertissement(a: Avertissement, maille: Maille): string {
+  // « à vérifier » À CÔTÉ de la valeur non confirmée (amendement E9), pas sur la carte entière.
+  const limite = `${formaterNombre(a.limite)}${a.a_verifier ? ' (à vérifier)' : ''}`;
+  if (a.code === 'multiplicateur_min' || a.code === 'multiplicateur_max') {
+    // A1 : des multiplicateurs du plan CP ramenés à la plage du mécanisme de poids (`plateformes_poids`) — avant, après.
+    const extreme = a.code === 'multiplicateur_max' ? 'maximum' : 'minimum';
+    const n = a.n ?? 1;
+    return `${nombreUnites(n, maille)} ${n > 1 ? 'ramenés' : 'ramené'} à ×${limite}, le ${extreme} admis par la plateforme (×${formaterNombre(a.valeur)} calculé${n > 1 ? ' au plus extrême' : ''}).`;
+  }
+  if (a.code === 'nb_max_entrees') {
+    // A1 : une limite d'entrées par envoi, comptée en codes envoyés ; au-delà, le plan part en plusieurs envois.
+    return `${nombreUnites(a.valeur, maille)} pour ${limite} par envoi${a.mecanisme === 'script' ? ' au script de custom bidding' : ''} : découpés en ${formaterNombre(a.n ?? 1)} envois.`;
+  }
   if (a.code === 'max_unites') {
     return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }

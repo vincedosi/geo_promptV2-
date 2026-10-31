@@ -1,4 +1,4 @@
-import { MODES_PLAN } from '../../../risques/logique/jeu';
+import { MODE_PLAN_DEFAUT_ZONE, MODES_PLAN } from '../../../risques/logique/jeu';
 import { CIBLE_PAR_DEFAUT } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import { MAILLES, PLATEFORMES, type Maille, type Plateforme, type PlateformeGeo } from './plateformes';
@@ -144,6 +144,6 @@ export function parametresDe(
     [PARAM_MAILLES]: jeu || zone ? ecrireMailles(reglages) : null,
     [PARAM_EXTRACTION]: jeu && extraction !== null ? String(extraction) : null,
     [PARAM_CIBLE_JEU]: sansJeu && avant.cible !== null && avant.cible !== CIBLE_PAR_DEFAUT ? avant.cible : null,
-    [PARAM_MODE_JEU]: sansJeu && avant.mode !== null && avant.mode !== MODES_PLAN[0] ? avant.mode : null,
+    [PARAM_MODE_JEU]: sansJeu && avant.mode !== null && avant.mode !== MODE_PLAN_DEFAUT_ZONE ? avant.mode : null,
   };
 }
