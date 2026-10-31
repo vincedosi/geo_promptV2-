@@ -8,7 +8,7 @@ Les constats viennent de la lecture du document, pas du code. Chaque ticket comm
 1. Traiter les lots dans l'ordre (1, 2, 3). Un ticket = un commit, message préfixé par l'identifiant (`A1`, `B8`...).
 2. Avant toute modification d'un ticket : lire les fichiers listés, confirmer ou infirmer le constat, écrire le test qui échoue, puis corriger.
 3. Ne jamais trancher un point de la section « Arbitrages » : appliquer l'option cochée. Si aucune n'est cochée, appliquer l'option marquée (recommandé) et l'indiquer dans le message de commit.
-4. Toute nouvelle borne, limite ou comportement de plateforme va dans la table `plateformes_geo` (migration SQL + `lib/zones/plateformes.ts`), jamais en dur dans le code.
+4. Toute nouvelle borne, limite ou comportement de plateforme va dans la table `plateformes_geo` (migration SQL + `lib/zones/plateformes.ts`), ou dans `plateformes_poids` pour ce qui relève du mécanisme de poids (amendement E2, voir A1), jamais en dur dans le code.
 5. Tout refus ou ajustement automatique est annoncé à l'utilisateur avec la valeur avant/après. Aucun ajustement silencieux.
 6. À la fin de chaque lot : mettre à jour le document de méthodologie (sections citées) et produire un compte rendu `docs/superpowers/plans/2026-10-31-decoupage-zones-compte-rendu.md` : tickets traités, tickets fermés sans modification (avec la raison), tests ajoutés.
 
@@ -33,8 +33,8 @@ Cocher une option par ligne.
 ### A1. Plan par CP : mode pondéré sans effet du seuil
 - Fichiers : `lib/zones/plan.ts` (genererPlanCp), `lib/zones/jeu.ts` (poidsDeClasse), `lib/zones/plan-jeu-zone.ts`, `plateformes_geo`.
 - Constat : poids = population totale × poids de classe, classes à 1 → plan proportionnel à la population totale de chaque CP touché, retenu ou non. Le seuil ne change pas le plan ; les CP non retenus entrent dans « nombre de CP », la moyenne des multiplicateurs poussés n'est plus 1 ; le résultat est un plan uniforme par habitant.
-- Attendu : appliquer ARB-1 et ARB-2. Le plan ne contient que les CP retenus. La moyenne des multiplicateurs des CP du plan vaut 1 (à l'arrondi près). Ajouter dans `plateformes_geo` les colonnes `multiplicateur_min` et `multiplicateur_max` (DV360 : 0,1 et 10, à confirmer dans la documentation, marquer « à vérifier » sinon) et borner le plan à cette plage au lieu de 0,001 / 999,999.
-- Test : jeu de zone avec 3 CP (parts 90 %, 30 %, 12 %), seuil 20 % → plan à 2 CP, moyenne 1, le CP à 90 % a un multiplicateur 3 fois celui du CP à 30 % (ARB-1 option 1). Relever le seuil à 40 % change le plan.
+- Attendu : appliquer ARB-1 et ARB-2. Le plan ne contient que les CP retenus. La moyenne des multiplicateurs des CP du plan vaut 1 (à l'arrondi près). Borner le plan à la plage du **mécanisme de poids** de la plateforme au lieu de 0,001 / 999,999 (amendement E2) : le registre est indexé (plateforme, maille), mais les poids transitent par des mécanismes différents (multiplicateur géographique DV360, 0,1 à 10, non confirmé ; script de custom bidding DV360, scores par paliers, au plus 2 000 CP par envoi ; paliers Meta et TikTok, non gérés ; répartition de budget par ligne, TTD ? ; aucun poids). Créer une table `plateformes_poids` (ou un bloc de colonnes du registre) : plateforme, maille, mécanisme {multiplicateur, script, budget_ligne, aucun}, valeur_min, valeur_max, pas, nb_max_entrees, nb_paliers_max, branché, à_vérifier. A1, le noyau (Q33) et la quantification (Q36) lisent cette table. Multiplicateur et paliers sont deux sorties du même plan, pas deux plans. DV360 / multiplicateur : 0,1 et 10, à confirmer dans la documentation, marqués « à vérifier » sinon.
+- Test : jeu de zone avec 3 CP (parts 90 %, 30 %, 12 %), seuil 20 % → plan à 2 CP, moyenne 1, le CP à 90 % a un multiplicateur 3 fois celui du CP à 30 % (ARB-1 option 1). Relever le seuil à 40 % change le plan. Plan de 6 000 CP en mécanisme script → découpé ou agrégé selon nb_max_entrees = 2 000, avec message ; en mécanisme multiplicateur → bornes 0,1 / 10 (E2).
 
 ### A2. Groupes de CP indiscernables et rattachement des carreaux
 - Fichiers : `sql/269_couverture_geometrie.sql`, table `cp_groupe`, `lib/zones/plan.ts` (sql/228), `lib/zones/conversion.ts` (estRetenue).
@@ -127,7 +127,7 @@ Cocher une option par ligne.
 ### B16. Poussée branchée dans la règle de défaut
 - Fichiers : `plateformes_geo` (nouvelle colonne `poussee_branchee`), `lib/zones/conversion.ts` (mailleParDefaut).
 - Constat : le défaut DV360 pour un rayon est « cercles », maille dont la poussée API n'est pas branchée, alors que les CP le sont.
-- Attendu : colonne `poussee_branchee` dans le registre ; le défaut l'affiche (« cercles, export manuel » contre « CP, poussée API ») et, si ARB-7 option 1, l'intègre comme critère de départage à taux utile égal (± 5 points).
+- Attendu : colonne `poussee_branchee` dans le registre ; pour une maille qui porte des poids, la poussée dépend aussi du mécanisme (colonne `branché` de `plateformes_poids`, amendement E2) ; le défaut l'affiche (« cercles, export manuel » contre « CP, poussée API ») et, si ARB-7 option 1, l'intègre comme critère de départage à taux utile égal (± 5 points).
 - Test : rayon 5 km sur DV360 → le défaut proposé mentionne le mode de poussée.
 
 ---

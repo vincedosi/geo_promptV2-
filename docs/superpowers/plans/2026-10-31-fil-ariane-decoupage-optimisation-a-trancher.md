@@ -510,7 +510,7 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 - **Q8 — Si Q1 = A, que vaut la « part prévue » d'un CP dans le suivi ?** A. Une part d'impressions distincte : multiplicateur × volume attendu du CP ÷ somme (R). B. Multiplicateur ÷ somme des multiplicateurs (comportement actuel, faux avec un multiplicateur d'enchère). C. Revenir à Q1 = B pour garder une seule notion.
 - **Q9 — Volume attendu d'un CP (pour Q8 et § 4.1).** A. Population totale carroyée du CP en V1, remplaçable plus tard par un volume observé (R). B. Population dans la zone. C. Impressions observées dès maintenant.
 - **Q10 — Arrêter ou poursuivre le ticket A1 en cours avant la réponse à Q1 et Q8 ?** A. Le geler jusqu'aux réponses, puis le reprendre (R). B. Le terminer tel quel. C. L'abandonner.
-- **Q11 — Plage de multiplicateur DV360 (0,1 à 10, non confirmée).** A. La garder marquée « à vérifier » et la faire confirmer par dentsu (R). B. Revenir aux bornes techniques 0,001 / 999,999 jusqu'à confirmation.
+- **Q11 — Plage du mécanisme de poids DV360 « multiplicateur » (0,1 à 10, non confirmée).** ~~Q11 — Plage de multiplicateur DV360 (0,1 à 10, non confirmée).~~ A. La garder marquée « à vérifier » dans le registre du mécanisme et la faire confirmer par dentsu (R) ~~A. La garder marquée « à vérifier » et la faire confirmer par dentsu (R).~~ B. Revenir aux bornes techniques 0,001 / 999,999 jusqu'à confirmation. *(Amendement E2 : la plage appartient au mécanisme de poids, pas à la plateforme.)*
 - **Q12 — Groupes de CP indiscernables (A2) : diviser le multiplicateur par le nombre de membres ?** A. Oui par défaut, avec un paramètre par plateforme « division » ou « même valeur », à confirmer dans un compte (R). B. Même valeur pour tous les membres partout. C. Division partout, sans paramètre.
 
 **Découpage (⑤)**
@@ -547,10 +547,10 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 - **Q30 — Formule de correction unique.** A. Spécification v2 amortie (reste à livrer, fenêtre glissante, département puis CP) (R). B. Rebid plafonné ±50 %. C. Recalage amorti actuel sans fenêtre ni hiérarchie.
 - **Q31 — Sort des deux formules actuelles.** A. Réexportées depuis le noyau, puis supprimées après validation ; l'ancienne gardée sous un drapeau pour comparaison (R). B. Gardées en parallèle.
 - **Q32 — Constantes α = 0,8, k = 200, fenêtre 7 jours (minimum 3), bornes de correction 1/3 à 3.** A. Valeurs de la spécification comme défauts, réglables par campagne (R). B. Constantes figées dans le code.
-- **Q33 — Bornes des poids dans le noyau.** A. Plage de la plateforme lue dans le registre, bornes techniques si inconnue (R). B. 0,001 / 999,999 partout.
+- **Q33 — Bornes des poids dans le noyau.** A. Plage du mécanisme lue dans le registre, bornes techniques si inconnue (R) ~~A. Plage de la plateforme lue dans le registre, bornes techniques si inconnue (R).~~ B. 0,001 / 999,999 partout. *(Amendement E2.)*
 - **Q34 — Dilution ×0,6 (spécification § 4) avec Q1 = A.** A. Retirée : la restriction aux CP retenus la remplace (R). B. Gardée pour les seuils inférieurs à 20 %. C. Gardée telle que la spécification l'écrit.
 - **Q35 — Historique des cycles.** A. Une table de cycles (entrée, sortie, statut par cycle) écrite par la couche serveur, le noyau restant pur (R). B. Pas d'historique en V1.
-- **Q36 — Paliers du script de custom bidding.** A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu (R). B. Quantiles par rang (état actuel). C. Hors V1, rien dans le noyau.
+- **Q36 — Paliers du script de custom bidding.** A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu ; paliers et nb_max_entrees lus dans le registre du mécanisme (R) ~~A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu (R).~~ *(Amendement E2.)* B. Quantiles par rang (état actuel). C. Hors V1, rien dans le noyau.
 
 **Propositions complémentaires**
 
