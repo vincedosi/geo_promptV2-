@@ -11,6 +11,9 @@ Les constats viennent de la lecture du document, pas du code. Chaque ticket comm
 4. Toute nouvelle borne, limite ou comportement de plateforme va dans la table `plateformes_geo` (migration SQL + `lib/zones/plateformes.ts`), ou dans `plateformes_poids` pour ce qui relève du mécanisme de poids (amendement E2, voir A1), jamais en dur dans le code.
 5. Tout refus ou ajustement automatique est annoncé à l'utilisateur avec la valeur avant/après. Aucun ajustement silencieux.
 6. À la fin de chaque lot : mettre à jour le document de méthodologie (sections citées) et produire un compte rendu `docs/superpowers/plans/2026-10-31-decoupage-zones-compte-rendu.md` : tickets traités, tickets fermés sans modification (avec la raison), tests ajoutés.
+7. A1 mis à l'abri (amendement E6 (1), **fait le 31/10**) : le travail en cours de A1 (21 fichiers et la migration `sql/302` de bornes de multiplicateur) est commité en WIP sur la branche `wip/A1-plan-cp` (commits `3d487d55`, A1 gelé, ARB-1 rouvert, non vérifié, et `e5038093`, script de rollback local de `sql/302`). Le rollback local de `sql/302` est appliqué et la branche de travail est revenue à son état commité, propre. T6 (Q22) et les zones de référence (Q39) se font sur cet état commité, A1 mis de côté. A1 reprend depuis `wip/A1-plan-cp` après la réponse à Q1.
+8. Ordre du lot 1 (amendement E6 (2)) : **B11, A2, A1, A8, puis le reste** (A3 à A7). B11 passe en tête parce qu'il change toutes les listes retenues, donc tous les chiffres de référence ; A2 passe avant A1 parce qu'il change l'unité CP (le groupe), dont A1 dépend (à défaut, A1 est écrit sur une abstraction « unité CP » que A2 remplit par le groupe) ; A8 (part prévue, E5) suit A1.
+9. Zones de référence (Q39, amendement E6 (3)) : les chiffres attendus sont versionnés **par ticket**. Le commit d'un ticket qui change un chiffre attendu met à jour le fichier d'attendus, avec la raison en une ligne. Sans cela le filet de non-régression casse dès B11.
 
 ## Arbitrages à trancher avant le lot 1
 
@@ -30,7 +33,20 @@ Cocher une option par ligne.
 
 ## Lot 1 : contradictions de logique
 
+### B11. Comparaison au seuil sur la part arrondie (déplacé en tête du lot 1, amendement E6)
+- Fichiers : `lib/zones/conversion.ts` (appliquerSeuil, estRetenue), `sql/276_paver_cercles.sql`.
+- Constat : part arrondie au dixième avant comparaison : 19,96 % passe à 20 % ; à seuil 0 %, une part de 0,02 % affichée 0,0 % est retenue.
+- Attendu : comparaison sur la part non arrondie ; à seuil 0, exiger part > 0. L'affichage reste au dixième.
+- Test : part 19,96 % et seuil 20 % → non retenue ; part 0,02 % et seuil 0 → retenue, part 0 → non retenue.
+
+### A2. Groupes de CP indiscernables et rattachement des carreaux
+- Fichiers : `sql/269_couverture_geometrie.sql`, table `cp_groupe`, `lib/zones/plan.ts` (sql/228), `lib/zones/conversion.ts` (estRetenue).
+- Constat : § 2.2 dit « chaque carreau rattaché à un CP » et « carreau sans CP → hors territoire » (contradiction de rédaction). Si un carreau n'a qu'un seul CP, les autres membres d'un groupe n'ont aucune population → part indéterminée → jamais retenus : le groupe ne peut pas être « acheté entier » par la règle du seuil.
+- Attendu : le groupe devient l'unité de calcul de la maille CP : une ligne par groupe (identifiant du groupe, liste des codes membres), une seule part, un seul multiplicateur. À l'extraction, la ligne est développée en autant de codes que de membres. Documenter si la division du multiplicateur par le nombre de membres est correcte pour chaque plateforme (dépend de la façon dont la plateforme cumule les poids d'une impression) : la marquer « à vérifier » dans le registre.
+- Test : zone couvrant un groupe de 3 codes → une ligne de couverture, part unique ; extraction DV360 → 3 codes avec le même multiplicateur ; somme de la population des lignes = population de la zone.
+
 ### A1. Plan par CP : mode pondéré sans effet du seuil
+- État (amendement E6 (1)) : travail en cours mis de côté sur `wip/A1-plan-cp` (`3d487d55`, `e5038093`), rollback local de `sql/302` appliqué ; reprise après la réponse à Q1, sur l'unité CP livrée par A2 (règle de travail 7 et 8).
 - Fichiers : `lib/zones/plan.ts` (genererPlanCp), `lib/zones/jeu.ts` (poidsDeClasse), `lib/zones/plan-jeu-zone.ts`, `plateformes_geo`.
 - Constat : poids = population totale × poids de classe, classes à 1 → plan proportionnel à la population totale de chaque CP touché, retenu ou non. Le seuil ne change pas le plan ; les CP non retenus entrent dans « nombre de CP », la moyenne des multiplicateurs poussés n'est plus 1 ; le résultat est un plan uniforme par habitant.
 - Attendu : appliquer ARB-1 et ARB-2. Le plan ne contient que les CP retenus. Ordre des opérations (amendement E4), une seule séquence, identique dans A1 et dans le noyau (`docs/rebid-v2.md` § 2.4) : (1) brut = part × poids de classe sur les CP retenus ; (2) normalisation à moyenne arithmétique non pondérée 1 ; (3) écrêtage à la plage du mécanisme ; (4) pas de renormalisation après écrêtage. La moyenne vaut donc 1 **avant** écrêtage (à l'arrondi près), pas après. Le bilan affiche la moyenne obtenue après écrêtage et le nombre de CP écrêtés. La convention « non pondérée » est un paramètre explicite (voir Q32), car elle fixe la dérive du coût moyen après correction. Borner le plan à la plage du **mécanisme de poids** de la plateforme au lieu de 0,001 / 999,999 (amendement E2) : le registre est indexé (plateforme, maille), mais les poids transitent par des mécanismes différents (multiplicateur géographique DV360, 0,1 à 10, non confirmé ; script de custom bidding DV360, scores par paliers, au plus 2 000 CP par envoi ; paliers Meta et TikTok, non gérés ; répartition de budget par ligne, TTD ? ; aucun poids). Créer une table `plateformes_poids` (ou un bloc de colonnes du registre) : plateforme, maille, mécanisme {multiplicateur, script, budget_ligne, aucun}, valeur_min, valeur_max, pas, nb_max_entrees, nb_paliers_max, branché, à_vérifier. A1, le noyau (Q33) et la quantification (Q36) lisent cette table. Multiplicateur et paliers sont deux sorties du même plan, pas deux plans. DV360 / multiplicateur : 0,1 et 10, à confirmer dans la documentation, marqués « à vérifier » sinon.
@@ -42,12 +58,6 @@ Cocher une option par ligne.
 - Constat : le suivi calcule la part prévue d'un CP comme multiplicateur ÷ somme des multiplicateurs. Avec ARB-1 (multiplicateur d'enchère, sans population), ce n'est plus une part d'impressions. Or avec Q1 = A et Q9 = A, part prévue = multiplicateur × population totale ÷ Σ = (part × population totale) ÷ Σ = population dans la zone ÷ Σ population dans la zone (× poids de classe) : la normalisation du multiplicateur disparaît du calcul. C'est la part de population en zone, la quantité que l'ancien mode exclusif produisait déjà.
 - Attendu : écrire la part prévue directement ainsi en V1, avec le « volume attendu » comme point d'extension : part prévue(cp) = part(cp) × volume(cp) × classe(cp) ÷ Σ, volume = population totale en V1 (Q9 A), `HORS_ZONE` comprise (E3). Dans `sql/107` et `sql/113`, `bid_multiplier / Σ` est remplacé par cette formule. Multiplicateur et part prévue sont découplés : A1 (le multiplicateur) n'est plus bloqué par Q8, seulement par Q1.
 - Test : les trois CP de l'exemple (parts 90 / 30 / 12 %, seuil 20 %) → parts prévues 18 000 ÷ 27 000 = 66,7 % et 9 000 ÷ 27 000 = 33,3 %, inchangées si les multiplicateurs sont écrêtés.
-
-### A2. Groupes de CP indiscernables et rattachement des carreaux
-- Fichiers : `sql/269_couverture_geometrie.sql`, table `cp_groupe`, `lib/zones/plan.ts` (sql/228), `lib/zones/conversion.ts` (estRetenue).
-- Constat : § 2.2 dit « chaque carreau rattaché à un CP » et « carreau sans CP → hors territoire » (contradiction de rédaction). Si un carreau n'a qu'un seul CP, les autres membres d'un groupe n'ont aucune population → part indéterminée → jamais retenus : le groupe ne peut pas être « acheté entier » par la règle du seuil.
-- Attendu : le groupe devient l'unité de calcul de la maille CP : une ligne par groupe (identifiant du groupe, liste des codes membres), une seule part, un seul multiplicateur. À l'extraction, la ligne est développée en autant de codes que de membres. Documenter si la division du multiplicateur par le nombre de membres est correcte pour chaque plateforme (dépend de la façon dont la plateforme cumule les poids d'une impression) : la marquer « à vérifier » dans le registre.
-- Test : zone couvrant un groupe de 3 codes → une ligne de couverture, part unique ; extraction DV360 → 3 codes avec le même multiplicateur ; somme de la population des lignes = population de la zone.
 
 ### A3. Cercle « exact » sur rayon autour d'un point
 - Fichiers : `lib/zones/conversion.ts` (exactitude), `sql/155_zone_rayon.sql` (part de surface retenue).
@@ -101,11 +111,8 @@ Cocher une option par ligne.
 - Attendu : rayon par défaut = rayon de la recette s'il existe, sinon R = √(surface de la zone / π) / 3, borné par la plateforme. Si les cercles retenus dépassent le plafond de la plateforme, proposer le plus petit rayon qui passe (recherche dichotomique sur 6 valeurs au plus) au lieu du seul message « augmentez le rayon ».
 - Test : zone de 20 km² sur Meta → rayon proposé ≈ 0,8 km ramené à 1 km, au moins 4 cellules retenues ; zone de 30 000 km² → rayon proposé sous le plafond de 200 cercles.
 
-### B11. Comparaison au seuil sur la part arrondie
-- Fichiers : `lib/zones/conversion.ts` (appliquerSeuil, estRetenue), `sql/276_paver_cercles.sql`.
-- Constat : part arrondie au dixième avant comparaison : 19,96 % passe à 20 % ; à seuil 0 %, une part de 0,02 % affichée 0,0 % est retenue.
-- Attendu : comparaison sur la part non arrondie ; à seuil 0, exiger part > 0. L'affichage reste au dixième.
-- Test : part 19,96 % et seuil 20 % → non retenue ; part 0,02 % et seuil 0 → retenue, part 0 → non retenue.
+### B11. Déplacé en tête du lot 1 (amendement E6)
+- Voir lot 1 : B11 change toutes les listes retenues, donc tous les chiffres de référence ; il passe avant A2, A1 et A8.
 
 ### B12. Un plan par plateforme
 - Fichiers : `lib/zones/plan-jeu-zone.ts`, `lib/zones/extraction-jeu-zone.ts`.
@@ -205,7 +212,7 @@ Cocher une option par ligne.
 ```
 Lis docs/superpowers/plans/2026-10-31-decoupage-zones-corrections.md en entier.
 Commence par la section « Arbitrages » : applique les options cochées, ou l'option recommandée en l'indiquant dans le commit.
-Traite le lot 1 ticket par ticket (A1 à A7). Pour chaque ticket : lis les fichiers listés, confirme ou infirme le constat dans le code, écris le test d'acceptation, corrige, un commit par ticket.
+Traite le lot 1 ticket par ticket, dans l'ordre B11, A2, A1, A8, puis A3 à A7 (amendement E6). A1 reprend depuis la branche wip/A1-plan-cp, après la réponse à Q1. Chaque ticket qui change un chiffre attendu des zones de référence met à jour le fichier d'attendus dans son commit, raison en une ligne. Pour chaque ticket : lis les fichiers listés, confirme ou infirme le constat dans le code, écris le test d'acceptation, corrige, un commit par ticket.
 Ne touche pas aux lots 2 et 3 avant d'avoir fini le lot 1 et écrit le compte rendu dans docs/superpowers/plans/2026-10-31-decoupage-zones-compte-rendu.md.
 Toute borne ou limite de plateforme va dans plateformes_geo, jamais en dur. Aucun ajustement silencieux : chaque refus ou ajustement affiche avant/après.
 Quand un constat est faux ou déjà traité, ferme le ticket avec une ligne d'explication, sans modifier le code.

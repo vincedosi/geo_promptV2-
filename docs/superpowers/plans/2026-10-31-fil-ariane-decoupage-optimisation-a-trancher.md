@@ -34,7 +34,7 @@ dentsu.explore est un logiciel SaaS de géomarketing pour l'affichage extérieur
 | ② Données | **Prêt** | Livré avec le catalogue, les indicateurs privés à un espace et les groupes d'espaces (lot du 28/10, preuve faite). |
 | ③ Zones | **Prêt, à corriger** | Livré (finitions du 29/10, preuve faite). Cinq tickets du plan de corrections le touchent (A5, B15, C19, C20, C21). |
 | ④ Analyse | **Prêt** | Livré (finitions du 30/10, preuve faite). Quatre résidus mineurs à trancher. |
-| ⑤ Jeu de zones | **À corriger et à trancher** | Livré pour l'essentiel, finitions T0 à T5 faites, revue finale et preuve navigateur (T6) **non faites**. C'est l'étape que touche presque tout le plan de corrections ; le ticket A1 est en cours, non commité, non vérifié. |
+| ⑤ Jeu de zones | **À corriger et à trancher** | Livré pour l'essentiel, finitions T0 à T5 faites, revue finale et preuve navigateur (T6) **non faites**. C'est l'étape que touche presque tout le plan de corrections ; le ticket A1, commencé, est mis de côté sur la branche `wip/A1-plan-cp` (amendement E6, 31/10), non vérifié. |
 | Noyau d'optimisation | **À construire et à trancher** | **N'existe pas encore comme module.** La spécification v2 est écrite (29/10) ; deux formules concurrentes vivent dans le code (rebid plafonné, recalage amorti). |
 
 ### 0.4 Les décisions les plus lourdes
@@ -258,7 +258,7 @@ Défaut connu (ticket A1) : un jeu de zone n'a qu'une classe « zone » et une c
 
 **Sortie transmise.** Une extraction immuable : par plateforme, la maille, les unités (codes, populations, retenu ou non), le bilan, et le plan par CP s'il existe. Modifier le registre ensuite ne change pas une extraction déjà produite.
 
-**État actuel.** Convertisseur livré le 25/10 ; finitions T0 à T5 faites (maille pays, extraction nationale, fichier « pays » pour ⑦, cible et mode dans l'adresse, chiffres du refus des cercles). **Restent : la revue finale et la preuve navigateur (T6), puis les 29 tickets du plan de corrections**, dont A1 en cours (21 fichiers modifiés et une migration de bornes de multiplicateur, appliquée en base locale, non commités, non vérifiés par les tests).
+**État actuel.** Convertisseur livré le 25/10 ; finitions T0 à T5 faites (maille pays, extraction nationale, fichier « pays » pour ⑦, cible et mode dans l'adresse, chiffres du refus des cercles). **Restent : la revue finale et la preuve navigateur (T6), puis les 29 tickets du plan de corrections**, dont A1 commencé (21 fichiers modifiés et une migration de bornes de multiplicateur, non vérifiés par les tests), mis de côté le 31/10 sur la branche `wip/A1-plan-cp` avec un script de rollback de la migration, rollback local appliqué (amendement E6).
 
 **Questions à trancher.** Q1 à Q7 (arbitrages), Q8 à Q23.
 
@@ -355,7 +355,7 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
 
 | Ticket | Objet | Résumé du constat et de l'attendu | Porteur | État |
 |---|---|---|---|---|
-| A1 | Plan par CP : le seuil sans effet en mode pondéré | Plan restreint aux CP retenus, moyenne des multiplicateurs = 1, plage de multiplicateur par plateforme dans le registre (DV360 0,1 à 10, « à vérifier ») | Nous ; **valeur DV360 à confirmer : dentsu** | **En cours, non commité** |
+| A1 | Plan par CP : le seuil sans effet en mode pondéré | Plan restreint aux CP retenus, moyenne des multiplicateurs = 1, plage de multiplicateur par plateforme dans le registre (DV360 0,1 à 10, « à vérifier ») | Nous ; **valeur DV360 à confirmer : dentsu** | **Mis de côté sur `wip/A1-plan-cp` (E6), reprise après Q1** |
 | A8 | Part prévue du suivi (nouveau, amendement E5) | Part prévue = part × volume attendu × classe ÷ Σ (en V1 la part de population en zone), découplée du multiplicateur ; remplace `bid_multiplier / Σ` dans le suivi | Nous | À faire, après A1 |
 | A2 | Groupes de CP indiscernables | Le groupe devient l'unité de calcul (une ligne, une part, un multiplicateur), développé en codes à l'extraction | Nous ; **cumul des poids par plateforme à confirmer : dentsu** | À faire |
 | A3 | Cercle « exact » d'un rayon en frontière | Exact seulement si 100 % de la surface est retenue ; sinon perte calculée et avertissement « restreindre la campagne au pays FR » | Nous | À faire |
@@ -459,7 +459,9 @@ La zone composite de 13 001 km² (895 CP, dérive d'arrondi de −230 habitants)
 
 **Coût.** S à M (les zones se créent par recette ; les chiffres se relèvent une fois puis se figent). **Risque.** Chiffres à refiger quand les données INSEE changent de millésime ; c'est voulu.
 
-**Recommandation de l'équipe :** C, construite avant le lot 1 pour servir de filet aux tickets.
+**Recommandation de l'équipe :** C, construite avant le lot 1 pour servir de filet aux tickets, sur l'état commité de la branche de travail, A1 mis de côté (amendement E6).
+
+**Attendus versionnés par ticket (amendement E6 (3)).** Les chiffres attendus des zones de référence sont versionnés par ticket : le commit d'un ticket qui change un chiffre attendu met à jour le fichier d'attendus, avec la raison en une ligne. Sans cela, le filet de non-régression casse dès B11, premier ticket du lot 1 (ordre du lot 1 : B11, A2, A1, A8, puis le reste), qui change toutes les listes retenues.
 
 ### 4.3 (c) Un seuil optimal proposé
 
@@ -510,7 +512,7 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 
 - **Q8 — Si Q1 = A, que vaut la « part prévue » d'un CP dans le suivi ?** A. Part prévue = part × volume attendu × classe ÷ Σ, soit en V1 la part de population en zone, indépendante du multiplicateur (R) ~~A. Une part d'impressions distincte : multiplicateur × volume attendu du CP ÷ somme (R).~~ B. Multiplicateur ÷ somme des multiplicateurs (comportement actuel, faux avec un multiplicateur d'enchère). ~~C. Revenir à Q1 = B pour garder une seule notion.~~ *(Amendement E5 : option C supprimée, plus nécessaire ; la correction de la part prévue devient le ticket A8, lot 1, et A1 n'est plus bloqué par Q8, seulement par Q1.)*
 - **Q9 — Volume attendu d'un CP (pour Q8 et § 4.1).** A. Population totale carroyée du CP en V1, remplaçable plus tard par un volume observé (R). B. Population dans la zone. C. Impressions observées dès maintenant. *(Amendement E5 : question inchangée ; elle fixe le « volume attendu » de la formule de Q8 A.)*
-- **Q10 — Arrêter ou poursuivre le ticket A1 en cours avant la réponse à Q1 et Q8 ?** A. Le geler jusqu'aux réponses, puis le reprendre (R). B. Le terminer tel quel. C. L'abandonner.
+- **Q10 — Arrêter ou poursuivre le ticket A1 en cours avant la réponse à Q1 et Q8 ?** A. Commit WIP sur branche dédiée, reprise après la réponse à Q1 (R) ~~A. Le geler jusqu'aux réponses, puis le reprendre (R).~~ *(Amendement E6 : l'option A est **déjà appliquée** le 31/10 : A1 est commité en WIP sur la branche `wip/A1-plan-cp` (commits `3d487d55` et `e5038093`, ce dernier portant le script de rollback local de `sql/302`), le rollback local de `sql/302` est appliqué et la branche de travail est revenue à son état commité, propre. Depuis E5, A1 ne dépend plus que de Q1.)* B. Le terminer tel quel. C. L'abandonner.
 - **Q11 — Plage du mécanisme de poids DV360 « multiplicateur » (0,1 à 10, non confirmée).** ~~Q11 — Plage de multiplicateur DV360 (0,1 à 10, non confirmée).~~ A. La garder marquée « à vérifier » dans le registre du mécanisme et la faire confirmer par dentsu (R) ~~A. La garder marquée « à vérifier » et la faire confirmer par dentsu (R).~~ B. Revenir aux bornes techniques 0,001 / 999,999 jusqu'à confirmation. *(Amendement E2 : la plage appartient au mécanisme de poids, pas à la plateforme.)*
 - **Q12 — Groupes de CP indiscernables (A2) : diviser le multiplicateur par le nombre de membres ?** A. Oui par défaut, avec un paramètre par plateforme « division » ou « même valeur », à confirmer dans un compte (R). B. Même valeur pour tous les membres partout. C. Division partout, sans paramètre.
 
@@ -525,7 +527,7 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 - **Q19 — Départage par la poussée branchée (B16), si Q7 = A.** A. Oui, à ±5 points de taux utile (R). B. Affiché seulement, sans effet sur le défaut.
 - **Q20 — Minimums de population (B13).** A. Deux paramètres (par unité, par groupe), chacun avec son comportement, lus du registre (R). B. Garder le paramètre unique actuel.
 - **Q21 — Exactitude par composition (B15).** A. Fondée sur les unités constitutives enregistrées dans la recette (R). B. Fondée sur le type de recette (état actuel).
-- **Q22 — Revue finale et preuve navigateur de ⑤ (T6).** A. Les faire avant le lot 1 des corrections, sur l'état actuel (R). B. Les faire après les trois lots, une seule fois.
+- **Q22 — Revue finale et preuve navigateur de ⑤ (T6).** A. Les faire avant le lot 1 des corrections, sur l'état commité, A1 mis de côté (R) ~~A. Les faire avant le lot 1 des corrections, sur l'état actuel (R).~~ *(Amendement E6.)* B. Les faire après les trois lots, une seule fois.
 - **Q23 — Catégories d'annonces spéciales Meta (C29).** A. Case sur le jeu de zone et borne conditionnelle (≥ 15 km) dans le registre (R). B. Note seulement (état actuel).
 
 **Zones (③)**
@@ -557,7 +559,7 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 
 - **Q37 — Calculs de fond (seuils sur la métropole).** A. Après ⑧, comme décidé le 27/10 (R). B. Avant la fin des corrections du découpage.
 - **Q38 — (a) Calibration sur les impressions livrées.** A. Option C du § 4.1 : volume attendu paramétrable, population en V1, calibration avec les données datées des adaptateurs (R). B. Calibrer tout de suite sur la campagne Adform. C. Rien.
-- **Q39 — (b) Zones de référence.** A. Cinq zones plus la zone composite, construites avant le lot 1 (R). B. Cinq zones seulement. C. Rien.
+- **Q39 — (b) Zones de référence.** A. Cinq zones plus la zone composite, construites avant le lot 1 sur l'état commité, A1 mis de côté ; attendus versionnés par ticket (R) ~~A. Cinq zones plus la zone composite, construites avant le lot 1 (R).~~ *(Amendement E6.)* B. Cinq zones seulement. C. Rien.
 - **Q40 — (c) Seuil optimal.** A. Courbe et seuil proposé à 80 % de couverture, sans application automatique, après le lot 2 (R). B. Courbe seule. C. Application automatique. D. Rien.
 - **Q41 — (d) Population présente.** A. Étude de faisabilité après la V1 (R). B. Cible complète maintenant. C. Rien.
 
