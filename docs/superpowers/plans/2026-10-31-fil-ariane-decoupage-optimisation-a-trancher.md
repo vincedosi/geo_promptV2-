@@ -223,7 +223,7 @@ Bornes de la couverture : zone de plus de 100 000 km² ou de plus de 400 000 car
 
 | Plateforme | Maille | Achetable | Limites | À vérifier |
 |---|---|---|---|---|
-| DV360 | CP | oui | plage de multiplicateur 0,1 à 10, **non confirmée** (ajoutée par le ticket A1 en cours) | non |
+| DV360 | CP | oui | plage de multiplicateur 0,1 à 10, **non confirmée** (ajoutée par le ticket A1 en cours) | non *(amendement E9 : la plage est à vérifier ; la mention passe par paramètre)* |
 | DV360 | cercle | oui | rayon ≥ 1 km ; ≥ 1 000 habitants par cercle | non |
 | DV360 | pays | oui | — | DROM |
 | DV360 | polygone | non | — | non |
