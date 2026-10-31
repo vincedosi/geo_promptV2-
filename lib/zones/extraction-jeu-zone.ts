@@ -337,11 +337,12 @@ export async function extraireJeuZone(
   const plan = await planCp(ctx, auCp, reglage);
   if (plan && 'ok' in plan) return plan.reponse;
   // A1, règle 5 : ce que le mécanisme de poids fait au plan est DIT sur chaque plateforme au CP — écrêtages (avant /
-  // après, comptés en codes, borne « à vérifier »), envois découpés au-delà de `nb_max_entrees` (comptés en codes).
+  // après, comptés en unités CP, chez les seules plateformes dont un mécanisme multiplicateur porte la borne), envois
+  // découpés au-delà de `nb_max_entrees` (comptés en codes).
   if (plan) {
     for (const r of resumes) {
       if (!auCp.some((c) => c.plateforme === r.plateforme)) continue;
-      const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur, reglage.a_verifier);
+      const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur);
       r.poids = s.sorties;
       r.avertissements.push(...s.avertissements);
     }

@@ -174,7 +174,7 @@ describe('A1 — le registre des mécanismes de poids (E2)', () => {
       ],
     });
     // Dits chez la plateforme, « à vérifier » à côté de chaque borne.
-    const { avertissements } = sortiesPoids([DV360_MULT], 'dv360', 20, resume.multiplicateur, r.reglage.a_verifier);
+    const { avertissements } = sortiesPoids([DV360_MULT], 'dv360', 20, resume.multiplicateur);
     expect(avertissements).toEqual([
       { code: 'multiplicateur_max', limite: 10, valeur: 19.627, n: 1, a_verifier: true },
       { code: 'multiplicateur_min', limite: 0.1, valeur: 0.02, n: 19, a_verifier: true },
@@ -209,7 +209,54 @@ describe('A1 — le registre des mécanismes de poids (E2)', () => {
     // Unité : 1,333 ; ÷ 3 = 0,444 < 0,5 → 0,5 pour chacun des trois codes.
     expect(lignes.filter((l) => l.code_canonique === '93200').map((l) => l.multiplicateur)).toEqual([0.5, 0.5, 0.5]);
     expect(resume.multiplicateur.poids_groupe_cp).toBe('divise');
-    expect(resume.multiplicateur.ajustements).toEqual([{ code: 'multiplicateur_min', limite: 0.5, valeur: 0.444, n: 3 }]);
+    // Tour 1 (relecture I-1), attendu changé (était `n: 3`, en codes, avec `n_ecretes: 0`) : le bilan compte en UNITÉS CP.
+    expect(resume.multiplicateur.ajustements).toEqual([{ code: 'multiplicateur_min', limite: 0.5, valeur: 0.444, n: 1 }]);
+    expect(resume.multiplicateur).toMatchObject({ unite_de_compte: 'unite_cp', n_ecretes: 1, moyenne_avant_ecretage: 1 });
+    // Poids effectif de l'unité écrêtée : 3 × 0,5 = 1,5 ; l'autre 0,667 → moyenne après ≈ 1,083.
+    expect(resume.multiplicateur.moyenne_apres_ecretage).toBeCloseTo(1.083, 2);
+    expect(resume.n_codes).toBe(4);
+  });
+
+  it('Tour 1 (I-1) — règle `meme` : un groupe de 3 codes écrêté compte UNE unité, partout dans le bilan', () => {
+    const SD: LigneCouverture = { ...cp('93200', 100, 100, 100), membres: ['93200', '93210', '93380'] };
+    const autres = Array.from({ length: 9 }, (_, i) => cp(String(93301 + i), 1, 100, 1));
+    const { lignes, resume } = planCpDeZone([SD, ...autres], 0, 'exclusif', new Map(), undefined,
+      { bornes: { min: 0.1, max: 5 }, poids_groupe_cp: 'meme' });
+    // Normalisé : 1 ÷ 0,109 = 9,174 > 5 → les trois codes à 5 ; les neuf autres 0,092 → 0,1.
+    expect(lignes.filter((l) => l.code_canonique === '93200').map((l) => l.multiplicateur)).toEqual([5, 5, 5]);
+    const max = resume.multiplicateur.ajustements.find((a) => a.code === 'multiplicateur_max')!;
+    const min = resume.multiplicateur.ajustements.find((a) => a.code === 'multiplicateur_min')!;
+    expect([max.n, min.n]).toEqual([1, 9]);
+    expect(resume.multiplicateur.n_ecretes).toBe(10);
+    expect(resume.multiplicateur.moyenne_avant_ecretage).toBe(1);
+    // Moyenne après sur les 10 UNITÉS (et non sur 12 codes) : (5 + 9 × 0,1) ÷ 10 = 0,59.
+    expect(resume.multiplicateur.moyenne_apres_ecretage).toBe(0.59);
+    expect(resume.n_codes).toBe(12);
+  });
+});
+
+describe('Tour 1 (I-2) — l’écrêtage n’est dit que chez une plateforme dont un mécanisme multiplicateur porte la borne', () => {
+  const PLAN = { ajustements: [
+    { code: 'multiplicateur_max' as const, limite: 10, valeur: 14.2, n: 3 },
+    { code: 'multiplicateur_min' as const, limite: 0.1, valeur: 0.02, n: 1 },
+  ] };
+
+  it('DV360 (multiplicateur 0,1-10) : les deux écrêtages, avec la borne de SON mécanisme, « à vérifier »', () => {
+    expect(sortiesPoids([DV360_MULT, DV360_SCRIPT], 'dv360', 10, PLAN).avertissements).toEqual([
+      { code: 'multiplicateur_max', limite: 10, valeur: 14.2, n: 3, a_verifier: true },
+      { code: 'multiplicateur_min', limite: 0.1, valeur: 0.02, n: 1, a_verifier: true },
+    ]);
+  });
+
+  it('TTD (budget_ligne), Meta et TikTok (aucun) : aucun multiplicateur reçu, rien sur un écrêtage', () => {
+    const registre = [DV360_MULT, poids({ plateforme: 'ttd', mecanisme: 'budget_ligne' }),
+      poids({ plateforme: 'meta', mecanisme: 'aucun' }), poids({ plateforme: 'tiktok', mecanisme: 'aucun' })];
+    for (const p of ['ttd', 'meta', 'tiktok']) expect(sortiesPoids(registre, p, 10, PLAN).avertissements).toEqual([]);
+  });
+
+  it('un multiplicateur dont la borne n’est pas celle franchie ne s’en attribue pas l’écrêtage', () => {
+    const large = poids({ plateforme: 'ttd', mecanisme: 'multiplicateur', valeur_min: 0.01, valeur_max: 20 });
+    expect(sortiesPoids([large], 'ttd', 10, PLAN).avertissements).toEqual([]);
   });
 });
 

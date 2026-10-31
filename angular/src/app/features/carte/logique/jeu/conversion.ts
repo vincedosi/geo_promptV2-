@@ -66,7 +66,7 @@ export type Resume = ResumeMaille | ResumeExact;
  * Un dépassement d'une limite de la plateforme : un avertissement, jamais un refus (A-9). Depuis A1, aussi ce que le
  * mécanisme de poids (`plateformes_poids`, sql/305) a fait au plan CP :
  * - `multiplicateur_min` / `multiplicateur_max` : des multiplicateurs ramenés à la plage — `valeur` le plus extrême
- *   calculé (avant), `limite` la borne (après), `n` le nombre de codes envoyés ramenés ;
+ *   calculé (avant), `limite` la borne (après), `n` le nombre d'unités CP ramenées ;
  * - `nb_max_entrees` : `valeur` codes envoyés pour `limite` par envoi, découpés en `n` envois.
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */

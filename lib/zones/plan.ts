@@ -145,7 +145,7 @@ interface LignePlan {
   retenu: boolean;
   /**
    * Sémantique `'multiplicateur'` : le multiplicateur normalisé AVANT écrêtage et arrondi (étape (2) de E4), pour que
-   * le développement des groupes re-borne au code près et dise combien de CODES envoyés ont été écrêtés. Absent sinon.
+   * le développement des groupes re-borne la valeur par code (règle `divise`). Absent sinon.
    */
   multiplicateur_calcule?: number;
 }
@@ -206,7 +206,7 @@ interface AjustementMultiplicateur {
   code: 'multiplicateur_min' | 'multiplicateur_max';
   limite: number;
   valeur: number;
-  /** Nombre de lignes ramenées à cette borne (unités dans `genererPlanCp`, codes envoyés après développement). */
+  /** Nombre de lignes ramenées à cette borne (des UNITÉS CP, partout — l'unité de compte du bilan). */
   n: number;
 }
 

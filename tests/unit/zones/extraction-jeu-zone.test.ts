@@ -131,6 +131,16 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ n_unites: 2, n_codes: 2, avertissements: [] });
   });
 
+  it('Tour 1 (I-2) : DV360 + TTD au CP, plan écrêté au minimum de DV360 — dit chez DV360 seulement', async () => {
+    // Seuil 0 : 69003 (2 %) normalisé à 0,048 < 0,1, ramené à 0,1.
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 0, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 0, rayon_m: null }],
+      DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);
+    expect((await extraire()).status).toBe(201);
+    const [dv360, ttd] = ['dv360', 'ttd'].map((p) => argsCreation().p_resume.plateformes.find((r) => r.plateforme === p)!);
+    expect(dv360.avertissements).toEqual([{ code: 'multiplicateur_min', limite: 0.1, valeur: 0.048, n: 1, a_verifier: true }]);
+    expect(ttd.avertissements).toEqual([]);
+  });
+
   it('A1 : une règle de groupe divergente entre plateformes au CP refuse l’extraction en le disant (422)', async () => {
     jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 20, rayon_m: null }],
       DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);

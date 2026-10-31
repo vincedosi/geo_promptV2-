@@ -8,7 +8,7 @@
  * part ÷ moyenne des parts retenues, écrêté à la plage du MÉCANISME de poids (`plateformes_poids`, sql/305), seules les
  * unités retenues au plan ; plus la ligne `HORS_ZONE` (E3). Le plan est ensuite DÉVELOPPÉ en autant de lignes que de
  * membres selon la règle du registre des mécanismes (`poids_groupe_cp` : `meme` répète le multiplicateur, `divise` le
- * partage puis le re-borne), et les écrêtages sont comptés en CODES envoyés.
+ * partage puis le re-borne), et les écrêtages sont comptés en UNITÉS CP (une unité de compte pour tout le bilan).
  *
  * ⚠ Avant A2, ce plan passait les groupes à `genererPlanCp`, qui DIVISAIT le multiplicateur par le nombre de membres
  * (`etendreAuxGroupes`). Le chemin risque le fait toujours, inchangé (ruling A1 ↔ ⑥ du lot 1).
@@ -105,7 +105,7 @@ export function reglageDuPlan(
  * Populations et part : celles de l'unité, sur la ligne de son canonique, `null` sur les autres membres (un 0 se lirait
  * « personne »). `resume.n_cp` et `n_retenus` comptent des UNITÉS, `n_codes` les CODES envoyés (multiplicateur > 0) ;
  * les lignes rendues sont des codes. `resume.multiplicateur` : le bilan de la séquence E4 (moyennes avant / après
- * écrêtage, unités écrêtées, ajustements comptés en CODES, ligne `HORS_ZONE`).
+ * écrêtage, unités écrêtées, ajustements, tous comptés en UNITÉS CP, ligne `HORS_ZONE`).
  */
 export function planCpDeZone(
   lignes: readonly LigneCouverture[], seuil: number, mode_plan: 'pondere' | 'exclusif', groupes: MembresParCanonique,
@@ -136,14 +136,24 @@ export function planCpDeZone(
   const plan = genererPlanCp(cps, { mode_plan, poids: {} }, undefined, { semantique: 'multiplicateur', bornes });
   const parCode = new Map(sources.map((l) => [l.code, l]));
 
-  // Le développement, au code près : la règle de groupe du registre, puis l'écrêtage compté en CODES envoyés.
+  // Ce que reçoit chaque CODE d'une unité : la règle de groupe du registre (`divise` partage), puis l'écrêtage — UNE fois
+  // par unité, pour que le bilan compte en UNITÉS (voir `resume.multiplicateur`). Relecture A1, I-1.
   const journal: JournalBornes = new Map();
   const membresDeLigne = (u: { code_postal: string }) => membresDe(parCode.get(u.code_postal) ?? { code: u.code_postal }, groupes);
+  const parCodeEnvoye = new Map<string, number>();
+  const effectifs: number[] = [];
+  for (const l of plan.lignes) {
+    if (l.multiplicateur <= 0) continue;
+    const n = divise ? membresDeLigne(l).length : 1;
+    const v = bornerMultiplicateur((l.multiplicateur_calcule ?? l.multiplicateur) / n, bornes, journal);
+    parCodeEnvoye.set(l.code_postal, v);
+    // Le poids EFFECTIF de l'unité (Σ de ses codes en `divise`, celui de chaque code en `meme`), unités à part connue
+    // seulement — la même population que la moyenne avant écrêtage.
+    if ((parCode.get(l.code_postal)?.pop_totale ?? 0) > 0) effectifs.push(v * n);
+  }
   const developpe = developperUnites(plan.lignes, membresDeLigne, (u) => u.code_postal)
     .map(({ unite: l, code_postal, est_canonique }) => {
-      const n = divise ? membresDeLigne(l).length : 1;
-      const calcule = (l.multiplicateur_calcule ?? l.multiplicateur) / n;
-      const multiplicateur = l.multiplicateur > 0 ? bornerMultiplicateur(calcule, bornes, journal) : 0;
+      const multiplicateur = parCodeEnvoye.get(l.code_postal) ?? 0;
       const source = est_canonique ? parCode.get(l.code_postal) : undefined;
       return {
         code_postal, code_canonique: l.code_postal, classe: l.classe, retenu: l.retenu, multiplicateur,
@@ -161,7 +171,19 @@ export function planCpDeZone(
       taux_utile: plan.taux_utile,
       part_plan_en_zone: plan.part_plan_en_zone,
       population_exposee: cps.filter((c) => c.retenu).reduce((t, c) => t + c.pop_en_zone, 0),
-      multiplicateur: { ...bilan, poids_groupe_cp: reglage.poids_groupe_cp ?? 'meme', ajustements: [...journal.values()] },
+      // UNE unité de compte pour tout le bilan : l'UNITÉ CP (le groupe de codes indiscernables, A2). C'est sur elle que
+      // la séquence E4 normalise (moyenne avant = 1 par construction) ; compter en codes ferait peser un groupe n fois
+      // dans les moyennes. `n_ecretes` et `ajustements[].n` : unités écrêtées ; `moyenne_apres_ecretage` : moyenne des
+      // poids effectifs des unités ; `ajustements[].valeur` : la valeur calculée PAR CODE la plus extrême (ce qui a été
+      // ramené à la borne). Les CODES envoyés sont comptés à part, `resume.n_codes`.
+      multiplicateur: {
+        ...bilan,
+        unite_de_compte: 'unite_cp' as const,
+        poids_groupe_cp: reglage.poids_groupe_cp ?? 'meme',
+        moyenne_apres_ecretage: effectifs.length > 0 ? Math.round((effectifs.reduce((t, x) => t + x, 0) / effectifs.length) * 1000) / 1000 : null,
+        n_ecretes: [...journal.values()].reduce((t, a) => t + a.n, 0),
+        ajustements: [...journal.values()],
+      },
     },
   };
 }
@@ -186,20 +208,27 @@ export interface SortiePoids {
 /**
  * Les sorties de poids d'UNE plateforme au CP, une par mécanisme du registre, et les avertissements qui en découlent
  * (règle 5 : jamais silencieux) :
- * - les écrêtages du plan (`ajustements`, comptés en codes), dits chez chaque plateforme au CP — le plan est commun —,
- *   avec « à vérifier » sur la borne non confirmée ;
+ * - les écrêtages du plan (`ajustements`, comptés en unités CP), dits SEULEMENT chez une plateforme dont un mécanisme
+ *   `multiplicateur` porte la borne franchie, avec « à vérifier » si CE mécanisme ne l'a pas confirmée. Une plateforme
+ *   sans multiplicateur (budget_ligne, aucun) ne reçoit aucun multiplicateur : elle ne dit rien d'un écrêtage
+ *   (relecture A1, I-2 — elle annonçait « ×10, le maximum admis par la plateforme », borne de DV360) ;
  * - `nb_max_entrees` : au-delà, le plan part en `ceil(n_codes ÷ limite)` envois (découpage trié par part, ARB-6),
  *   compté en CODES (relecture de A2 : 981 codes pour 895 groupes sur la zone composite).
  */
 export function sortiesPoids(
   poids: readonly PlateformePoids[], plateforme: string, n_codes: number,
   plan: { ajustements: readonly { code: 'multiplicateur_min' | 'multiplicateur_max'; limite: number; valeur: number; n: number }[] },
-  aVerifier: ReglagePlan['a_verifier'] = { min: false, max: false },
 ): { sorties: SortiePoids[]; avertissements: Avertissement[] } {
-  const avertissements: Avertissement[] = plan.ajustements.map((a) => ({
-    ...a, ...((a.code === 'multiplicateur_min' ? aVerifier.min : aVerifier.max) ? { a_verifier: true as const } : {}),
-  }));
-  const sorties = poids.filter((l) => l.plateforme === plateforme && l.maille === 'cp').map((l): SortiePoids => {
+  const lignes = poids.filter((l) => l.plateforme === plateforme && l.maille === 'cp');
+  const avertissements: Avertissement[] = [];
+  for (const a of plan.ajustements) {
+    const min = a.code === 'multiplicateur_min';
+    // Le mécanisme multiplicateur de CETTE plateforme dont la borne est celle franchie.
+    const m = lignes.find((l) => l.mecanisme === 'multiplicateur' && (min ? l.valeur_min : l.valeur_max) === a.limite);
+    if (!m) continue;
+    avertissements.push({ ...a, ...(m.parametres_a_verifier.includes(min ? 'valeur_min' : 'valeur_max') ? { a_verifier: true as const } : {}) });
+  }
+  const sorties = lignes.map((l): SortiePoids => {
     const s: SortiePoids = {
       mecanisme: l.mecanisme, branche: l.branche, poids_groupe_cp: l.poids_groupe_cp,
       parametres_a_verifier: l.parametres_a_verifier, n_codes,
