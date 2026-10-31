@@ -58,6 +58,12 @@ export interface LigneCouverture {
   part: number | null;
   /** B11 (sql/303) : la même part SANS arrondi, la seule que compare le seuil (`estRetenue`) ; NULL comme `part`. */
   part_brute: number | null;
+  /**
+   * A2 (sql/304), découpage CP seulement : les codes de l'UNITÉ — le groupe de codes postaux indiscernables (même
+   * contour dans le référentiel, `cp_groupe`), triés ; `[code]` pour un code ordinaire. `code` est l'identifiant de
+   * l'unité (son canonique) ; une ligne = une unité = une part. Absent sur les autres découpages.
+   */
+  membres?: string[];
 }
 
 /** Les paramètres de requête. Absents : la population totale (`ind`), la zone telle quelle (`forme`). */

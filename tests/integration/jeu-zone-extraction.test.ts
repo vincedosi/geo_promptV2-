@@ -318,5 +318,14 @@ describe('zone pays (⑤ finitions, T2) : achetée au pays, unités figées', ()
     expect(e!.n_cp).toBe(5956);
     const { data: u } = await sb.from('zone_set_extraction_unites').select('code').eq('extraction_id', x).eq('maille', 'pays');
     expect(u).toEqual([{ code: 'FR' }]);
+    // A2 : le groupe de Saint-Denis (une unité, un multiplicateur) développé en ses trois codes, au MÊME multiplicateur ;
+    // la population sur le seul canonique.
+    const { data: sd, error: e2 } = await sb.from('zone_set_extraction_cp')
+      .select('code_postal, multiplicateur, pop_en_zone').eq('extraction_id', x).eq('code_canonique', '93200').order('code_postal');
+    if (e2) throw new Error(e2.message);
+    expect(sd!.map((l) => l.code_postal)).toEqual(['93200', '93210', '93380']);
+    expect(new Set(sd!.map((l) => Number(l.multiplicateur))).size).toBe(1);
+    expect(Number(sd![0].multiplicateur)).toBeGreaterThan(0);
+    expect(sd!.map((l) => l.pop_en_zone === null)).toEqual([false, true, true]);
   }, LONG);
 });

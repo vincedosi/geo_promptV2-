@@ -4,7 +4,8 @@
  *
  * La fixture `fixtures/couverture-composite-cp.json` est la réponse de `couverture_geometrie` (découpage `cp`, cible
  * `ind`) sur la zone « Cible composite (2 zones) » (`919ca65d…`), tirée de la base locale le 24/10 : 895 CP touchés,
- * 11 224 929 habitants. Ce sont les `lignes` de la mesure M2 du plan.
+ * 11 224 929 habitants. Ce sont les `lignes` de la mesure M2 du plan. A2 (31/10) : chaque ligne porte `membres`, les
+ * codes de son unité (sql/304), tirés de la base le 31/10 — 53 des 895 unités sont des groupes de CP indiscernables.
  */
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
@@ -17,7 +18,7 @@ import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { Recette } from '@/lib/zones/recette';
 
-type LigneFixture = Pick<LigneCouverture, 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute'>;
+type LigneFixture = Pick<LigneCouverture, 'code' | 'nom' | 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute' | 'membres'>;
 const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-composite-cp.json', 'utf8')) as {
   population: number; hors_territoire: { population: number }; lignes: LigneFixture[];
 };
@@ -65,6 +66,20 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
     const r = appliquerSeuil(composite.lignes, pop, 50);
     expect(r).toMatchObject({ n_unites: 357, taux_utile: 76.7, hors_zone: 2_297_867 });
     expect(verifierManques(r, 50)).toBe(-230);
+  });
+
+  // A2 (31/10) : attendus AJOUTÉS, rien de changé — les compteurs du bilan sont des UNITÉS (une ligne par groupe de CP
+  // indiscernables) ; ce que reçoit la plateforme, ce sont les codes, plus nombreux.
+  it.each([[0, 895, 981], [20, 614, 668], [50, 357, 385]])('seuil %i : %i unités retenues, soit %i codes postaux envoyés', (seuil, unites, codes) => {
+    const retenues = composite.lignes.filter((l) => estRetenue(l, seuil));
+    expect(appliquerSeuil(composite.lignes, pop, seuil).n_unites).toBe(unites);
+    expect(retenues.length).toBe(unites);
+    expect(retenues.reduce((t, l) => t + (l.membres ?? [l.code]).length, 0)).toBe(codes);
+  });
+
+  it('chaque ligne nomme ses membres, son code compris ; 53 groupes', () => {
+    expect(composite.lignes.every((l) => l.membres?.includes(l.code))).toBe(true);
+    expect(composite.lignes.filter((l) => (l.membres?.length ?? 1) > 1).length).toBe(53);
   });
 
   it('un CP entièrement dans la zone vaut 100 % et n’achète rien hors zone', () => {

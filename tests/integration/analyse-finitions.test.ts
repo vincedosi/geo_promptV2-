@@ -240,7 +240,9 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
                                || '|' || (select pg_get_constraintdef(oid) from pg_constraint
                                            where conname = 'custom_geo_zones_recette_forme');`;
     // sql/303 (B11) redéfinit `couverture_pays_jsonb` (part_brute) : rejouée après 296, l'empreinte est celle de la base.
-    const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql', 'sql/303_seuil_part_non_arrondie.sql']
+    // sql/304 (A2) la redéfinit encore (membres des lignes CP) : la chaîne rejouée s'arrête désormais à 304.
+    const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql', 'sql/303_seuil_part_non_arrondie.sql',
+      'sql/304_unite_groupe_cp.sql']
       .map((f) => readFileSync(f, 'utf8')).join('\n');
     const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);

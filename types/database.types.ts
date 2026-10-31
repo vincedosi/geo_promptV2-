@@ -4767,8 +4767,10 @@ export type Database = {
           natif: boolean
           note: string | null
           ordre: number
+          parametres_a_verifier: string[]
           pays_a_verifier: string[] | null
           plateforme: string
+          poids_groupe_cp: string | null
           releve_le: string
         }
         Insert: {
@@ -4782,8 +4784,10 @@ export type Database = {
           natif: boolean
           note?: string | null
           ordre: number
+          parametres_a_verifier?: string[]
           pays_a_verifier?: string[] | null
           plateforme: string
+          poids_groupe_cp?: string | null
           releve_le: string
         }
         Update: {
@@ -4797,8 +4801,10 @@ export type Database = {
           natif?: boolean
           note?: string | null
           ordre?: number
+          parametres_a_verifier?: string[]
           pays_a_verifier?: string[] | null
           plateforme?: string
+          poids_groupe_cp?: string | null
           releve_le?: string
         }
         Relationships: []

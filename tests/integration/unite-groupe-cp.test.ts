@@ -1,0 +1,132 @@
+/**
+ * A2 (plan de corrections du découpage des zones, 2026-10-31) — le groupe de CP indiscernables est l'unité de la maille
+ * CP (sql/304).
+ *
+ * Ce que ce fichier prouve, contre la base locale, sans rien y laisser (lectures, ou transactions ANNULÉES) :
+ *   - une zone qui couvre Saint-Denis (93200, 93210, 93380 : un contour, sql/228) rend UNE ligne CP, d'identifiant
+ *     93200, part unique, qui nomme ses trois membres ; la somme des populations des lignes et du hors-territoire
+ *     égale la population de la zone ; les autres découpages ne portent pas `membres` ;
+ *   - la couverture nationale par CP (`couverture_pays_jsonb`) porte `membres` sur chaque ligne, les groupes y compris ;
+ *   - un chiffrage CP en cache d'avant sql/304 (lignes sans `membres`) n'est plus servi ; avec la clé, il l'est ;
+ *   - le registre : `poids_groupe_cp = meme` et « à vérifier » sur les quatre lignes CP, NULL ailleurs ; les CHECK
+ *     refusent une valeur ou un paramètre inconnus ; la migration se rejoue à empreinte identique.
+ */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { PARAMETRES_VERIFIABLES, POIDS_GROUPE_CP } from '@/lib/zones/plateformes';
+import { psql, psqlBrut, psqlLignes } from './_psql';
+
+const LONG = 180_000;
+const ORG = '00000000-0000-0000-0000-000000000001';
+const ZONE = 'a2a2a2a2-0000-4000-8000-000000000304';
+const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.sql'), 'utf8');
+
+/** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
+const ZONE_SAINT_DENIS = `
+  insert into public.custom_geo_zones (id, name, org_id, source_type, geometry)
+  select '${ZONE}', '[ESSAI A2] Saint-Denis', '${ORG}', 'test', ST_Multi(r.geom)
+    from public.ref_codes_postaux r where r.code_postal = '93200';`;
+
+describe('couverture_geometrie — une ligne par unité CP, qui nomme ses membres (sql/304)', () => {
+  it('Saint-Denis : une ligne 93200, part unique, trois membres ; lignes + hors territoire = population', () => {
+    const r = psql(`begin;
+      ${ZONE_SAINT_DENIS}
+      with j as (select public.couverture_geometrie('${ZONE}', '${ORG}', 'ind', 'cp') j),
+           l as (select e from j, jsonb_array_elements(j.j->'lignes') e)
+      select (select count(*) from l where l.e->'membres' ? '93210' or l.e->'membres' ? '93380') || '|' ||
+             (select l.e->>'code' || ':' || (l.e->>'part') || ':' || (l.e->'membres')::text from l where l.e->>'code' = '93200') || '|' ||
+             (select count(*) from l where l.e->>'code' in ('93210', '93380')) || '|' ||
+             (select count(*) from l where not l.e ? 'membres') || '|' ||
+             (select ((select sum((l.e->>'pop_en_zone')::numeric) from l) + (j.j->'hors_territoire'->>'population')::numeric
+                      = (j.j->>'population')::numeric)::text from j);
+      rollback;`);
+    expect(r).toBe('1|93200:100.0:["93200", "93210", "93380"]|0|0|true');
+  }, LONG);
+
+  it('les autres découpages ne portent pas membres', () => {
+    const r = psql(`begin;
+      ${ZONE_SAINT_DENIS}
+      select count(*) filter (where e ? 'membres') || '|' || count(*)
+        from jsonb_array_elements(public.couverture_geometrie('${ZONE}', '${ORG}', 'ind', 'commune')->'lignes') e;
+      rollback;`);
+    expect(r.split('|')[0]).toBe('0');
+    expect(Number(r.split('|')[1])).toBeGreaterThan(0);
+  }, LONG);
+});
+
+describe('couverture_pays_jsonb — membres sur chaque ligne CP (sql/304)', () => {
+  it('France entière par CP : toutes les lignes portent membres, 67 groupes, 6 115 codes pour 6 009 unités', () => {
+    const r = psql(`
+      select count(*) filter (where not e ? 'membres') || '|' ||
+             count(*) filter (where jsonb_array_length(e->'membres') > 1) || '|' ||
+             sum(jsonb_array_length(e->'membres')) || '|' || count(*) || '|' ||
+             count(*) filter (where not (e->'membres') ? (e->>'code'))
+        from jsonb_array_elements(public.couverture_pays_jsonb('FR', 'ind', 'cp')->'lignes') e;`);
+    expect(r).toBe('0|67|6115|6009|0');
+  }, LONG);
+});
+
+describe('couverture_zone_en_cache — un chiffrage CP sans membres n’est plus servi (sql/304)', () => {
+  it('ligne de cache CP sans la clé : NULL ; avec la clé : servie (transaction annulée)', () => {
+    const ecrire = (ligne: string) => `
+      insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
+      select g.id, 'ind', 'cp', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+             jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb)), now()
+        from public.custom_geo_zones g where g.id = '${ZONE}'
+      on conflict (zone_id, cible, decoupage) do update
+        set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
+    const servi = `(public.couverture_zone_en_cache('${ZONE}', '${ORG}', 'ind', 'cp') is not null)::text`;
+    expect(psql(`select (public.carreau_couverture_complete() is null)::text;`)).toBe('true');
+    const r = psql(`begin;
+      ${ZONE_SAINT_DENIS}
+      ${ecrire('{"code":"93200","part":100,"part_brute":100}')}
+      create temp table a2_r on commit drop as select ${servi} as sans_cle;
+      ${ecrire('{"code":"93200","part":100,"part_brute":100,"membres":["93200","93210","93380"]}')}
+      select (select sans_cle from a2_r) || '|' || ${servi};
+      rollback;`);
+    expect(r).toBe('false|true');
+  }, LONG);
+});
+
+describe('plateformes_geo — poids d’un groupe de CP, « à vérifier » par paramètre (sql/304)', () => {
+  it('meme sur les quatre lignes CP, marqué à vérifier ; NULL et liste vide ailleurs', () => {
+    expect(psql(`select count(*) from public.plateformes_geo
+                  where maille = 'cp' and poids_groupe_cp = 'meme' and parametres_a_verifier @> '{poids_groupe_cp}';`)).toBe('4');
+    expect(psql(`select count(*) from public.plateformes_geo
+                  where maille <> 'cp' and (poids_groupe_cp is not null or parametres_a_verifier <> '{}');`)).toBe('0');
+  });
+
+  it('les listes de lib/zones/plateformes.ts sont celles des CHECK de la base', () => {
+    const corps = psqlLignes(`select pg_get_functiondef('public.plateformes_geo_parametres_valides'::regproc);`).join(' ');
+    for (const p of PARAMETRES_VERIFIABLES) expect(corps).toContain(`'${p}'`);
+    expect((corps.match(/'[a-z_]+'/g) ?? []).filter((x) => x !== "'public'").length).toBe(PARAMETRES_VERIFIABLES.length);
+    const check = psql(`select pg_get_constraintdef(oid) from pg_constraint where conname = 'plateformes_geo_poids_groupe_cp_valide';`);
+    for (const v of POIDS_GROUPE_CP) expect(check).toContain(`'${v}'`);
+  });
+
+  it.each([
+    ['valeur inconnue', `poids_groupe_cp = 'moitie'`, 'cp', 'plateformes_geo_poids_groupe_cp_valide'],
+    ['poids sur une maille non CP', `poids_groupe_cp = 'meme'`, 'cercle', 'plateformes_geo_poids_groupe_cp_valide'],
+    ['paramètre inconnu', `parametres_a_verifier = '{plage_poids}'`, 'cp', 'plateformes_geo_parametres_a_verifier_valides'],
+    ['paramètre en double', `parametres_a_verifier = '{max_unites,max_unites}'`, 'cp', 'plateformes_geo_parametres_a_verifier_valides'],
+  ])('la base refuse : %s', (_cas, affectation, maille, contrainte) => {
+    const r = psqlBrut(`begin; update public.plateformes_geo set ${affectation} where plateforme = 'meta' and maille = '${maille}'; rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain(contrainte);
+  });
+
+  it('la migration rejouée deux fois : registre et fonctions à empreinte identique, et identique à la base', () => {
+    const EMPREINTE = `select md5(
+      (select string_agg(t::text, ';' order by plateforme, maille) from public.plateformes_geo t)
+      || (select string_agg(pg_get_functiondef(p.oid), '' order by p.proname) from pg_proc p
+           where p.pronamespace = 'public'::regnamespace
+             and p.proname in ('couverture_geometrie', 'couverture_pays_jsonb', 'couverture_zone_en_cache',
+                               'plateformes_geo_parametres_valides')));`;
+    const base = psql(EMPREINTE);
+    const lignes = psqlLignes(`begin;\n${MIGRATION}\n${EMPREINTE}\n${MIGRATION}\n${EMPREINTE}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
+  }, LONG);
+});

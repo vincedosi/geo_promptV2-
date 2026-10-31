@@ -11,6 +11,14 @@ export const PLATEFORMES = ['dv360', 'ttd', 'meta', 'tiktok'] as const;
 /** `pays` (sql/300, ⑤ finitions) : le ciblage pays natif, pour une zone nationale (recette `pays`) seulement. */
 export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cercle', 'pays'] as const;
 
+/** Les valeurs de `poids_groupe_cp` (sql/304). */
+export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
+
+/** Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, sql/304). */
+export const PARAMETRES_VERIFIABLES = [
+  'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
+] as const;
+
 export type Plateforme = (typeof PLATEFORMES)[number];
 export type Maille = (typeof MAILLES)[number];
 
@@ -38,4 +46,8 @@ export interface PlateformeGeo {
   codes_pays?: { METRO: string[]; FR: string[] } | null | undefined;
   /** Ligne `pays` : les codes de recette dont le ciblage reste « à vérifier » (sql/300, relecture 1) ; absent = aucun. */
   pays_a_verifier?: ('METRO' | 'FR')[] | null | undefined;
+  /** Ligne CP (sql/304, A2) : chaque membre d'un groupe de CP reçoit le multiplicateur `meme` ou `divise` ; `null` hors CP. */
+  poids_groupe_cp?: (typeof POIDS_GROUPE_CP)[number] | null | undefined;
+  /** Les paramètres de la ligne non confirmés (sql/304, amendement E9) ; absent ou vide = aucun parmi eux. */
+  parametres_a_verifier?: (typeof PARAMETRES_VERIFIABLES)[number][] | undefined;
 }

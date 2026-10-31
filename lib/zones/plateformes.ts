@@ -20,6 +20,17 @@ export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cer
  */
 export const MAX_PLATEFORMES_GEO = 50;
 
+/** Les valeurs de `poids_groupe_cp` (CHECK `plateformes_geo_poids_groupe_cp_valide`, sql/304). */
+export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
+
+/**
+ * Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, fonction
+ * `plateformes_geo_parametres_valides`, sql/304) : la règle de poids d'un groupe de CP et les clés de `limites`.
+ */
+export const PARAMETRES_VERIFIABLES = [
+  'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
+] as const;
+
 /** Une limite est un entier positif ; absente = aucune limite connue (jamais 0 pour « illimité »). */
 const limite = z.number().int().positive().optional();
 
@@ -61,6 +72,13 @@ export const PlateformeGeoSchema = z.object({
   codes_pays: CodesPaysSchema.nullable().optional(),
   /** Ligne `pays` : les codes de recette dont le ciblage reste « à vérifier » (sql/300, relecture 1) ; absent = aucun. */
   pays_a_verifier: z.array(z.enum(['METRO', 'FR'])).nullable().optional(),
+  /**
+   * Ligne CP (sql/304, A2) : ce que reçoit chaque membre d'un groupe de CP indiscernables — `meme` (le multiplicateur
+   * de l'unité, répété) ou `divise` (divisé par le nombre de membres). `null` hors CP ; absent = `null`.
+   */
+  poids_groupe_cp: z.enum(POIDS_GROUPE_CP).nullable().optional(),
+  /** Les paramètres de la ligne non confirmés (sql/304, amendement E9) ; absent ou vide = aucun parmi eux. */
+  parametres_a_verifier: z.array(z.enum(PARAMETRES_VERIFIABLES)).optional(),
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;

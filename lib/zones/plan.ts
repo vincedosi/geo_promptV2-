@@ -305,6 +305,11 @@ export function genererPlanCp(
  * ⚠ Le plancher `MULT_MIN_NON_NUL` est ré-appliqué APRÈS la division : sur un
  * plan national, un sixième d'une part déjà faible s'arrondit à `0.000`, et le
  * code postal disparaîtrait du plan sans jamais apparaître comme exclu.
+ *
+ * ⚠ CHEMIN RISQUE SEULEMENT depuis A2 (2026-10-31). Le plan d'un jeu de ZONE ne
+ * passe plus de `membres` : il développe ses unités CP au MÊME multiplicateur
+ * (`lib/zones/unite-cp.ts`, `plan-jeu-zone.ts`), et la règle par plateforme est
+ * un paramètre « à vérifier » du registre (`plateformes_geo.poids_groupe_cp`).
  */
 function etendreAuxGroupes(lignes: LignePlan[], membres?: MembresParCanonique): LignePlan[] {
   if (!membres || membres.size === 0) return lignes;
