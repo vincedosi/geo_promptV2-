@@ -93,6 +93,8 @@ BEGIN
   ),
   plan AS (
     SELECT z.postal_code,
+           -- ⚠ REMPLACÉE par sql/306 (A8, E5) : part prévue de l'extraction quand le plan en porte. Rejouer ce fichier
+           -- seul après sql/306 ramènerait m ÷ Σ m pour tous les plans : rejouer sql/306 ensuite.
            z.bid_multiplier / NULLIF(SUM(z.bid_multiplier) OVER (), 0) AS planned_share,
            CASE WHEN v_out_mode = 'exclusion' THEN z.bid_multiplier > 0
                 ELSE z.bid_multiplier > 1 END AS in_target

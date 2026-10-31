@@ -16,8 +16,9 @@
  *     zone_set_cp                         zone_set_extraction_cp
  *         │  genererPlanCp (lib/zones/plan.ts)    │  recopié tel quel
  *         ▼                                       ▼
- *     bidding_zone_configs.bid_multiplier
- *         │  refresh_campaign_rollups : planned_share = m / SUM(m)
+ *     bidding_zone_configs.bid_multiplier (+ part_prevue, A8)
+ *         │  refresh_campaign_rollups : planned_share = part_prevue si le plan en porte (jeu de zone, sql/306),
+ *         │                             m / SUM(m) sinon (chemin risque, inchangé)
  *         ▼
  *     campaign_cp_rollup.planned_share
  *
@@ -280,6 +281,8 @@ async function ecrirePlan(
       country_code: 'FR',
       bid_multiplier: l.multiplicateur,
       weight: l.multiplicateur,
+      // A8 : la part prévue E5 figée à l'extraction ; `null` sur le chemin risque (le suivi garde m ÷ Σ m).
+      part_prevue: l.part_prevue ?? null,
       is_active: true,
       target_metrics: { classe: l.classe, retenu: l.retenu },
     }));

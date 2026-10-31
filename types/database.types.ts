@@ -1066,6 +1066,7 @@ export type Database = {
           floor_bid: number | null
           id: string
           is_active: boolean
+          part_prevue: number | null
           postal_code: string
           strategy_id: string
           target_metrics: Json
@@ -1081,6 +1082,7 @@ export type Database = {
           floor_bid?: number | null
           id?: string
           is_active?: boolean
+          part_prevue?: number | null
           postal_code: string
           strategy_id: string
           target_metrics?: Json
@@ -1096,6 +1098,7 @@ export type Database = {
           floor_bid?: number | null
           id?: string
           is_active?: boolean
+          part_prevue?: number | null
           postal_code?: string
           strategy_id?: string
           target_metrics?: Json
@@ -6120,6 +6123,7 @@ export type Database = {
           extraction_id: string
           multiplicateur: number
           part_en_zone: number | null
+          part_prevue: number | null
           pop_en_zone: number | null
           pop_totale: number | null
           retenu: boolean
@@ -6134,6 +6138,7 @@ export type Database = {
           extraction_id: string
           multiplicateur?: number
           part_en_zone?: number | null
+          part_prevue?: number | null
           pop_en_zone?: number | null
           pop_totale?: number | null
           retenu?: boolean
@@ -6148,6 +6153,7 @@ export type Database = {
           extraction_id?: string
           multiplicateur?: number
           part_en_zone?: number | null
+          part_prevue?: number | null
           pop_en_zone?: number | null
           pop_totale?: number | null
           retenu?: boolean
@@ -6231,6 +6237,7 @@ export type Database = {
           part_plan_en_zone: number | null
           plateformes: Json | null
           population_exposee: number
+          resume_plan: Json | null
           seuil_couverture_cp: number
           taux_utile: number | null
           version: number
@@ -6250,6 +6257,7 @@ export type Database = {
           part_plan_en_zone?: number | null
           plateformes?: Json | null
           population_exposee?: number
+          resume_plan?: Json | null
           seuil_couverture_cp: number
           taux_utile?: number | null
           version: number
@@ -6269,6 +6277,7 @@ export type Database = {
           part_plan_en_zone?: number | null
           plateformes?: Json | null
           population_exposee?: number
+          resume_plan?: Json | null
           seuil_couverture_cp?: number
           taux_utile?: number | null
           version?: number
@@ -8068,6 +8077,7 @@ export type Database = {
         }[]
       }
       gettransactionid: { Args: never; Returns: unknown }
+      hors_zone_extraction: { Args: { p_extraction_id: string }; Returns: Json }
       import_carreaux_batch: {
         Args: {
           p_geom_wkts: string[]
@@ -9111,6 +9121,7 @@ export type Database = {
       vider_exposition_cache: { Args: { p_avant?: string }; Returns: number }
       vider_population_carreau: { Args: never; Returns: Json }
       vider_zones_risque: { Args: { p_avant?: string }; Returns: Json }
+      volumes_attendus_cp: { Args: { p_codes: string[] }; Returns: Json }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: {
         Args: { p_base: string; p_retires: string[] }

@@ -265,13 +265,22 @@ describe('A1 — la ligne HORS_ZONE (E3) et le mode figé', () => {
 
   it('exclusif → mode strict : HORS_ZONE à 0, hors des CP réels du plan', () => {
     const { lignes, resume } = planCpDeZone(DEUX, 20, 'exclusif', new Map());
-    expect(resume.multiplicateur.hors_zone).toEqual({ code: 'HORS_ZONE', mode: 'strict', multiplicateur: 0 });
+    // Attendu changé par A8 (était `{ code, mode, multiplicateur }`) : la ligne porte sa part prévue E5 — part 1, classe 0
+    // en strict, volume inconnu sans référentiel (tests) ; classe 0 → part prévue 0 quel que soit le volume.
+    expect(resume.multiplicateur.hors_zone).toEqual({
+      code: 'HORS_ZONE', mode: 'strict', multiplicateur: 0, part: 1, classe: 0, volume: null, part_prevue: 0,
+    });
     expect(lignes.some((l) => l.code_postal === 'HORS_ZONE')).toBe(false);
   });
 
   it('pondéré → mode national : HORS_ZONE au plancher 0,8 × le plus petit multiplicateur du plan, sous tout CP du plan (INV9)', () => {
     const { lignes, resume } = planCpDeZone(DEUX, 20, 'pondere', new Map());
-    expect(resume.multiplicateur.hors_zone).toEqual({ code: CODE_HORS_ZONE, mode: 'national', multiplicateur: 0.4 });
+    // Attendu changé par A8 : + part 1, classe = 0,8 × le plus petit brut retenu (0,8 × 0,3 = 0,24, avant normalisation et
+    // écrêtage) ; volume du référentiel non fourni → part prévue `null` (on ne l'invente pas).
+    expect(resume.multiplicateur.hors_zone).toMatchObject({
+      code: CODE_HORS_ZONE, mode: 'national', multiplicateur: 0.4, part: 1, volume: null, part_prevue: null,
+    });
+    expect(resume.multiplicateur.hors_zone.classe).toBeCloseTo(0.24, 12);
     // 0,4 = le facteur de méthode (rebid-v2 D7) × le plus petit multiplicateur du plan (0,5).
     expect(FACTEUR_HORS_ZONE_NATIONAL * 0.5).toBeCloseTo(0.4, 9);
     expect(lignes.filter((l) => l.multiplicateur > 0).every((l) => l.multiplicateur > 0.4)).toBe(true);

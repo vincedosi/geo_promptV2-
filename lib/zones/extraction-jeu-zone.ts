@@ -43,7 +43,10 @@ import {
 import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
-import { planCpDeZone, reglageDuPlan, sortiesPoids, type ReglagePlan, type SortiePoids } from './plan-jeu-zone';
+import {
+  planCpDeZone, reglageDuPlan, sortiesPoids, type ReglagePlan, type SortiePoids, type VolumesAttendus,
+} from './plan-jeu-zone';
+import { lireVolumesAttendus } from './part-prevue-serveur';
 import { lireGroupesCp } from './groupes';
 import { lireRecette } from './recette-schema';
 import type { PlateformeGeo, PlateformePoids } from './plateformes';
@@ -278,7 +281,14 @@ async function planCp(
   if (estEchec(cp)) return cp;
   const r = ctx.recette;
   const liste = r?.type === 'codes_postaux' && exactitude(r, 'cp') === 'exacte' ? r.codes : undefined;
-  return planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), ctx.jeu.mode_plan as ModePlan, groupes, liste, reglage);
+  // A8 : les volumes attendus (population totale, Q9 = A) des unités et du référentiel, pour la part prévue E5.
+  let volumes: VolumesAttendus;
+  try {
+    volumes = await lireVolumesAttendus(ctx.supabase, [...cp.lignes.map((l) => l.code), ...(liste ?? [])]);
+  } catch (e) {
+    return panne('volumes attendus', e);
+  }
+  return planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), ctx.jeu.mode_plan as ModePlan, groupes, liste, reglage, volumes);
 }
 
 /**

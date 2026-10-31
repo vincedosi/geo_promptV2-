@@ -12,7 +12,9 @@ const X = '3f2504e0-4f89-11d3-9a0c-0305e82c3303';
 let plateformes: unknown;
 let cp: Array<{ code_postal: string; code_canonique: string; multiplicateur: number; classe: string; retenu: boolean }>;
 
+// A8 : `planExtraction` lit la ligne HORS_ZONE par `lireHorsZone` (RPC `hors_zone_extraction`) ; rien de figé ici.
 const client = {
+  rpc: async () => ({ data: null, error: null }),
   from(table: string) {
     const q = {
       select: () => q, eq: () => q, gt: () => q, order: () => q,
@@ -59,6 +61,8 @@ describe('planExtraction — 0 CP', () => {
     plateformes = [{ plateforme: 'dv360', maille: 'cp' }];
     cp = [{ code_postal: '69001', code_canonique: '69001', multiplicateur: 1.2, classe: 'zone', retenu: true }];
     const r = await planExtraction(client, JEU, X);
-    expect('reponse' in r ? null : r.lignes).toEqual([{ code_postal: '69001', multiplicateur: 1.2, classe: 'zone', retenu: true }]);
+    // Attendu changé par A8 : la part prévue suit la ligne (`null` ici : extraction sans part prévue, le suivi garde m ÷ Σ m).
+    expect('reponse' in r ? null : r.lignes).toEqual([{ code_postal: '69001', multiplicateur: 1.2, classe: 'zone', retenu: true, part_prevue: null }]);
+    expect('reponse' in r ? null : r.resume.part_prevue).toEqual({ source: 'multiplicateur', hors_zone: null, mode_hors_zone: null });
   });
 });

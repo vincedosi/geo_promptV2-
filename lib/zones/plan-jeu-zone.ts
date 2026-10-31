@@ -31,6 +31,7 @@ import {
 } from './plan';
 import type { PlateformePoids } from './plateformes';
 import { canoniques, developperUnites, membresDe, unitesDeGroupes } from './unite-cp';
+import { REPARTITION_GROUPE, VOLUME_ATTENDU, partsPrevues, type UnitePrevue } from './part-prevue';
 
 /** La classe unique des codes postaux retenus d'un jeu de zone (`MOTIF_CLASSE`). */
 const CLASSE_ZONE = 'zone';
@@ -43,6 +44,15 @@ export interface ReglagePlan {
   poids_groupe_cp?: 'meme' | 'divise';
   /** Une borne de la plage est « à vérifier » chez la plateforme qui la fixe (E9, par paramètre). */
   a_verifier?: { min: boolean; max: boolean };
+}
+
+/**
+ * Les volumes attendus du référentiel (A8, E5 ; `volumes_attendus_cp`, sql/306) : celui de chaque unité CP demandée et
+ * le total du référentiel, d'où se déduit le volume de `HORS_ZONE` (total − unités retenues).
+ */
+export interface VolumesAttendus {
+  par_code: ReadonlyMap<string, number>;
+  total: number;
 }
 
 /** Le refus de `reglageDuPlan` : une phrase, prête pour un 422. */
@@ -106,10 +116,16 @@ export function reglageDuPlan(
  * « personne »). `resume.n_cp` et `n_retenus` comptent des UNITÉS, `n_codes` les CODES envoyés (multiplicateur > 0) ;
  * les lignes rendues sont des codes. `resume.multiplicateur` : le bilan de la séquence E4 (moyennes avant / après
  * écrêtage, unités écrêtées, ajustements, tous comptés en UNITÉS CP, ligne `HORS_ZONE`).
+ *
+ * PART PRÉVUE (A8, E5, `part-prevue.ts`) : chaque code porte `part_prevue` — part × volume × classe ÷ Σ, sommée PAR
+ * UNITÉ (HORS_ZONE comprise) puis répartie à parts égales entre les codes de l'unité ; `null` hors plan ou à volume
+ * inconnu. Sans `volumes` (tests), le volume d'une unité est sa population totale de la cible — égal au volume V1
+ * quand la cible est la population totale — et celui de `HORS_ZONE` est inconnu (une part prévue en mode national
+ * devient alors `null` partout : on ne l'invente pas).
  */
 export function planCpDeZone(
   lignes: readonly LigneCouverture[], seuil: number, mode_plan: 'pondere' | 'exclusif', groupes: MembresParCanonique,
-  codesExacts?: readonly string[], reglage: ReglagePlan = {},
+  codesExacts?: readonly string[], reglage: ReglagePlan = {}, volumes?: VolumesAttendus,
 ) {
   // Code → unité : les membres que la couverture déclare (sql/304), complétés par `cp_groupe` pour les codes d'une
   // liste exacte que la couverture ne touche pas.
@@ -151,6 +167,26 @@ export function planCpDeZone(
     // seulement — la même population que la moyenne avant écrêtage.
     if ((parCode.get(l.code_postal)?.pop_totale ?? 0) > 0) effectifs.push(v * n);
   }
+  const bilan = plan.multiplicateur as BilanMultiplicateur;
+
+  // A8 : la part prévue, découplée du multiplicateur — unités retenues seulement (la classe unique `zone` pèse 1), plus
+  // HORS_ZONE (volume = référentiel − unités retenues). Une unité retenue sans volume connu : `null`, hors de la somme.
+  const volumeDe = (c: CpZone): number | null => {
+    const v = volumes ? volumes.par_code.get(c.code_postal) ?? null : c.pop_totale;
+    return v !== null && v > 0 ? v : null;
+  };
+  const unitesPrevues: UnitePrevue[] = cps.filter((c) => c.retenu).map((c) => ({
+    code: c.code_postal,
+    membres: membresDeLigne(c),
+    part: c.pop_totale > 0 ? c.pop_en_zone / c.pop_totale : null,
+    volume: volumeDe(c),
+    classe: 1,
+  }));
+  const volumeHorsZone = volumes
+    ? Math.max(0, volumes.total - unitesPrevues.reduce((t, u) => t + (u.volume ?? 0), 0))
+    : null;
+  const prevues = partsPrevues(unitesPrevues, { part: 1, volume: volumeHorsZone, classe: bilan.hors_zone.classe });
+
   const developpe = developperUnites(plan.lignes, membresDeLigne, (u) => u.code_postal)
     .map(({ unite: l, code_postal, est_canonique }) => {
       const multiplicateur = parCodeEnvoye.get(l.code_postal) ?? 0;
@@ -158,9 +194,9 @@ export function planCpDeZone(
       return {
         code_postal, code_canonique: l.code_postal, classe: l.classe, retenu: l.retenu, multiplicateur,
         pop_en_zone: source?.pop_en_zone ?? null, pop_totale: source?.pop_totale ?? null, part_en_zone: source?.part ?? null,
+        part_prevue: l.retenu ? prevues.par_code.get(code_postal) ?? null : null,
       };
     });
-  const bilan = plan.multiplicateur as BilanMultiplicateur;
 
   return {
     lignes: developpe,
@@ -183,6 +219,16 @@ export function planCpDeZone(
         moyenne_apres_ecretage: effectifs.length > 0 ? Math.round((effectifs.reduce((t, x) => t + x, 0) / effectifs.length) * 1000) / 1000 : null,
         n_ecretes: [...journal.values()].reduce((t, a) => t + a.n, 0),
         ajustements: [...journal.values()],
+        hors_zone: { ...bilan.hors_zone, volume: volumeHorsZone, part_prevue: prevues.hors_zone },
+      },
+      // A8 : comment la part prévue a été formée (figé dans `resume_plan`, sql/306). `unites_sans_part` : unités retenues
+      // dont la part prévue est `null` (volume ou population inconnus) — dites, pas comptées à 0.
+      part_prevue: {
+        volume_attendu: VOLUME_ATTENDU,
+        unite_de_somme: 'unite_cp' as const,
+        repartition_groupe: REPARTITION_GROUPE,
+        hors_zone: prevues.hors_zone,
+        unites_sans_part: [...prevues.par_unite.values()].filter((p) => p === null).length,
       },
     },
   };

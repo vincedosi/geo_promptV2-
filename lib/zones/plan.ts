@@ -19,6 +19,8 @@
  * (`planned_share = bid_multiplier / SUM(bid_multiplier) OVER ()`), donc seule
  * la PROPORTION compte. On centre les multiplicateurs sur 1 — la valeur neutre
  * — pour qu'ils restent lisibles par un humain qui ouvrirait la table.
+ * ⚠ Depuis A8 (sql/306), cela ne vaut plus que pour un plan SANS part prévue (chemin risque, plans ⑥ hors jeu de
+ * zone) : un plan de jeu de zone porte sa part prévue (`lib/zones/part-prevue.ts`), découplée du multiplicateur.
  *
  * ── LE POINT DUR DU PRODUIT ───────────────────────────────────────────────
  *
@@ -192,13 +194,23 @@ export const FACTEUR_HORS_ZONE_NATIONAL = 0.8;
 
 /**
  * La ligne pseudo-CP `HORS_ZONE` du plan (amendement E3) : toute impression livrée sur un CP absent du plan lui est
- * imputée. Mode figé à l'extraction : `strict` (jeu exclusif) → poids 0 ; `national` (jeu pondéré) → plancher. Sa
- * part prévue (volume attendu : populations totales des CP non retenus) est l'affaire du ticket A8.
+ * imputée. Mode figé à l'extraction : `strict` (jeu exclusif) → poids 0 ; `national` (jeu pondéré) → plancher.
+ *
+ * Sa PART PRÉVUE (A8, E5, `lib/zones/part-prevue.ts`) : part × volume × classe, comme une unité. `part` = 1 (la ligne
+ * porte toute la population de son volume) ; `classe` = son poids dans l'échelle des bruts (part × classe des unités,
+ * étape (1) de E4) : 0 en strict, `FACTEUR_HORS_ZONE_NATIONAL` × le plus petit brut retenu en national — le plancher
+ * AVANT normalisation et écrêtage, donc indépendant de l'écrêtage, comme la part prévue des unités. `volume` (populations
+ * totales des CP non retenus du référentiel) et `part_prevue` sont posés par l'extraction (`planCpDeZone`), qui seule
+ * lit le référentiel. Figée dans `zone_set_extractions.resume_plan` (sql/306), lue par `lireHorsZone`.
  */
 interface LigneHorsZone {
   code: typeof CODE_HORS_ZONE;
   mode: 'strict' | 'national';
   multiplicateur: number;
+  part: 1;
+  classe: number;
+  volume?: number | null;
+  part_prevue?: number | null;
 }
 
 /** Des multiplicateurs ramenés à une borne : `valeur` le plus extrême calculé (avant), `limite` la borne (après). */
@@ -421,7 +433,8 @@ function planMultiplicateur(cps: CpAgrege[], exclusif: boolean, bornes: BornesMu
     }
     return { code_postal: cp.code_postal, part_plan: 0, multiplicateur, multiplicateur_calcule: m, classe: cp.classe, retenu: cp.retenu };
   });
-  // La part que `refresh_campaign_rollups` recalcule (m ÷ Σ m) ; la part PRÉVUE découplée est le ticket A8.
+  // `part_plan` = m ÷ Σ m, la part qu'avait le multiplicateur ; ce n'est PAS la part prévue, découplée du
+  // multiplicateur depuis A8 (E5, `lib/zones/part-prevue.ts`, posée par `planCpDeZone`).
   const total = lignes.reduce((t, l) => t + l.multiplicateur, 0);
   for (const l of lignes) l.part_plan = total > 0 ? l.multiplicateur / total : 0;
 
@@ -431,6 +444,9 @@ function planMultiplicateur(cps: CpAgrege[], exclusif: boolean, bornes: BornesMu
     ? Math.max(MULT_MIN_NON_NUL, Math.round(FACTEUR_HORS_ZONE_NATIONAL * Math.min(...positifs) * 1000) / 1000)
     : 0;
   const ajustements = [...journal.values()];
+  // Le poids de classe de HORS_ZONE dans l'échelle des bruts (A8) : le plancher avant normalisation et écrêtage.
+  const brutsPositifs = connus.filter((b) => b > 0);
+  const classeHorsZone = exclusif || brutsPositifs.length === 0 ? 0 : FACTEUR_HORS_ZONE_NATIONAL * Math.min(...brutsPositifs);
 
   return {
     lignes,
@@ -445,7 +461,10 @@ function planMultiplicateur(cps: CpAgrege[], exclusif: boolean, bornes: BornesMu
       moyenne_apres_ecretage: moyenne(envoyes),
       n_ecretes: ajustements.reduce((t, a) => t + a.n, 0),
       ajustements,
-      hors_zone: { code: CODE_HORS_ZONE, mode: exclusif ? 'strict' : 'national', multiplicateur: exclusif ? 0 : plancher },
+      hors_zone: {
+        code: CODE_HORS_ZONE, mode: exclusif ? 'strict' : 'national', multiplicateur: exclusif ? 0 : plancher,
+        part: 1, classe: classeHorsZone,
+      },
     },
   };
 }

@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { lireTout } from '@/lib/supabase/lire-tout';
+import { lireHorsZone } from '@/lib/zones/part-prevue-serveur';
 
 /** Le client `service_role` des routes, partagé avec `rattacher` (revue finale du lot 6, F-6). */
 export type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -26,8 +27,12 @@ export const PLAFOND_CP_PLAN = 7000;
 /** Le 409 d'un jeu ou d'une extraction sans code postal — la même phrase sur les deux chemins de `rattacher`. */
 export const MESSAGE_AUCUN_CP = 'Ce jeu de zones ne couvre aucun code postal.';
 
-/** Une ligne du plan à écrire dans `bidding_zone_configs` (multiplicateur > 0). */
-interface LignePlan { code_postal: string; multiplicateur: number; classe: string; retenu: boolean }
+/**
+ * Une ligne du plan à écrire dans `bidding_zone_configs` (multiplicateur > 0). `part_prevue` (A8, E5) : la part prévue
+ * figée à l'extraction ; absente ou `null` sur le chemin risque et sur une extraction antérieure à sql/306 — le suivi
+ * garde alors m ÷ Σ m (`refresh_campaign_rollups`, sql/306).
+ */
+interface LignePlan { code_postal: string; multiplicateur: number; classe: string; retenu: boolean; part_prevue?: number | null }
 
 /** Une ligne du plan d'une extraction : `code_canonique` sert à retrouver les CP d'une plateforme (groupes). */
 export interface LigneCpExtraction extends LignePlan { code_canonique: string }
@@ -61,7 +66,7 @@ export async function lireCpExtraction(supabase: ClientAdmin, extractionId: stri
   const { lignes } = await lireTout<LigneCpExtraction>(
     (de, a) => supabase
       .from('zone_set_extraction_cp')
-      .select('code_postal, code_canonique, multiplicateur, classe, retenu')
+      .select('code_postal, code_canonique, multiplicateur, classe, retenu, part_prevue')
       .eq('extraction_id', extractionId)
       .gt('multiplicateur', 0)
       .order('code_postal')
@@ -69,7 +74,9 @@ export async function lireCpExtraction(supabase: ClientAdmin, extractionId: stri
     PLAFOND_CP_PLAN,
   );
   // `numeric(6,3)` : nombre JSON chez PostgREST, converti par sûreté (un texte fausserait les sommes).
-  return lignes.map((l) => ({ ...l, multiplicateur: Number(l.multiplicateur) }));
+  return lignes.map((l) => ({
+    ...l, multiplicateur: Number(l.multiplicateur), part_prevue: l.part_prevue == null ? null : Number(l.part_prevue),
+  }));
 }
 
 /**
@@ -107,9 +114,26 @@ export async function planExtraction(
     return refusPlan(MESSAGE_AUCUN_CP, 409);
   }
 
+  // A8 : la ligne HORS_ZONE figée, par LE lecteur partagé ; `null` avant sql/306 ou sans plan CP.
+  let horsZone: Awaited<ReturnType<typeof lireHorsZone>>;
+  try {
+    horsZone = await lireHorsZone(supabase, x.id);
+  } catch (e) {
+    console.error('[zones/rattacher] ligne HORS_ZONE :', e instanceof Error ? e.message : e);
+    return refusPlan('Ligne hors zone de l’extraction illisible.', 500);
+  }
+  // Règle 5 (aucun ajustement silencieux) : d'où viendra la part prévue du suivi. Une extraction sans part prévue
+  // (antérieure à sql/306, ou jeu risque) garde m ÷ Σ m — dit dans la réponse.
+  const avecPart = lignes.some((l) => l.part_prevue !== null);
+  const partPrevue = {
+    source: avecPart ? 'extraction' : 'multiplicateur',
+    hors_zone: horsZone?.part_prevue ?? null,
+    mode_hors_zone: horsZone?.mode ?? null,
+  };
+
   const seuil = Number(x.seuil_couverture_cp);
   return {
-    lignes: lignes.map(({ code_postal, multiplicateur, classe, retenu }) => ({ code_postal, multiplicateur, classe, retenu })),
+    lignes: lignes.map(({ code_postal, multiplicateur, classe, retenu, part_prevue }) => ({ code_postal, multiplicateur, classe, retenu, part_prevue })),
     nom: `Jeu de zones — ${jeuRow.nom} (extraction v${x.version})`,
     description:
       `Plan recopie de l'extraction v${x.version} du jeu de zones « ${jeuRow.nom} » (version ${jeuRow.version}), `
@@ -127,6 +151,7 @@ export async function planExtraction(
       extraction_version: x.version,
       // Le résumé figé par plateforme (jeu de zone) ; `null` pour un jeu risque.
       plateformes: x.plateformes,
+      part_prevue: partPrevue,
     },
     resume: {
       mode_plan: x.mode_plan,
@@ -135,6 +160,7 @@ export async function planExtraction(
       n_retenus: x.n_retenus,
       extraction: x.id,
       extraction_version: x.version,
+      part_prevue: partPrevue,
     },
   };
 }

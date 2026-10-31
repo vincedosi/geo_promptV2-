@@ -48,7 +48,11 @@ function jeuAvec(choix: object[], recette: object, regles: object[]) {
   etat.tables.cp_groupe = { data: [], error: null };
   etat.reponses.couverture_zone = { data: COUVERTURE, error: null };
   etat.reponses.creer_extraction_jeu_zone = { data: { ok: true, deja_extraite: false, id: 'x', version: 1 }, error: null };
+  // A8 : les volumes attendus (population totale) des unités et du référentiel, lus pour la part prévue E5.
+  etat.reponses.volumes_attendus_cp = { data: VOLUMES, error: null };
 }
+/** Volumes = populations totales de la couverture ; référentiel de 1 000 000 habitants. */
+const VOLUMES = { volume: 'population_totale', total: 1_000_000, codes: { 69001: 6_500, 69002: 10_000, 69003: 50_000 } };
 const extraire = () => extraireJeuZone(createAdminClient() as never, JEU, { origine: 'initiale', commentaire: '' }, 'u1');
 const argsCreation = () => etat.rpcs.find((r) => r.nom === 'creer_extraction_jeu_zone')!.args as {
   p_cp: { code_postal: string; retenu: boolean }[];
@@ -129,6 +133,31 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
       },
     });
     expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ n_unites: 2, n_codes: 2, avertissements: [] });
+  });
+
+  it('A8 : part prévue E5 par code et ligne HORS_ZONE (volume = référentiel − retenus) envoyées à la RPC', async () => {
+    // Pondéré → national. Poids : 69001 = 6 000, 69002 = 3 000 ; HORS_ZONE = 0,8 × 0,3 × (1 000 000 − 16 500).
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], DESSIN, [regle('dv360', 'cp')]);
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.find((r) => r.nom === 'volumes_attendus_cp')!.args.p_codes).toEqual(['69001', '69002', '69003']);
+    const hz = 0.24 * 983_500;
+    const somme = 6_000 + 3_000 + hz;
+    const p = Object.fromEntries((argsCreation().p_cp as unknown as { code_postal: string; part_prevue: number | null }[])
+      .map((l) => [l.code_postal, l.part_prevue]));
+    expect(p['69001']).toBeCloseTo(6_000 / somme, 12);
+    expect(p['69002']).toBeCloseTo(3_000 / somme, 12);
+    expect(p['69003']).toBeNull();
+    const resume = argsCreation().p_resume as unknown as { multiplicateur: { hors_zone: Record<string, number> }; part_prevue: Record<string, unknown> };
+    expect(resume.multiplicateur.hors_zone).toMatchObject({ mode: 'national', part: 1, volume: 983_500 });
+    expect(resume.multiplicateur.hors_zone.part_prevue).toBeCloseTo(hz / somme, 12);
+    expect(resume.part_prevue).toMatchObject({ volume_attendu: 'population_totale', unite_de_somme: 'unite_cp', unites_sans_part: 0 });
+  });
+
+  it('A8 : volumes attendus illisibles → 500 neutre, rien n’est figé', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], DESSIN, [regle('dv360', 'cp')]);
+    etat.reponses.volumes_attendus_cp = { data: null, error: { message: 'panne' } };
+    expect((await extraire()).status).toBe(500);
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
   });
 
   it('Tour 1 (I-2) : DV360 + TTD au CP, plan écrêté au minimum de DV360 — dit chez DV360 seulement', async () => {
