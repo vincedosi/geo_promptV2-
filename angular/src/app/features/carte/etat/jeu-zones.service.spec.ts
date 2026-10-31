@@ -199,7 +199,7 @@ describe('JeuZonesService — la conversion', () => {
     http.expectOne(couverture(Z1, 'forme')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [] });
     hote.jeu.valider('dv360');
     const enVol = http.expectOne(couverture(Z1, 'cp'));
-    hote.jeu.choisirZone(Z2);
+    hote.jeu.choisirZone(Z2, null); // recette connue (illisible) : sans elle, ⑤ ne lit rien (relecture 2)
     expect(enVol.cancelled).toBe(true);
     expect(hote.jeu.couvertures()).toEqual({});
     expect(hote.jeu.resumes()).toEqual({});
