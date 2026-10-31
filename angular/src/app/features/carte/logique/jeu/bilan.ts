@@ -1,7 +1,8 @@
 import type { Decoupage, ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import {
-  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, mailleParDefaut, resumeExact, unitesPays, verifierLimites,
+  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, mailleParDefaut, resumeExact, resumePays, unitesPays,
+  verifierLimites,
 } from './conversion';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
@@ -161,8 +162,9 @@ export function bilanDe(
     // Une zone pays au pays : une unité par code ciblé (A-5).
     const codes = codesPays(c, ligne, recette);
     if (codes.length > 0) {
-      resume = resumeExact(cv.population, cv.surface_km2, codes.length);
       const pays = unitesPays(codes, cv.population, cv.decoupage === 'departement' ? cv.lignes : null);
+      // A4 (ARB-3) : les territoires à population inconnue comptés à part (`n_inconnues`), comme à l'extraction.
+      resume = resumePays(pays, cv.population, cv.surface_km2);
       return { resume, avertissements: verifierLimites(resume, ligne), pays };
     }
     const nCodes = c.maille === 'cp' && recette?.type === 'codes_postaux' ? new Set(recette.codes).size : 1;

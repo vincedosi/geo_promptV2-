@@ -85,7 +85,7 @@ describe('planCpDeZone — le groupe de CP est l’unité (A2)', () => {
   });
 
   it('la population n’est portée qu’une fois : somme des lignes du plan = somme des lignes de couverture = population de la zone', () => {
-    const population = ZONE.reduce((t, l) => t + l.pop_en_zone, 0);
+    const population = ZONE.reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
     const { lignes } = planCpDeZone(ZONE, 0, 'pondere', new Map());
     expect(lignes.reduce((t, l) => t + (l.pop_en_zone ?? 0), 0)).toBe(population);
     expect(lignes.filter((l) => l.code_canonique === '93200' && l.code_postal !== '93200')

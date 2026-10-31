@@ -15,7 +15,13 @@ type Maille = PlateformeGeo['maille'];
 type Plateforme = PlateformeGeo['plateforme'];
 
 /** Ce que le seuil lit d'une ligne de `couverture_geometrie` — rien d'autre, pour accepter aussi une ligne figée. */
-export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute' | 'membres'>;
+export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute' | 'membres' | 'incluse'>;
+
+/**
+ * A4 (ARB-3) : le libellé de la ligne SÉPARÉE du bilan quand une unité à population inconnue est retenue (`n_inconnues`)
+ * — une diffusion achetée qu'aucun chiffre d'habitants ne compte (ni `achetee`, ni `hors_zone`, ni le taux d'utile).
+ */
+export const LIBELLE_POPULATION_INCONNUE = 'Diffusion à population inconnue';
 
 /**
  * Le bilan d'une maille calculée. Deux égalités, toujours (Review Focus 1) : `manques + couverte = population de la
@@ -42,6 +48,11 @@ export interface ResumeMaille {
   hors_zone: number;
   /** `couverte / achetee` en %, une décimale, sur les SEULES unités retenues ; `null` si rien n'est acheté. */
   taux_utile: number | null;
+  /**
+   * A4 (ARB-3) : unités retenues à population INCONNUE (territoire non carroyé), comptées dans `n_unites` mais dans
+   * aucun chiffre d'habitants — la ligne « diffusion à population inconnue » du bilan. Absent s'il n'y en a aucune.
+   */
+  n_inconnues?: number;
 }
 
 /** Une maille exacte pour la recette (A-6) : zéro perte par construction, aucun calcul. */
@@ -58,6 +69,8 @@ export interface ResumeExact {
   manques: 0;
   hors_zone: 0;
   taux_utile: 100;
+  /** A4 (ARB-3) : maille pays, territoires ciblés à population inconnue (GP, GF, YT au 31/10) ; absent sinon. */
+  n_inconnues?: number;
 }
 
 export type Resume = ResumeMaille | ResumeExact;
@@ -83,21 +96,29 @@ export interface Avertissement {
 }
 
 /**
- * LA règle de rétention d'une unité : sa part (en %) atteint le seuil — la borne est retenue, comme dans
- * `appliquer_seuil_zone_set`. Une part NULL (territoire sans dénominateur) ne l'est jamais : on ne sait pas ce qu'on
- * achèterait. Exportée pour que l'extraction marque `retenu` par la MÊME règle que le bilan.
+ * LA règle de rétention d'une unité, pour TOUTES les mailles territoriales (CP, commune, département, IRIS) : sa part
+ * (en %) atteint le seuil — la borne est retenue, comme dans `appliquer_seuil_zone_set`. Exportée pour que
+ * l'extraction marque `retenu` par la MÊME règle que le bilan, et l'écran (couche de la carte) aussi.
  *
  * B11 : la part comparée est `part_brute`, NON arrondie — `part`, au dixième, n'est que l'affichage (19,96 % s'affiche
  * 20,0 % mais ne passe pas un seuil de 20 %). Une part nulle n'est jamais retenue, même à seuil 0 (on n'achète pas une
  * unité où la zone n'a personne) ; 0,02 % (affichée 0,0 %) l'est. Même règle en SQL dans `paver_cercles` (sql/303).
+ *
+ * A4 (ARB-3) : une part NULL — territoire non carroyé, population totale inconnue — ne se compare à AUCUN seuil. Ce
+ * qui retient une telle unité : être ENTIÈRE dans la zone (`incluse`, posé par la base, sql/308), car sa part vaut alors
+ * 100 % quelle que soit sa population. Pour une zone nationale (recette `pays`), c'est toute unité du territoire de la
+ * recette ; pour une zone locale, `ST_Covers(zone, unité)`. Une unité seulement touchée, ou dont l'inclusion n'est pas
+ * dite (ligne figée avant sql/308), n'est jamais retenue : on ne sait pas ce qu'on achèterait de la zone.
  */
-export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'>, seuil: number): boolean {
-  return ligne.part_brute !== null && ligne.part_brute > 0 && ligne.part_brute >= seuil;
+export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'> & Partial<Pick<LigneSeuil, 'incluse'>>, seuil: number): boolean {
+  if (ligne.part_brute === null) return ligne.incluse === true;
+  return ligne.part_brute > 0 && ligne.part_brute >= seuil;
 }
 
 /**
  * Retient les unités dont la part (en %) atteint le seuil ({@link estRetenue}) — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
- * Une ligne à `part_brute` NULL (territoire sans dénominateur) n'est jamais retenue : on ne sait pas ce qu'on achèterait.
+ * Une ligne à `part_brute` NULL (population inconnue, A4) n'est retenue que si elle est entière dans la zone : comptée
+ * dans `n_unites` et `n_inconnues`, dans AUCUN chiffre d'habitants (ni `couverte`, ni `achetee` : on ne les connaît pas).
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
  *
  * ⚠ Arrondis : la RPC arrondit à l'entier chaque `pop_en_zone`, `population` et `hors_territoire.population` (sql/275),
@@ -109,14 +130,16 @@ export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'>, seuil: number)
 export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number, seuil: number): ResumeMaille {
   let n_unites = 0;
   let n_codes = 0;
+  let n_inconnues = 0;
   let couverte = 0;
   let achetee = 0;
   for (const l of lignes) {
     if (!estRetenue(l, seuil)) continue;
     n_unites += 1;
     n_codes += l.membres?.length || 1;
-    couverte += l.pop_en_zone;
-    // Une part non nulle a un dénominateur ; `?? 0` ne sert que le typage.
+    // A4 : retenue sans population (entière dans la zone) — achetée, comptée à part, jamais à 0 habitant.
+    if (l.pop_totale === null) n_inconnues += 1;
+    couverte += l.pop_en_zone ?? 0;
     achetee += l.pop_totale ?? 0;
   }
   return {
@@ -132,6 +155,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     // En %, à une décimale : l'arrondi de `tauxUtile` (`plan.ts`), recopié et non importé — ce fichier est copié côté
     // Angular sans dépendance, et `tauxUtile` (non exporté) lit des `CpZone` du moteur risque.
     taux_utile: achetee > 0 ? Math.round((couverte / achetee) * 1000) / 10 : null,
+    ...(n_inconnues > 0 ? { n_inconnues } : {}),
   };
 }
 
@@ -268,12 +292,24 @@ export function unitesPays(
     const l = lignesDrom.find((d) => d.code === dep);
     return l && l.pop_totale !== null ? l.pop_en_zone : null;
   };
-  const metropole = population - lignesDrom.reduce((somme, l) => somme + l.pop_en_zone, 0);
+  // Un DROM non carroyé a sa ligne depuis sql/308 (A4), sans population : il ne retire rien à la métropole.
+  const metropole = population - lignesDrom.reduce((somme, l) => somme + (l.pop_totale === null ? 0 : l.pop_en_zone ?? 0), 0);
   return codes.map((code) => ({
     code,
     nom: NOMS_PAYS[code] ?? code,
     population: code === 'FR' ? metropole : popDrom(DEPARTEMENT_DROM[code]),
   }));
+}
+
+/**
+ * Le bilan de la maille pays d'une zone pays (exacte) : la zone telle quelle, une unité par code ciblé — TOUTES
+ * retenues, puisque la zone est le territoire entier (la règle d'A4 : une unité entière dans la zone est retenue, même
+ * sans population). `n_inconnues` : les territoires ciblés à population inconnue (A4, ARB-3), absent s'il n'y en a pas.
+ * Le même bilan à l'écran et à l'extraction.
+ */
+export function resumePays(unites: readonly UnitePays[], population: number, surface_km2: number): ResumeExact {
+  const n_inconnues = unites.filter((u) => u.population === null).length;
+  return { ...resumeExact(population, surface_km2, unites.length), ...(n_inconnues > 0 ? { n_inconnues } : {}) };
 }
 
 /**

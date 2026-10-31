@@ -7,10 +7,10 @@ import { JeuCarteService } from '../../couches/jeu-carte.service';
 import { MAX_CODES_CONTOURS } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
-import { NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
+import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
-  texteUnitePays,
+  texteDiffusionInconnue, texteUnitePays,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
@@ -95,6 +95,9 @@ import { ChoixMailleComponent } from './choix-maille.component';
               <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ nombre(b.resume.population) }} habitants carroyés</span>
               @if (codesPays(); as codes) { <span data-codes-pays class="font-mono text-[11px] text-secondary">{{ codes }}</span> }
               @for (u of unitesPays(); track u.code) { <span data-unite-pays class="font-mono text-[11px] text-tertiary">{{ u.texte }}</span> }
+              @if (diffusionInconnue(); as d) {
+                <span data-population-inconnue class="text-[11px] text-secondary">{{ libellePopulationInconnue }} : <span class="font-mono text-primary">{{ d }}</span></span>
+              }
             </div>
           } @else {
             <dl data-chiffres class="m-0 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[11px]">
@@ -106,6 +109,10 @@ import { ChoixMailleComponent } from './choix-maille.component';
               <dd data-manques class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.manques) }} <span class="text-tertiary">({{ partManquee() }} de la zone)</span></dd>
               <dt class="text-secondary">Diffusion hors zone</dt>
               <dd data-hors-zone class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.hors_zone) }}</dd>
+              @if (diffusionInconnue(); as d) {
+                <dt class="text-secondary">{{ libellePopulationInconnue }}</dt>
+                <dd data-population-inconnue class="m-0 text-right font-mono text-primary">{{ d }}</dd>
+              }
             </dl>
           }
           @for (a of avertissements(); track a) { <div data-avertissement [class]="encartAvertissement">{{ a }}</div> }
@@ -203,6 +210,9 @@ export class ColonnePlateformeComponent {
     const pays = this.bilan()?.pays ?? [];
     return pays.length > 1 ? pays.map((u) => ({ code: u.code, texte: texteUnitePays(u) })) : [];
   });
+  /** A4 (ARB-3) : la ligne séparée « Diffusion à population inconnue », quand une telle unité est retenue ; sinon `null`. */
+  protected readonly libellePopulationInconnue = LIBELLE_POPULATION_INCONNUE;
+  protected readonly diffusionInconnue = computed(() => texteDiffusionInconnue(this.bilan()?.resume.n_inconnues, this.choix()?.maille ?? 'cp'));
   protected readonly unite = computed(() => UNITE_MAILLE[this.choix()?.maille ?? 'cp']);
   protected readonly curseur = computed(() => libelleCurseurSeuil(this.choix()?.maille ?? 'cp'));
   protected readonly releve = computed(() => dateReleve(this.ligne()?.releve_le ?? ''));

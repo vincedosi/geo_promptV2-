@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude, mailleParDefaut,
   NOTE_PAYS_A_VERIFIER, avertissementsDisque, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
+  LIBELLE_POPULATION_INCONNUE, resumePays,
 } from '@/lib/zones/conversion';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
@@ -32,7 +33,7 @@ const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-
  * de carreaux sont fractionnaires (des demi-habitants). Écart au plus ½ par terme arrondi : ½ × (lignes + 2).
  */
 function verifierManques(r: ReturnType<typeof appliquerSeuil>, seuil: number) {
-  const ecartees = composite.lignes.filter((l) => l.part_brute === null || l.part_brute < seuil).reduce((t, l) => t + l.pop_en_zone, 0);
+  const ecartees = composite.lignes.filter((l) => l.part_brute === null || l.part_brute < seuil).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
   const attendu = ecartees + composite.hors_territoire.population;
   expect(Math.abs(r.manques - attendu)).toBeLessThanOrEqual((r.n_touchees + 2) / 2);
   return r.manques - attendu;
@@ -47,7 +48,7 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
     const r = appliquerSeuil(composite.lignes, pop, 20);
     expect(r).toMatchObject({ n_unites: 614, n_touchees: 895, taux_utile: 57.7, hors_zone: 7_489_082 });
     // M2 : 990 615 habitants manqués DANS les CP écartés (977 538 avant B11) ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
-    expect(composite.lignes.filter((l) => l.part_brute === null || l.part_brute < 20).reduce((t, l) => t + l.pop_en_zone, 0)).toBe(990_615);
+    expect(composite.lignes.filter((l) => l.part_brute === null || l.part_brute < 20).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0)).toBe(990_615);
     expect(composite.hors_territoire.population).toBe(3_273);
     // −230 : mesuré en base le 24/10, Σ round(pop_en_zone) = 11 221 886 contre Σ pop_en_zone brute = 11 221 655,5 —
     // les demi-habitants arrondis vers le haut, CP par CP. Même écart à tout seuil : il ne dépend que de l'arrondi.
@@ -154,6 +155,53 @@ describe('estRetenue — la règle du seuil, une seule fois', () => {
   it('B11 : à seuil 0, part 0,02 % (affichée 0,0 %) → retenue ; part 0 → non retenue', () => {
     expect(estRetenue({ part_brute: 0.02 }, 0)).toBe(true);
     expect(estRetenue({ part_brute: 0 }, 0)).toBe(false);
+  });
+});
+
+describe('A4 (ARB-3) — une unité à population inconnue : retenue si elle est ENTIÈRE dans la zone, jamais au seuil', () => {
+  // Une ligne d'un territoire non carroyé (sql/308) : ni population, ni part — `incluse` dit si la zone la contient.
+  const inconnue = (incluse: boolean) => ({ pop_en_zone: null, pop_totale: null, part: null, part_brute: null, incluse });
+  it('part inconnue et unité entière dans la zone → retenue, QUEL QUE SOIT le seuil (0, 20, 100)', () => {
+    for (const seuil of [0, 20, 100]) expect(estRetenue(inconnue(true), seuil)).toBe(true);
+  });
+  it('part inconnue et unité seulement touchée (ou inclusion non dite) → jamais retenue', () => {
+    for (const seuil of [0, 100]) {
+      expect(estRetenue(inconnue(false), seuil)).toBe(false);
+      expect(estRetenue({ part_brute: null }, seuil)).toBe(false);
+    }
+  });
+  it('part connue : `incluse` ne change rien, le seuil de B11 décide seul', () => {
+    expect(estRetenue({ part_brute: 10, incluse: true }, 20)).toBe(false);
+    expect(estRetenue({ part_brute: 20, incluse: false }, 20)).toBe(true);
+  });
+  it('appliquerSeuil : l’unité inconnue est achetée et comptée à part (`n_inconnues`), hors des chiffres d’habitants', () => {
+    const connue = { pop_en_zone: 80, pop_totale: 100, part: 80, part_brute: 80 };
+    const r = appliquerSeuil([connue, inconnue(true), inconnue(false)], 80, 50);
+    expect(r).toEqual({
+      exacte: false, n_unites: 2, n_touchees: 3, n_inconnues: 1,
+      couverte: 80, achetee: 100, manques: 0, hors_zone: 20, taux_utile: 80,
+    });
+  });
+  it('appliquerSeuil sans unité inconnue retenue : pas de clé `n_inconnues` (le bilan ne change pas de forme)', () => {
+    const r = appliquerSeuil([{ pop_en_zone: 80, pop_totale: 100, part: 80, part_brute: 80 }, inconnue(false)], 80, 50);
+    expect('n_inconnues' in r).toBe(false);
+  });
+  it('resumePays : la maille pays d’une zone pays, exacte, compte ses territoires non carroyés', () => {
+    const unites = unitesPays(['FR', 'GP', 'MQ', 'GF', 'RE', 'YT'], 1000, [
+      { code: '972', pop_en_zone: 100, pop_totale: 100 },
+      { code: '974', pop_en_zone: 50, pop_totale: 50 },
+      // Les lignes départementales non carroyées (sql/308) : population nulle, jamais 0, et sans effet sur la métropole.
+      { code: '971', pop_en_zone: null, pop_totale: null },
+      { code: '973', pop_en_zone: null, pop_totale: null },
+      { code: '976', pop_en_zone: null, pop_totale: null },
+    ]);
+    expect(unites.find((u) => u.code === 'FR')!.population).toBe(850);
+    expect(unites.filter((u) => u.population === null).map((u) => u.code)).toEqual(['GP', 'GF', 'YT']);
+    expect(resumePays(unites, 1000, 5)).toEqual({ ...resumeExact(1000, 5, 6), n_inconnues: 3 });
+    expect('n_inconnues' in resumePays(unitesPays(['FR'], 1000, null), 1000, 5)).toBe(false);
+  });
+  it('le libellé de la ligne séparée du bilan', () => {
+    expect(LIBELLE_POPULATION_INCONNUE).toBe('Diffusion à population inconnue');
   });
 });
 

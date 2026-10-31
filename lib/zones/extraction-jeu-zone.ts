@@ -39,7 +39,7 @@ import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
 import {
   MESSAGES_CONVERSION, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact,
-  unitesPays, verifierLimites,
+  resumePays, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
 import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
@@ -88,6 +88,8 @@ interface ResumePlateforme {
   n_codes?: number;
   /** Maille CP : ce que la plateforme reçoit par chacun de ses mécanismes de poids (`plateformes_poids`, A1). */
   poids?: SortiePoids[];
+  /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
+  n_inconnues?: number;
 }
 
 type Echec = { ok: false; reponse: NextResponse };
@@ -163,10 +165,18 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
     if (codes.length === 0) return panne('codes pays', `${c.plateforme} : aucun code pour ${r.code}`);
     const departements = codes.some((k) => k !== 'FR') ? await lireCouverture(ctx, c.plateforme, 'departement') : null;
     if (departements && estEchec(departements)) return departements;
-    unites = unitesPays(codes, forme.population, departements?.lignes ?? null).map((u) => ({
+    const pays = unitesPays(codes, forme.population, departements?.lignes ?? null);
+    unites = pays.map((u) => ({
       plateforme: c.plateforme, maille: 'pays', code: u.code, nom: u.nom, retenu: true,
       pop_en_zone: u.population, pop_totale: u.population, part: u.population === null ? null : 100,
     }));
+    // A4 (ARB-3) : les territoires à population inconnue sont achetés et comptés à part (`n_inconnues`).
+    const bilanPays = resumePays(pays, forme.population, forme.surface_km2);
+    const aVerifierPays = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
+    return {
+      ok: true, unites,
+      resume: { ...bilanPays, plateforme: c.plateforme, avertissements: verifierLimites(bilanPays, regle), ...aVerifierPays },
+    };
   } else if (c.maille === 'cp' && r?.type === 'codes_postaux') {
     // La liste de la recette, seuil ignoré ; leurs populations sont portées par le plan CP (par canonique).
     unites = [...new Set(r.codes)].map((code) => ({ plateforme: c.plateforme, maille: 'cp', code, retenu: true }));

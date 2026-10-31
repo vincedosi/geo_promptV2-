@@ -144,7 +144,9 @@ export function planCpDeZone(
 
   const cps: CpZone[] = sources.map((l) => {
     const retenu = liste ? liste.has(l.code) : estRetenue(l, seuil);
-    return { code_postal: l.code, classe: retenu ? CLASSE_ZONE : HORS_ZONE, pop_en_zone: l.pop_en_zone, pop_totale: l.pop_totale ?? 0, retenu };
+    // A4 (ARB-3) : une unité à population inconnue (entière dans la zone) entre au plan à population nulle — multiplicateur
+    // neutre, hors des moyennes —, comme une unité de liste exacte sans carreau ; les lignes rendues la gardent `null`.
+    return { code_postal: l.code, classe: retenu ? CLASSE_ZONE : HORS_ZONE, pop_en_zone: l.pop_en_zone ?? 0, pop_totale: l.pop_totale ?? 0, retenu };
   });
   const bornes = reglage.bornes ?? { min: MULT_MIN_NON_NUL, max: MULT_MAX };
   const divise = reglage.poids_groupe_cp === 'divise';

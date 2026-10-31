@@ -17,6 +17,25 @@ async function colonne(plateforme: string, registre: PlateformeGeo[] = REGISTRE)
 const texte = (el: HTMLElement, sel: string) => el.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('mg-colonne-plateforme', () => {
+  it('A4 (ARB-3) : une unité à population inconnue ENTIÈRE dans la zone est retenue et dite sur une ligne à part', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    const inconnue = { code: '97110', nom: null, commune: null, n_carreaux: 0, pop_en_zone: null, pop_totale: null, part: null, part_brute: null, incluse: true };
+    http.expectOne(urlCouverture(Z1, 'cp')).flush({ ...couvertureCp, lignes: [...couvertureCp.lignes, inconnue] });
+    await stable();
+    // Retenue sans seuil (2 connues + 1 inconnue / 4 touchées), et dans AUCUN chiffre d'habitants : hors zone inchangé.
+    expect(texte(el, '[data-unites]')).toBe('3 / 4');
+    expect(texte(el, '[data-hors-zone]')).toBe('1 100');
+    expect(texte(el, '[data-chiffres]')).toContain('Diffusion à population inconnue');
+    expect(texte(el, '[data-population-inconnue]')).toBe('1 code postal, acheté sans chiffre d’habitants');
+  });
+  it('sans unité à population inconnue retenue : pas de ligne « Diffusion à population inconnue »', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+    await stable();
+    expect(el.querySelector('[data-population-inconnue]')).toBeNull();
+  });
   it('seuil déplacé (relâché) : les chiffres suivent SANS requête — unités, taux d’utile, manqués et leur part, hors zone', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');
@@ -158,14 +177,16 @@ describe('mg-colonne-plateforme — une zone pays (⑤ finitions, T4)', () => {
     cercle.click();
     http.verify();
   });
-  it('« France entière » : les six codes, « population non carroyée » pour un DROM sans carreau, et « À vérifier »', async () => {
+  it('« France entière » : les six codes, « population inconnue » pour un DROM sans carreau, la ligne à part (A4), et « À vérifier »', async () => {
     const { el, http, jeu, stable } = await surZonePays('FR');
     jeu.valider('meta');
     http.expectOne(urlCouverture(Z1, 'departement')).flush(departements);
     await stable();
     expect(texte(el, '[data-codes-pays]')).toBe('FR, GP, MQ, GF, RE, YT');
     const unites = [...el.querySelectorAll('[data-unite-pays]')].map((u) => u.textContent?.replace(/\s+/g, ' ').trim());
-    expect(unites).toContain('Guadeloupe (GP) · population non carroyée');
+    expect(unites).toContain('Guadeloupe (GP) · population inconnue (non carroyée)');
+    // A4 (ARB-3) : GP, GF et YT achetés sans chiffre d’habitants, dits sur une ligne séparée du bilan.
+    expect(texte(el, '[data-population-inconnue]')).toBe('Diffusion à population inconnue : 3 pays, achetés sans chiffre d’habitants');
     expect(unites).toContain('La Réunion (RE) · 800 000 habitants');
     expect(texte(el, '[data-a-verifier]')).toBe('À vérifier');
     http.verify();

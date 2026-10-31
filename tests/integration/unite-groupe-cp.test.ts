@@ -21,6 +21,8 @@ const LONG = 180_000;
 const ORG = '00000000-0000-0000-0000-000000000001';
 const ZONE = 'a2a2a2a2-0000-4000-8000-000000000304';
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.sql'), 'utf8');
+/** sql/308 (A4) redéfinit les trois fonctions de couverture : rejouée après 304, la base revient à son état courant. */
+const MIGRATION_A4 = readFileSync(join(process.cwd(), 'sql', '308_population_inconnue.sql'), 'utf8');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
 const ZONE_SAINT_DENIS = `
@@ -57,10 +59,13 @@ describe('couverture_geometrie — une ligne par unité CP, qui nomme ses membre
 
 describe('couverture_pays_jsonb — membres sur chaque ligne CP (sql/304)', () => {
   it('France entière par CP : toutes les lignes portent membres, 67 groupes, 6 115 codes pour 6 009 unités', () => {
+    // A4 (sql/308) : les unités à population inconnue (971, 973, 976) s'ajoutent aux lignes ; elles portent `membres`
+    // aussi (premier chiffre, sur TOUTES les lignes), les autres chiffres restent ceux des lignes chiffrées d'A2.
     const r = psql(`
       select count(*) filter (where not e ? 'membres') || '|' ||
-             count(*) filter (where jsonb_array_length(e->'membres') > 1) || '|' ||
-             sum(jsonb_array_length(e->'membres')) || '|' || count(*) || '|' ||
+             count(*) filter (where jsonb_array_length(e->'membres') > 1 and e->'pop_totale' <> 'null') || '|' ||
+             sum(jsonb_array_length(e->'membres')) filter (where e->'pop_totale' <> 'null') || '|' ||
+             count(*) filter (where e->'pop_totale' <> 'null') || '|' ||
              count(*) filter (where not (e->'membres') ? (e->>'code'))
         from jsonb_array_elements(public.couverture_pays_jsonb('FR', 'ind', 'cp')->'lignes') e;`);
     expect(r).toBe('0|67|6115|6009|0');
@@ -69,10 +74,12 @@ describe('couverture_pays_jsonb — membres sur chaque ligne CP (sql/304)', () =
 
 describe('couverture_zone_en_cache — un chiffrage CP sans membres n’est plus servi (sql/304)', () => {
   it('ligne de cache CP sans la clé : NULL ; avec la clé : servie (transaction annulée)', () => {
+    // A4 (sql/308) : un chiffrage CP sans `n_inconnues` n'est plus servi non plus ; les deux écritures le portent, pour
+    // que ce test ne regarde que `membres` (le refus sans `n_inconnues` est prouvé dans population-inconnue.test.ts).
     const ecrire = (ligne: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
       select g.id, 'ind', 'cp', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
-             jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb)), now()
+             jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb), 'n_inconnues', 0), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
       on conflict (zone_id, cible, decoupage) do update
         set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
@@ -124,7 +131,7 @@ describe('plateformes_geo — poids d’un groupe de CP, « à vérifier » par 
              and p.proname in ('couverture_geometrie', 'couverture_pays_jsonb', 'couverture_zone_en_cache',
                                'plateformes_geo_parametres_valides')));`;
     const base = psql(EMPREINTE);
-    const lignes = psqlLignes(`begin;\n${MIGRATION}\n${EMPREINTE}\n${MIGRATION}\n${EMPREINTE}\nrollback;`);
+    const lignes = psqlLignes(`begin;\n${MIGRATION}\n${MIGRATION_A4}\n${EMPREINTE}\n${MIGRATION}\n${MIGRATION_A4}\n${EMPREINTE}\nrollback;`);
     const [premiere, seconde] = lignes.slice(-2);
     expect(premiere).toBe(seconde);
     expect(seconde).toBe(base);

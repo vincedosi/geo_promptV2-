@@ -98,10 +98,18 @@ export function texteTropDeCercles(corps: unknown): string | null {
 
 /**
  * Une unité d'une plateforme au pays : « La Réunion (RE) · 884 165 habitants ». Un territoire non carroyé (Guadeloupe,
- * Guyane, Mayotte : Filosofi 2021) se dit « population non carroyée », jamais « 0 habitant » (E10).
+ * Guyane, Mayotte : Filosofi 2021) se dit « population inconnue (non carroyée) » (A4, ARB-3), jamais « 0 habitant » (E10).
  */
 export function texteUnitePays(u: { code: string; nom: string; population: number | null }): string {
-  return `${u.nom} (${u.code}) · ${u.population === null ? 'population non carroyée' : `${formaterNombre(u.population)} habitants`}`;
+  return `${u.nom} (${u.code}) · ${u.population === null ? 'population inconnue (non carroyée)' : `${formaterNombre(u.population)} habitants`}`;
+}
+
+/**
+ * A4 (ARB-3) : la valeur de la ligne « Diffusion à population inconnue » du bilan — les unités achetées sans population
+ * connue (territoire non carroyé), comptées dans aucun chiffre d'habitants. `null` s'il n'y en a pas (pas de ligne).
+ */
+export function texteDiffusionInconnue(n: number | undefined, maille: Maille): string | null {
+  return n ? `${nombreUnites(n, maille)}, acheté${UNITE_MAILLE[maille].accord}${n > 1 ? 's' : ''} sans chiffre d’habitants` : null;
 }
 
 /** Pourquoi un pavage en cercles ne retient rien (`motif_vide`, sql/276) — trois causes, trois phrases. */

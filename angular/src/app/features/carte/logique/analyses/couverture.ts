@@ -57,7 +57,8 @@ export interface LigneCouverture {
   /** La commune de l'IRIS ; `null` dans les autres découpages. */
   commune: string | null;
   n_carreaux: number;
-  pop_en_zone: number;
+  /** A4 (sql/308) : NULL, jamais 0, pour un territoire non carroyé (population inconnue, `pop_totale` NULL aussi). */
+  pop_en_zone: number | null;
   pop_totale: number | null;
   /** En %, arrondie au dixième : l'AFFICHAGE. */
   part: number | null;
@@ -69,6 +70,12 @@ export interface LigneCouverture {
    * l'unité (son canonique) ; une ligne = une unité = une part. Absent sur les autres découpages.
    */
   membres?: string[];
+  /**
+   * A4 (sql/308), ligne d'un territoire NON CARROYÉ seulement (population inconnue, ARB-3) : l'unité est-elle ENTIÈRE
+   * dans la zone ? C'est ce qui la retient (`estRetenue`), à défaut de part à comparer au seuil — toujours vrai pour
+   * une zone pays (le territoire entier), `ST_Covers(zone, unité)` pour une zone locale. Absent sur les autres lignes.
+   */
+  incluse?: boolean;
 }
 
 /** La réponse 200 de la route : un chiffrage, servi du cache (`cache: true`) ou calculé. */

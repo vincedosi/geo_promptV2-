@@ -1,0 +1,255 @@
+/**
+ * A4 (plan de corrections du découpage des zones, 2026-10-31, lot 1) — l'unité à population totale INCONNUE (un
+ * territoire que le carroyage Filosofi 2021 ne couvre pas : Guadeloupe 971, Guyane 973, Mayotte 976), traitée selon
+ * ARB-3 (réponse A de Vincent, 31/10) : ACHETABLE, avec la mention « population inconnue », même règle pour le CP, la
+ * commune, le département et le pays, et une ligne « diffusion à population inconnue » séparée dans le bilan.
+ *
+ * LA RÈGLE DE RÉTENTION (`estRetenue`, une fonction pour toutes les mailles). Le seuil de B11 compare une part ; une
+ * unité sans population n'en a pas. Ce qui la retient : être ENTIÈRE dans la zone (`incluse`, sql/308) — sa part vaut
+ * alors 100 % quelle que soit sa population. Pour la zone nationale, c'est toute unité du territoire de la recette ;
+ * pour une zone locale, `ST_Covers(zone, unité)` ; une unité seulement touchée ne l'est jamais.
+ *
+ * Constat vérifié en base le 31/10, AVANT correctif : `couverture_pays_jsonb('FR', 'ind', 'departement')` rendait 98
+ * lignes et 0 à population inconnue (les trois départements non carroyés étaient ABSENTS, pas « non retenus ») ; au CP,
+ * 6 009 lignes, aucune de 971, 973 ou 976. Le brief annonce 101 lignes dont 3 inconnues : c'est le résultat attendu
+ * (96 départements métropolitains + 5 DROM), confirmé par la base — les COM 975, 977, 978 de `ref_departements`, sans
+ * région, ne sont pas dans le territoire « France entière » (`zone_pays_geometrie` unit les RÉGIONS).
+ *
+ * Deux espaces `[ESSAI A4]` sont créés puis supprimés ; zones, jeux et extractions partent avec eux.
+ */
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { creerClientTest } from './_client';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { psql, psqlLignes } from './_psql';
+import { appliquerSeuil, estRetenue } from '@/lib/zones/conversion';
+import type { LigneCouverture } from '@/lib/zones/couverture';
+
+const sb = creerClientTest();
+const LONG = 180_000;
+const appelant = vi.hoisted(() => ({ org: '' }));
+
+vi.mock('@/lib/api/middleware', async (original) => ({
+  ...(await original<typeof import('@/lib/api/middleware')>()),
+  requireAuth: async () => ({ id: '00000000-0000-4000-8000-0000000008a4', role: 'client', organization_id: appelant.org }),
+}));
+vi.mock('@/lib/api/rate-limit', async (original) => ({
+  ...(await original<typeof import('@/lib/api/rate-limit')>()),
+  createRateLimiter: () => async () => ({ ok: true, retrySec: 0 }),
+  createQuota: () => async () => null,
+}));
+
+const extractions = await import('@/app/api/zones/jeux/[id]/extractions/route');
+
+interface Couverture { population: number; lignes: (LigneCouverture & { incluse?: boolean })[]; n_territoires: number; n_inconnues: number }
+
+/** Les trois départements non carroyés du territoire « France entière » (E10), et leurs codes pays. */
+const INCONNUS = ['971', '973', '976'];
+const PAYS_INCONNUS = ['GP', 'GF', 'YT'];
+
+let org = '';
+
+async function pays(code: 'FR' | 'METRO', decoupage: 'departement' | 'cp'): Promise<Couverture> {
+  const { data, error } = await sb.rpc('couverture_pays_jsonb', { p_code: code, p_cible: 'ind', p_decoupage: decoupage });
+  if (error) throw new Error(error.message);
+  return data as Couverture;
+}
+
+const inconnues = (c: Couverture) => c.lignes.filter((l) => l.pop_totale === null);
+
+async function nouvelleOrg(): Promise<string> {
+  const { data, error } = await sb.from('organizations')
+    .insert({ name: '[ESSAI A4] population inconnue', slug: `essai-a4-${Date.now()}` }).select('id').single();
+  if (error || !data) throw new Error(error?.message);
+  return data.id as string;
+}
+
+beforeAll(async () => {
+  org = await nouvelleOrg();
+  appelant.org = org;
+});
+
+afterAll(async () => {
+  if (org) {
+    // Les jeux d'abord (clé étrangère vers la zone `on delete restrict`) ; leurs extractions partent en cascade.
+    const jeux = await sb.from('zone_sets').delete().eq('org_id', org);
+    if (jeux.error) throw new Error(`nettoyage des jeux : ${jeux.error.message}`);
+    const { error } = await sb.from('organizations').delete().eq('id', org);
+    if (error) throw new Error(`nettoyage : ${error.message}`);
+  }
+});
+
+describe('A4 — « France entière » en maille département : 101 lignes, dont 3 à population inconnue', () => {
+  it('101 lignes ; 971, 973, 976 sans population ni part, ENTIÈRES dans la zone ; la population de la zone inchangée', async () => {
+    const r = await pays('FR', 'departement');
+    expect(r.lignes).toHaveLength(101);
+    expect(r.n_territoires).toBe(101);
+    expect(r.n_inconnues).toBe(3);
+    expect(inconnues(r).map((l) => l.code)).toEqual(INCONNUS);
+    for (const l of inconnues(r)) {
+      expect(l).toMatchObject({ pop_en_zone: null, pop_totale: null, part: null, part_brute: null, n_carreaux: 0, incluse: true });
+    }
+    // Les 98 lignes chiffrées sont celles d'avant A4 : leur somme est celle des dénominateurs départementaux (arrondis
+    // ligne à ligne). Les lignes inconnues n'y ajoutent rien — aucun habitant inventé.
+    const connue = r.lignes.filter((l) => l.pop_totale !== null).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
+    const denominateurs = Number(psql(`select sum((populations->>'ind')::numeric) from public.unite_population_totale where maille = 'departement';`));
+    expect(Math.abs(connue - denominateurs)).toBeLessThanOrEqual(98 / 2);
+  }, LONG);
+
+  it('ARB-3 : au seuil le plus haut (100 %), les 101 sont retenues — les 3 inconnues par inclusion, pas par le seuil', async () => {
+    const r = await pays('FR', 'departement');
+    for (const l of inconnues(r)) expect(estRetenue(l, 100)).toBe(true);
+    const bilan = appliquerSeuil(r.lignes, r.population, 100);
+    expect(bilan).toMatchObject({ n_unites: 101, n_touchees: 101, n_inconnues: 3, hors_zone: 0, taux_utile: 100 });
+  }, LONG);
+
+  it('« France métropolitaine » : 96 lignes, aucune inconnue (aucun DROM dans le territoire)', async () => {
+    const r = await pays('METRO', 'departement');
+    expect(r.lignes).toHaveLength(96);
+    expect(r.n_inconnues).toBe(0);
+    expect(appliquerSeuil(r.lignes, r.population, 100)).not.toHaveProperty('n_inconnues');
+  }, LONG);
+});
+
+describe('A4 — même résultat au CP pour ces territoires', () => {
+  it('chaque unité CP de 971, 973, 976 (canonique de son groupe) est une ligne inconnue, entière, retenue à 100 %', async () => {
+    // Compté À PART, par un autre chemin : les canoniques du référentiel dans ces trois départements.
+    const attendu = Number(psql(`select count(*) from public.ref_codes_postaux r
+                                  where r.code_dept in ('971', '973', '976')
+                                    and not exists (select 1 from public.cp_groupe g
+                                                     where g.code_postal = r.code_postal and g.code_canonique <> r.code_postal);`));
+    expect(attendu).toBe(65);
+    const r = await pays('FR', 'cp');
+    const inc = inconnues(r);
+    expect(inc).toHaveLength(attendu);
+    expect(r.n_inconnues).toBe(attendu);
+    expect(new Set(inc.map((l) => l.code.slice(0, 3)))).toEqual(new Set(INCONNUS));
+    expect(inc.every((l) => l.incluse === true && l.part_brute === null && Array.isArray(l.membres))).toBe(true);
+    // Les membres des groupes développés : 69 codes (33 + 25 + 11 au référentiel).
+    expect(inc.reduce((t, l) => t + (l.membres?.length ?? 0), 0)).toBe(69);
+    expect(appliquerSeuil(r.lignes, r.population, 100)).toMatchObject({ n_unites: r.lignes.length, n_inconnues: attendu });
+  }, LONG);
+});
+
+describe('A4 — l’extraction « France entière » : département, CP et pays achètent les mêmes territoires inconnus', () => {
+  it('TikTok au département, DV360 au CP (seuil 100 %), Meta au pays : unités retenues, `n_inconnues` figé au bilan', async () => {
+    const { data: forme, error: e1 } = await sb.rpc('zone_pays_geometrie', { p_code: 'FR' });
+    if (e1) throw new Error(e1.message);
+    const { data: z, error: e2 } = await sb.rpc('creer_zone_recette', {
+      p_nom: 'France entière (A4)', p_org_id: org, p_cree_par: null, p_recette: { v: 1, type: 'pays', code: 'FR' },
+      p_geometry_geojson: JSON.stringify((forme as { geometry: unknown }).geometry),
+    });
+    if (e2) throw new Error(e2.message);
+    const { data: jeu, error: e3 } = await sb.from('zone_sets').insert({
+      org_id: org, nom: 'France entière A4', type: 'zone', custom_geo_zone_id: (z as { id: string }).id, cible: 'ind',
+      mode_plan: 'exclusif', brouillon: false, version: 1,
+    }).select('id').single();
+    if (e3 || !jeu) throw new Error(e3?.message);
+    const choix = await sb.from('zone_set_plateformes').insert([
+      { zone_set_id: jeu.id, plateforme: 'tiktok', maille: 'departement', seuil: 100, rayon_m: null },
+      { zone_set_id: jeu.id, plateforme: 'dv360', maille: 'cp', seuil: 100, rayon_m: null },
+      { zone_set_id: jeu.id, plateforme: 'meta', maille: 'pays', seuil: 0, rayon_m: null },
+    ]);
+    if (choix.error) throw new Error(choix.error.message);
+
+    const rep = await extractions.POST(
+      new NextRequest(`http://localhost/api/zones/jeux/${jeu.id}/extractions`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } }),
+      { params: Promise.resolve({ id: jeu.id as string }) },
+    );
+    expect(rep.status).toBe(201);
+    const { id: x } = await rep.json() as { id: string };
+
+    const { data: e, error: e4 } = await sb.from('zone_set_extractions').select('plateformes').eq('id', x).single();
+    if (e4) throw new Error(e4.message);
+    const bilans = Object.fromEntries((e!.plateformes as { plateforme: string; n_inconnues?: number; n_unites: number }[])
+      .map((p) => [p.plateforme, p]));
+    expect(bilans.tiktok).toMatchObject({ n_unites: 101, n_inconnues: 3 });
+    expect(bilans.dv360.n_inconnues).toBe(65);
+    expect(bilans.meta).toMatchObject({ n_unites: 6, n_inconnues: 3 });
+
+    const { data: u, error: e5 } = await sb.from('zone_set_extraction_unites')
+      .select('plateforme, code, pop_en_zone, retenu').eq('extraction_id', x).in('plateforme', ['tiktok', 'meta']);
+    if (e5) throw new Error(e5.message);
+    const sansPop = (p: string) => u!.filter((l) => l.plateforme === p && l.pop_en_zone === null);
+    expect(sansPop('tiktok').map((l) => l.code).sort()).toEqual(INCONNUS);
+    expect(sansPop('meta').map((l) => l.code).sort()).toEqual([...PAYS_INCONNUS].sort());
+    expect([...sansPop('tiktok'), ...sansPop('meta')].every((l) => l.retenu)).toBe(true);
+
+    // Au CP : les 69 codes des trois départements partent au plan, retenus, population inconnue (null, jamais 0).
+    const { data: cp, error: e6 } = await sb.from('zone_set_extraction_cp')
+      .select('code_postal, retenu, pop_totale').eq('extraction_id', x).or('code_postal.like.971*,code_postal.like.973*,code_postal.like.976*');
+    if (e6) throw new Error(e6.message);
+    expect(cp).toHaveLength(69);
+    expect(cp!.every((l) => l.retenu && l.pop_totale === null)).toBe(true);
+  }, LONG);
+});
+
+describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue seulement si l’unité est entière dans la zone', () => {
+  it('Pointe-à-Pitre et 300 m autour, à la commune : 97120 entière → retenue ; ses voisines touchées → non retenues', async () => {
+    const geo = psql(`select ST_AsGeoJSON(ST_Buffer(geom::geography, 300)::geometry) from public.ref_communes where code_commune = '97120';`);
+    const { data: z, error } = await sb.rpc('creer_zone_recette', {
+      p_nom: 'Pointe-à-Pitre + 300 m (A4)', p_org_id: org, p_cree_par: null, p_recette: { v: 1, type: 'dessin' }, p_geometry_geojson: geo,
+    });
+    if (error) throw new Error(error.message);
+    const lire = async (decoupage: string) => {
+      const r = await sb.rpc('couverture_geometrie', { p_zone_id: (z as { id: string }).id, p_org_id: org, p_decoupage: decoupage });
+      if (r.error) throw new Error(r.error.message);
+      return r.data as Couverture & { motif_vide: string | null };
+    };
+    const communes = await lire('commune');
+    expect(communes.motif_vide).toBe('territoire_non_carroye');
+    expect(communes.lignes.map((l) => [l.code, l.incluse])).toEqual([['97101', false], ['97103', false], ['97113', false], ['97120', true]]);
+    expect(appliquerSeuil(communes.lignes, communes.population, 0)).toMatchObject({ n_unites: 1, n_touchees: 4, n_inconnues: 1 });
+    // Au département, la Guadeloupe n'est que touchée : rien n'est retenu, quel que soit le seuil.
+    const dep = await lire('departement');
+    expect(dep.lignes.map((l) => [l.code, l.incluse])).toEqual([['971', false]]);
+    expect(appliquerSeuil(dep.lignes, dep.population, 0).n_unites).toBe(0);
+    // Au CP, 97110 (Pointe-à-Pitre) est entier dans la zone, ses voisins non ; 97142 n'est pas une ligne : membre du
+    // groupe de 97139 (même contour, A2), il part avec lui. Quatre unités touchées, cinq codes.
+    const cp = await lire('cp');
+    expect(cp.lignes.map((l) => [l.code, l.incluse, l.membres])).toEqual([
+      ['97110', true, ['97110']], ['97122', false, ['97122']], ['97139', false, ['97139', '97142']], ['97190', false, ['97190']],
+    ]);
+    expect(cp.n_inconnues).toBe(4);
+  }, LONG);
+});
+
+describe('A4 — sql/308 : cache et rejeu', () => {
+  const ORG = '00000000-0000-0000-0000-000000000001';
+  const ZONE = 'a4a4a4a4-0000-4000-8000-000000000308';
+
+  it('une ligne de cache département sans `n_inconnues` (d’avant sql/308) : NULL ; avec : servie (transaction annulée)', () => {
+    const ecrire = (cles: string) => `
+      insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
+      select g.id, 'ind', 'departement', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+             jsonb_build_object('lignes', jsonb_build_array('{"code":"13","part":100,"part_brute":100}'::jsonb)${cles}), now()
+        from public.custom_geo_zones g where g.id = '${ZONE}'
+      on conflict (zone_id, cible, decoupage) do update
+        set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
+    const servi = `(public.couverture_zone_en_cache('${ZONE}', '${ORG}', 'ind', 'departement') is not null)::text`;
+    expect(psql(`select (public.carreau_couverture_complete() is null)::text;`)).toBe('true');
+    const r = psql(`begin;
+      insert into public.custom_geo_zones (id, name, org_id, source_type, geometry)
+      select '${ZONE}', '[ESSAI A4] Bouches-du-Rhône', '${ORG}', 'test', ST_Multi(coalesce(d.geom_perimetre, d.geom))
+        from public.ref_departements d where d.code_dept = '13';
+      ${ecrire('')}
+      create temp table a4_r on commit drop as select ${servi} as sans_cle;
+      ${ecrire(", 'n_inconnues', 0")}
+      select (select sans_cle from a4_r) || '|' || ${servi};
+      rollback;`);
+    expect(r).toBe('false|true');
+  }, LONG);
+
+  it('la migration rejouée deux fois : fonctions à empreinte identique, et identique à la base', () => {
+    const MIGRATION = readFileSync(join(process.cwd(), 'sql', '308_population_inconnue.sql'), 'utf8');
+    const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)) from pg_proc p
+      where p.pronamespace = 'public'::regnamespace
+        and p.proname in ('couverture_geometrie', 'couverture_pays_jsonb', 'couverture_zone_en_cache');`;
+    const base = psql(EMPREINTE);
+    const lignes = psqlLignes(`begin;\n${MIGRATION}\n${EMPREINTE}\n${MIGRATION}\n${EMPREINTE}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
+  }, LONG);
+});
