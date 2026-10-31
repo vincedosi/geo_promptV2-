@@ -116,6 +116,8 @@ zones strictes   : 0
 mode national    : 0,8 × min(poids_v2 des CP du plan)
 ```
 
+Le hors zone est porté par la ligne pseudo-CP `HORS_ZONE` du plan (amendement E3, voir section 5 « Entrées ») : son score est celui ci-dessus, selon le drapeau de mode {strict, national} figé à l'extraction. Les CP réels du plan sont les seuls CP retenus ; `HORS_ZONE` n'entre pas dans `min(poids_v2 des CP du plan)`.
+
 ### 3.3 Invariants
 
 ```
@@ -179,6 +181,7 @@ type RebidInputV2 = {
     livre_cum: number
     livre_fenetre: number
   }>
+  mode: 'strict' | 'national'   // figé à l'extraction (amendement E3)
 }
 
 type RebidResult = {
@@ -192,6 +195,8 @@ type RebidResult = {
   raison?: string
 }
 ```
+
+**Entrées : la ligne `HORS_ZONE` (amendement E3).** `cps` contient les CP retenus du plan **et** une ligne pseudo-CP `cp = 'HORS_ZONE'`, sans département (elle ne se rattache à aucun `corr_dep` et suit sa propre correction : `lambda` vaut 1 pour elle, `corr(HORS_ZONE) = corr_cp_brut(HORS_ZONE)`). Son poids est 0 en mode strict (il reste 0 après correction et n'entre pas dans la moyenne), le plancher en mode national (section 3.2). Sa `part_plan` se calcule comme celle des autres lignes, avec pour volume attendu la somme des populations totales des CP non retenus du référentiel. Toute impression livrée sur un CP absent du plan est imputée à `HORS_ZONE` (`livre_cum`, `livre_fenetre`). Il n'existe qu'une définition du plan, la même que dans le plan de corrections (ticket A1).
 
 ---
 
