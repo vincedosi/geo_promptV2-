@@ -72,10 +72,15 @@ Lecture : un CP qui a peu d'impressions suit la correction de son département ;
 ### 2.4 Mise à jour et renormalisation
 
 ```
-poids_v2(cp)   = poids(cp) × corr(cp)
-poids_v2(cp)   = clamp(poids_v2(cp), 0,001, 999,999)
-poids_v2(cp)   = poids_v2(cp) / moyenne(poids_v2)           moyenne = 1 sur les CP actifs du plan
+brut(cp)       = poids(cp) × corr(cp)                        CP actifs du plan
+poids_v2(cp)   = brut(cp) / moyenne(brut)                    moyenne arithmétique non pondérée = 1
+poids_v2(cp)   = clamp(poids_v2(cp), min_mécanisme, max_mécanisme)
+                                                             plage du mécanisme lue dans le registre ;
+                                                             0,001 / 999,999 si inconnue
+(pas de renormalisation après écrêtage)
 ```
+
+Ordre des opérations (amendement E4) : normaliser **puis** écrêter, jamais l'inverse ; c'est la même séquence que le plan par CP (ticket A1 du plan de corrections). Après écrêtage, la moyenne n'est plus forcément 1 : le résultat expose la moyenne obtenue après écrêtage et le nombre de CP écrêtés. La convention « moyenne non pondérée » est un paramètre explicite (`normalisation`, défaut `'non_ponderee'`, section 6 P5), car elle fixe la dérive du coût moyen après correction. La ligne `HORS_ZONE` n'entre pas dans la moyenne.
 
 CP du plan jamais servi (`livre_cum = 0`) : il doit exister dans le calcul avec `obs_part = 0`, donc `ratio = clamp(…, 1/3, 3) = 3`, `corr = 3^0,8 ≈ 2,41` au niveau brut, puis rétréci vers son département (lambda = 0 → suit le département). Voir section 6, point P2.
 
@@ -83,7 +88,8 @@ CP du plan jamais servi (`livre_cum = 0`) : il doit exister dans le calcul avec 
 
 ```
 INV1  si obs_part(z) = cible_part(z) pour tout z     ⇒ poids_v2 = poids (à 1e-9)
-INV2  moyenne(poids_v2) = 1
+INV2  moyenne(poids_v2) = 1 avant écrêtage (moyenne arithmétique non pondérée) ; après écrêtage,
+      la moyenne obtenue et le nombre de CP écrêtés sont exposés
 INV3  corr(cp) ∈ [3^-0,8, 3^0,8] = [0,415, 2,408]
 INV4  un CP avec livre_fen = 0 a corr(cp) = corr_dep(dep(cp))
 INV5  réponse proportionnelle simulée (a = w·r / Σ w·r) : l'erreur log moyenne est multipliée par ≤ 0,25 par itération
@@ -173,6 +179,9 @@ type RebidInputV2 = {
   k?: number                // défaut 200
   fenetre_max?: number      // défaut 7
   fenetre_min?: number      // défaut 3
+  normalisation?: 'non_ponderee'   // défaut ; convention explicite (amendement E4)
+  poids_min?: number        // plage du mécanisme (registre) ; défaut 0,001
+  poids_max?: number        // plage du mécanisme (registre) ; défaut 999,999
   cps: Array<{
     cp: string
     departement: string     // ou sous-zone
@@ -191,6 +200,8 @@ type RebidResult = {
   cible_part: Record<string, number>
   obs_part: Record<string, number>
   fenetre_utilisee: number
+  moyenne_apres_ecretage: number   // amendement E4
+  nb_ecretes: number               // amendement E4
   statut: 'ok' | 'pas_de_correction' | 'plan_atteint'
   raison?: string
 }
@@ -210,7 +221,7 @@ type RebidResult = {
 
 **P4. Univers des CP (méthode A).** Évaluer la courbe de pression sur le référentiel complet des codes postaux, pas sur les CP déjà vus en livraison.
 
-**P5. Seuils réglables.** Sortir 0,85 / 1,15 / 1,25 / 70 % / 5 % / ±20 % / alpha / k / bornes de paliers dans une table `campaign_settings` (ou JSON par campagne) avec les valeurs actuelles comme défaut.
+**P5. Seuils réglables.** Sortir 0,85 / 1,15 / 1,25 / 70 % / 5 % / ±20 % / alpha / k / bornes de paliers / convention de normalisation (moyenne non pondérée, amendement E4) dans une table `campaign_settings` (ou JSON par campagne) avec les valeurs actuelles comme défaut.
 
 ---
 
