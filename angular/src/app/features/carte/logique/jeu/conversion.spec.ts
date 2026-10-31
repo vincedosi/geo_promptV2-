@@ -33,9 +33,11 @@ describe('conversion (copie Angular)', () => {
     expect(resumeExact(1234, 5.5)).toMatchObject({ exacte: true, manques: 0, hors_zone: 0, taux_utile: 100, n_unites: 1 });
   });
   it('le rayon choisi décide de l’exactitude d’un cercle autour d’un point', () => {
-    const r = { v: 1, type: 'rayon_point', lon: 5, lat: 43, rayon_m: 20_000 } as const;
+    const r = { v: 1, type: 'rayon_point', lon: 5, lat: 43, rayon_m: 20_000, part_retenue: 1 } as const;
     expect(exactitude(r, 'cercle', ligne({ plateforme: 'meta', maille: 'cercle' }))).toBe('exacte');
     expect(exactitude(r, 'cercle', ligne({ plateforme: 'meta', maille: 'cercle' }), 5_000)).toBe('calculee');
+    // A3 : un disque qui déborde du territoire (Strasbourg 20 km, 65,86 % en France) n'est jamais exact.
+    expect(exactitude({ ...r, part_retenue: 0.6586 }, 'cercle', ligne({ plateforme: 'meta', maille: 'cercle' }))).toBe('calculee');
   });
   it('maille par défaut : « à vérifier » écartée d’abord ; avertissement de plafond lu dans la ligne', () => {
     const regles = [ligne({ plateforme: 'meta', maille: 'cp', a_verifier: true }), ligne({ plateforme: 'meta', maille: 'cercle' })];

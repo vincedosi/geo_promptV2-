@@ -1441,7 +1441,7 @@ describe('CartePage — ⑤ suit un recalcul de sa zone (revue finale du lot 5, 
     const ligne = (): ZoneCustomResume => ({
       id: Z, name: 'Lyon 5 km', description: null, source_type: 'recette_rayon_point', source_metadata: {}, feature_count_iris: 3,
       feature_count_cp: 2, bbox: [4, 45, 5, 46], created_at: '2026-10-24T08:00:00Z', created_by: null, dept_codes: ['69'], region_codes: ['84'],
-      updated_at: maj, recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000 },
+      updated_at: maj, recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 },
     });
     const couverture = vi.fn((zone: unknown, cible: unknown, decoupage: unknown) => of({
       zone_id: zone, cible, decoupage, population, surface_km2: 78, n_carreaux: 40, zone_maj: maj,

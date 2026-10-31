@@ -60,7 +60,9 @@ const argsCreation = () => etat.rpcs.find((r) => r.nom === 'creer_extraction_jeu
   p_resume: { plateformes: Record<string, unknown>[] };
 };
 
-const POINT = { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000 };
+// `part_retenue` : posée par la base (sql/307) ; 1 = disque entier en France, seul cas où le cercle est exact (A3).
+const POINT = { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 };
+const STRASBOURG = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 20_000, part_retenue: 0.6586 };
 const LISTE = { v: 1, type: 'codes_postaux', codes: ['69001', '69002', '69002'] };
 const DESSIN = { v: 1, type: 'dessin' };
 
@@ -97,6 +99,23 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     const resume = argsCreation().p_resume.plateformes[0];
     expect(resume).toMatchObject({ exacte: false, n_unites: 1, n_candidates: 12, manques: 6_000 });
     expect(resume).not.toHaveProperty('n_touchees');
+  });
+
+  it('A3 : disque partiellement hors de France (Strasbourg 20 km) au MÊME rayon : pavage, perte calculée, avertissement figé', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 20_000 }], STRASBOURG,
+      [regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000 })]);
+    etat.reponses.paver_cercles = {
+      data: {
+        n_candidates: 4, n_cercles: 3, population: 568_007, couverte: 549_968, manques: 18_040, hors_zone: 203_272, achetee: 753_240,
+        taux_utile: 73, cercles: [{ lon: 7.75, lat: 48.57, pop_en_zone: 400_000, pop_totale: 500_000, part: 80 }],
+      },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.map((r) => r.nom)).toContain('paver_cercles');
+    const resume = argsCreation().p_resume.plateformes[0];
+    expect(resume).toMatchObject({ exacte: false, n_unites: 3, manques: 18_040, hors_zone: 203_272 });
+    expect(resume.avertissements).toEqual([{ code: 'disque_hors_france', limite: 100, valeur: 65.9 }]);
   });
 
   it('codes_postaux au CP : la liste de la recette (dédoublonnée), seuil ignoré ; plan CP sur la liste', async () => {

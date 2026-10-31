@@ -1,5 +1,6 @@
 import type { ResultatCouverture } from '../analyses/couverture';
 import { type ResultatCercles, bilanDe, choixDeBase, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture } from './bilan';
+import { texteAvertissement } from './ecran';
 import type { PlateformeGeo } from './plateformes';
 
 const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'maille'>): PlateformeGeo => ({
@@ -15,7 +16,8 @@ const pavage = { rayon_m: 5000, seuil: 20, n_cercles: 3, n_candidates: 9, couver
 describe('bilan d’un choix (logique pure de ⑤)', () => {
   const cp = ligne({ plateforme: 'dv360', maille: 'cp' });
   const cercle = ligne({ plateforme: 'meta', maille: 'cercle', limites: { max_unites: 2 } });
-  const point = { v: 1, type: 'rayon_point', lon: 5, lat: 43, rayon_m: 5000 } as const;
+  // Disque entier en France (`part_retenue` = 1, posée par la base, sql/307) : le cercle de la recette est exact (A3).
+  const point = { v: 1, type: 'rayon_point', lon: 5, lat: 43, rayon_m: 5000, part_retenue: 1 } as const;
 
   it('la lecture requise : découpage, forme pour une maille exacte, pavage pour un cercle calculé', () => {
     expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, null)).toBe('cp');
@@ -37,6 +39,18 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     expect(b?.avertissements).toEqual([{ code: 'max_unites', limite: 2, valeur: 3 }]);
     expect(bilanDe({ maille: 'cercle', seuil: 40, rayon_m: 5000 }, cercle, null, pavage)).toBeNull();
     expect(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 6000 }, cercle, null, pavage)).toBeNull();
+  });
+  it('A3 : disque tronqué (Strasbourg 20 km, 65,9 % en France) — pavage au rayon de la recette, avertissement avant/après', () => {
+    const strasbourg = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 5000, part_retenue: 0.6586 } as const;
+    expect(lectureRequise({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, strasbourg)).toBe('cercles');
+    const b = bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, strasbourg, pavage);
+    expect(b?.resume).toMatchObject({ exacte: false, manques: 100, hors_zone: 300 });
+    expect(b?.avertissements).toEqual([{ code: 'max_unites', limite: 2, valeur: 3 }, { code: 'disque_hors_france', limite: 100, valeur: 65.9 }]);
+    expect(texteAvertissement(b!.avertissements[1], 'cercle')).toBe(
+      'Disque partiellement hors de France : 65,9 % de sa surface est en France, 34,1 % en mer ou à l’étranger, '
+      + 'achetés par la plateforme sans être comptés. Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.');
+    // Une autre maille : ses unités sont françaises, rien à dire.
+    expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, strasbourg, couverture('cp', 'v1'))?.avertissements).toEqual([]);
   });
   it('la clé porte la date de mise à jour : une zone recalculée se relit', () => {
     expect(cleCouverture('z', 'm1', 'ind', 'cp')).not.toBe(cleCouverture('z', 'm2', 'ind', 'cp'));

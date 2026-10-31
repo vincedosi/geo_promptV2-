@@ -63,6 +63,9 @@ describe('conversion d’une zone : Angular = serveur', () => {
     expect(A.resumeExact(500, 3, 4)).toEqual(S.resumeExact(500, 3, 4));
     const recettes: Recette[] = [
       { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 20_000 },
+      // A3 : disque entier (exact) et disque tronqué (Strasbourg 20 km, calculé).
+      { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 20_000, part_retenue: 1 },
+      { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 20_000, part_retenue: 0.6586 },
       { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5_000, perimetre: { type: 'departement', code: '13' } },
       { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] },
       { v: 1, type: 'dessin' },
@@ -80,6 +83,7 @@ describe('conversion d’une zone : Angular = serveur', () => {
         for (const rayon of [undefined, 20_000, 5_000]) expect(A.exactitude(r, l.maille, l, rayon)).toBe(S.exactitude(r, l.maille, l, rayon));
       }
       for (const p of SP.PLATEFORMES) expect(A.mailleParDefaut(regles, p, r)).toBe(S.mailleParDefaut(regles, p, r));
+      for (const m of SP.MAILLES) expect(A.avertissementsDisque(r, m)).toEqual(S.avertissementsDisque(r, m));
     }
     for (const l of regles) {
       expect(A.verifierLimites(A.appliquerSeuil(lignes, 130, 10), l)).toEqual(S.verifierLimites(S.appliquerSeuil(lignes, 130, 10), l));

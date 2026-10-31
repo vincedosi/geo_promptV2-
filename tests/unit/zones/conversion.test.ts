@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude, mailleParDefaut,
-  NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
+  NOTE_PAYS_A_VERIFIER, avertissementsDisque, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
 } from '@/lib/zones/conversion';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
@@ -191,7 +191,8 @@ describe('MESSAGES_MAILLE_SANS_OBJET — le refus « maille_sans_objet » a ses 
 // Une recette valide de chaque type (formes de `RecetteSchema`).
 const PERIM = { type: 'departement', code: '13' } as const;
 const RECETTES: Record<Recette['type'], Recette> = {
-  rayon_point: { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 10_000 },
+  // Disque entier en France (`part_retenue` = 1, posée par la base, sql/307) : la seule forme exacte au cercle (A3).
+  rayon_point: { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 10_000, part_retenue: 1 },
   rayon_poi: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 2_000, perimetre: PERIM },
   seuil_carreaux: { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 5, perimetre: PERIM },
   seuil_territoire: { v: 1, type: 'seuil_territoire', indicateur: 'revenu', operateur: '>=', seuil: 5, perimetre: PERIM },
@@ -246,6 +247,42 @@ describe('exactitude — un cercle n’est exact que dans les bornes de rayon de
   it('le rayon choisi ne joue que pour le cercle : polygone et CP d’une liste restent exacts', () => {
     expect(exactitude(RECETTES.codes_postaux, 'cp', undefined, 3_000)).toBe('exacte');
     expect(exactitude(RECETTES.dessin, 'polygone', undefined, 3_000)).toBe('exacte');
+  });
+});
+
+describe('A3 — le cercle d’un rayon autour d’un point n’est exact que si le disque est entier en France', () => {
+  const p = ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 1_000, rayon_max_m: 80_000 } });
+  // Mesures de la base locale (sql/307, 31/10) : Strasbourg 20 km → 0,6586 (le reste en Allemagne) ; Clermont 5 km → 1.
+  const STRASBOURG: Recette = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 20_000, part_retenue: 0.6586 };
+  const CLERMONT: Recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 5_000, part_retenue: 1 };
+  it('Strasbourg 20 km : non exact (perte calculée par le pavage, comme pour les POI) ; Clermont-Ferrand 5 km : exact', () => {
+    expect(exactitude(STRASBOURG, 'cercle', p)).toBe('calculee');
+    expect(exactitude(STRASBOURG, 'cercle', p, 20_000)).toBe('calculee');
+    expect(exactitude(CLERMONT, 'cercle', p)).toBe('exacte');
+  });
+  it('part inconnue (zone jamais réécrite par la base) : non exact — on ne prétend pas à l’exactitude', () => {
+    const { part_retenue: _, ...sansPart } = CLERMONT as Extract<Recette, { type: 'rayon_point' }>;
+    void _;
+    expect(exactitude(sansPart, 'cercle', p)).toBe('calculee');
+  });
+  it('0,9999 (perte de 0,01 %) : non exact — seul 1 l’est', () => {
+    expect(exactitude({ ...CLERMONT, part_retenue: 0.9999 } as Recette, 'cercle', p)).toBe('calculee');
+  });
+  it('le polygone reste exact : la forme découpée part telle quelle', () => {
+    expect(exactitude(STRASBOURG, 'polygone', p)).toBe('exacte');
+  });
+  it('la maille par défaut ne préfère plus le cercle d’un disque tronqué', () => {
+    const regles = [ligne({ plateforme: 'dv360', maille: 'cp' }), ligne({ plateforme: 'dv360', maille: 'cercle' })];
+    expect(mailleParDefaut(regles, 'dv360', CLERMONT)).toBe('cercle');
+    expect(mailleParDefaut(regles, 'dv360', STRASBOURG)).toBe('cp');
+  });
+  it('avertissementsDisque : au cercle, la part en France AVANT/APRÈS (100 % → 65,9 %) ; rien sinon', () => {
+    expect(avertissementsDisque(STRASBOURG, 'cercle')).toEqual([{ code: 'disque_hors_france', limite: 100, valeur: 65.9 }]);
+    expect(avertissementsDisque(CLERMONT, 'cercle')).toEqual([]);
+    expect(avertissementsDisque(STRASBOURG, 'cp')).toEqual([]);
+    expect(avertissementsDisque(STRASBOURG, 'polygone')).toEqual([]);
+    expect(avertissementsDisque(RECETTES.rayon_poi, 'cercle')).toEqual([]);
+    expect(avertissementsDisque(null, 'cercle')).toEqual([]);
   });
 });
 

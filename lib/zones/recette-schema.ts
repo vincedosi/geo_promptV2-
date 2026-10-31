@@ -51,7 +51,7 @@ const Zones = z.array(Uuid).min(2).max(20)
   .refine((zs) => new Set(zs).size === zs.length, { message: 'Une zone ne peut figurer qu’une fois.' });
 
 export const RecetteUnionSchema = z.discriminatedUnion('type', [
-  z.object({ v: V, type: z.literal('rayon_point'), lon: z.number().min(-180).max(180), lat: z.number().min(-90).max(90), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POINT_MAX_M) }).strict(),
+  z.object({ v: V, type: z.literal('rayon_point'), lon: z.number().min(-180).max(180), lat: z.number().min(-90).max(90), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POINT_MAX_M), part_retenue: z.number().min(0).max(1).optional() }).strict(),
   z.object({ v: V, type: z.literal('rayon_poi'), categorie: z.string().regex(/^[a-z0-9_-]{1,64}$/), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POI_MAX_M), perimetre: Perimetre }).strict(),
   z.object({ v: V, type: z.literal('seuil_carreaux'), indicateur: z.enum(IDS_CARREAUX), operateur: Operateur, seuil: z.number().finite().min(0).max(SEUIL_CARREAUX_MAX), perimetre: Perimetre, min_menages: z.number().int().min(0).max(MIN_MENAGES_CARREAUX_MAX).optional() }).strict(),
   z.object({ v: V, type: z.literal('seuil_territoire'), indicateur: z.string().regex(/^[a-z0-9_]{1,64}$/), operateur: Operateur, seuil: z.number().finite().min(-SEUIL_TERRITOIRE_MAX_ABS).max(SEUIL_TERRITOIRE_MAX_ABS), perimetre: Perimetre }).strict(),

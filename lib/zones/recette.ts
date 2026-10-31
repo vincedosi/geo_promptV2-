@@ -139,7 +139,10 @@ export const INDICATEURS_SEUIL_CARREAUX: readonly { readonly id: string; readonl
 ];
 
 export type Recette =
-  | { readonly v: 1; readonly type: 'rayon_point'; readonly lon: number; readonly lat: number; readonly rayon_m: number }
+  // `part_retenue` (0 à 1) : la part du disque retenue sur le territoire français, posée par la BASE à chaque écriture
+  // de la zone (trigger, sql/307) — une valeur du client est écrasée. 1 = disque entier, seul cas où le cercle est
+  // exact (A3, `exactitude`) ; absente (zone jamais réécrite) : inconnue, donc non exacte.
+  | { readonly v: 1; readonly type: 'rayon_point'; readonly lon: number; readonly lat: number; readonly rayon_m: number; readonly part_retenue?: number }
   | { readonly v: 1; readonly type: 'rayon_poi'; readonly categorie: string; readonly rayon_m: number; readonly perimetre: PerimetreRecette | null }
   | { readonly v: 1; readonly type: 'seuil_carreaux'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null; readonly min_menages?: number }
   | { readonly v: 1; readonly type: 'seuil_territoire'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null }

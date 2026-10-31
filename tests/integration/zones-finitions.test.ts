@@ -171,7 +171,11 @@ describe('T2 — dupliquer une zone', () => {
     expect(ligne(source)).toBe(avant);
     const [, type, aire, recette, de] = ligne(id).split('|');
     expect(type).toBe('recette_rayon_point');
-    expect(JSON.parse(recette)).toEqual(RAYON);
+    // La recette copiée, plus la part du disque posée par la base (A3, sql/307) : 2 km sur la côte marseillaise → < 1.
+    const copiee = JSON.parse(recette) as typeof RAYON & { part_retenue: number };
+    expect(copiee).toMatchObject(RAYON);
+    expect(copiee.part_retenue).toBeGreaterThan(0);
+    expect(copiee.part_retenue).toBeLessThan(1);
     expect(de).toBe(source);
     // La forme de la copie est celle que la recette rend AUJOURD'HUI (le disque découpé sur la côte), pas le carré stocké.
     const disque = psql(`select round(st_area(st_geomfromgeojson(public.zone_rayon(5.38, 43.30, 2000)->>'geometry')::geography));`);

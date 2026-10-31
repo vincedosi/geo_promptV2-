@@ -6,7 +6,8 @@
  * plateforme sont recalculées ici à partir du jeu ENREGISTRÉ (zone, cible, mode de plan, choix par plateforme) :
  * - maille EXACTE pour la recette (`exactitude`, A-6 ; ruling du contrôleur, relecture T8) : la géométrie de la
  *   RECETTE est figée, sans calcul ni seuil — le polygone (la forme est copiée par la RPC), LE cercle d'un
- *   `rayon_point` (si le rayon choisi est absent ou égal à celui de la recette), la LISTE d'une recette
+ *   `rayon_point` (si le rayon choisi est absent ou égal à celui de la recette, et le disque entier en France — A3,
+ *   sinon il se pave et l'avertissement `disque_hors_france` est figé), la LISTE d'une recette
  *   `codes_postaux` au CP ; résumé à zéro perte (`resumeExact`), chiffré par la population de la zone (`forme`) ;
  * - maille territoriale calculée (`cp`, `commune`, `departement`, `iris`) : `couverture_zone` (servie du cache tant
  *   que la zone et la base n'ont pas changé) puis `appliquerSeuil` — la MÊME fonction que l'écran (A-5) ; toutes les
@@ -37,7 +38,8 @@ import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { formaterNombre } from '@/lib/format/nombre';
 import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
 import {
-  MESSAGES_CONVERSION, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
+  MESSAGES_CONVERSION, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact,
+  unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
 import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
@@ -223,7 +225,8 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
     })),
     resume: {
       ...chiffres, plateforme: c.plateforme, exacte: false, n_candidates: o.n_candidates, population: o.population,
-      avertissements: verifierLimites(bilan, regle),
+      // A3 : un disque de rayon autour d'un point qui déborde du territoire se dit, figé avec le bilan.
+      avertissements: [...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille)],
     },
   };
 }

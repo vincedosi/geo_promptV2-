@@ -68,10 +68,12 @@ export type Resume = ResumeMaille | ResumeExact;
  * - `multiplicateur_min` / `multiplicateur_max` : des multiplicateurs ramenés à la plage — `valeur` le plus extrême
  *   calculé (avant), `limite` la borne (après), `n` le nombre d'unités CP ramenées ;
  * - `nb_max_entrees` : `valeur` codes envoyés pour `limite` par envoi, découpés en `n` envois.
+ * Depuis A3, `disque_hors_france` (`avertissementsDisque`) : le disque d'un rayon autour d'un point déborde du
+ * territoire — `limite` 100 (% du disque, avant : le cercle se disait exact), `valeur` la part en France (après).
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {
-  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees';
+  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees' | 'disque_hors_france';
   limite: number;
   valeur: number;
   n?: number;
@@ -153,7 +155,9 @@ function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
  * La maille rend-elle la zone EXACTEMENT (A-6) ? Le polygone, toujours ; le CP pour une zone faite de codes postaux ;
  * le pays pour une zone pays (⑤ finitions) ; le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon ET si le rayon choisi pour la plateforme
  * (`rayonChoisi`) est absent ou égal à celui de la recette — l'unité achetée est alors LE cercle de la recette ; un
- * autre rayon pave la zone, et la perte se calcule. Pas `rayon_poi` : sa zone est découpée par le périmètre de ①
+ * autre rayon pave la zone, et la perte se calcule. A3 : et seulement si le disque est ENTIER en France
+ * (`part_retenue` = 1, posée par la base, sql/307) — la zone est découpée sur le territoire, le disque acheté ne l'est
+ * pas : un disque tronqué (mer, frontière) se pave comme les POI, la perte se calcule (`avertissementsDisque` le dit). Pas `rayon_poi` : sa zone est découpée par le périmètre de ①
  * (obligatoire, `executerRecette`), les cercles entiers en débordent — la perte se calcule.
  * Une maille exacte se fige sans calcul ni seuil (extraction, T8) : l'écran et le serveur lisent cette MÊME règle.
  */
@@ -162,9 +166,22 @@ export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeG
   // Le ciblage pays d'une zone nationale : la zone telle quelle (⑤ finitions, A-4).
   if (maille === 'pays' && recette.type === 'pays') return 'exacte';
   if (maille === 'cp' && recette.type === 'codes_postaux') return 'exacte';
-  if (maille === 'cercle' && recette.type === 'rayon_point' && rayonAdmis(recette.rayon_m, ligne)
+  if (maille === 'cercle' && recette.type === 'rayon_point' && recette.part_retenue === 1 && rayonAdmis(recette.rayon_m, ligne)
       && (rayonChoisi === undefined || rayonChoisi === recette.rayon_m)) return 'exacte';
   return 'calculee';
+}
+
+/**
+ * A3 — le disque d'un rayon autour d'un point déborde du territoire français (`part_retenue` < 1, sql/307) : au
+ * cercle, la plateforme achète le disque ENTIER, mer ou étranger compris, une diffusion qu'aucun carreau ne compte.
+ * L'avertissement dit l'avant (100 % du disque, le cercle se disait exact) et l'après (la part en France, en %, une
+ * décimale) ; la perte en population est celle du pavage (`paver_cercles`, la méthode des POI). Mer et étranger ne se
+ * distinguent pas : `france_borders` est un seul contour terrestre. Aucun avertissement pour une autre maille (ses
+ * unités sont françaises), ni pour une part inconnue (déjà « calculée » par `exactitude`, sans chiffre à dire).
+ */
+export function avertissementsDisque(recette: Recette | null, maille: Maille): Avertissement[] {
+  if (maille !== 'cercle' || recette?.type !== 'rayon_point' || recette.part_retenue === undefined || recette.part_retenue >= 1) return [];
+  return [{ code: 'disque_hors_france', limite: 100, valeur: Math.round(recette.part_retenue * 1000) / 10 }];
 }
 
 /**

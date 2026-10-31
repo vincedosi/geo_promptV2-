@@ -73,6 +73,12 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     // A1 : une limite d'entrées par envoi, comptée en codes envoyés ; au-delà, le plan part en plusieurs envois.
     return `${nombreUnites(a.valeur, maille)} pour ${limite} par envoi${a.mecanisme === 'script' ? ' au script de custom bidding' : ''} : découpés en ${formaterNombre(a.n ?? 1)} envois.`;
   }
+  if (a.code === 'disque_hors_france') {
+    // A3 : avant (le cercle se disait exact, 100 % du disque compté) → après (la part en France, la perte calculée).
+    return `Disque partiellement hors de France : ${formaterNombre(a.valeur)} % de sa surface est en France, `
+      + `${formaterNombre(Math.round((a.limite - a.valeur) * 10) / 10)} % en mer ou à l’étranger, achetés par la plateforme sans être comptés. `
+      + 'Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.';
+  }
   if (a.code === 'max_unites') {
     return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }

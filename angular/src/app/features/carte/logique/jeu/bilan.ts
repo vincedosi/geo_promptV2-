@@ -1,6 +1,8 @@
 import type { Decoupage, ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
-import { type Avertissement, type Resume, appliquerSeuil, exactitude, mailleParDefaut, resumeExact, unitesPays, verifierLimites } from './conversion';
+import {
+  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, mailleParDefaut, resumeExact, unitesPays, verifierLimites,
+} from './conversion';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
@@ -166,7 +168,8 @@ export function bilanDe(
     const nCodes = c.maille === 'cp' && recette?.type === 'codes_postaux' ? new Set(recette.codes).size : 1;
     resume = estExacte(c, ligne, recette) ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
   }
-  return { resume, avertissements: verifierLimites(resume, ligne) };
+  // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.
+  return { resume, avertissements: [...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille)] };
 }
 
 /** Une valeur par plateforme choisie et connue du registre ; les `undefined` sont omis. */

@@ -45,6 +45,17 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     expect(lireRecette(point(RAYON_POINT_MAX_M + 1)).ok).toBe(false);
   });
 
+  it('A3 : rayon autour d’un point — `part_retenue` (posée par la base, sql/307) admise entre 0 et 1, rien au-delà', () => {
+    const point = (part_retenue: unknown) => ({ v: 1, type: 'rayon_point', lon: 7.75, lat: 48.57, rayon_m: 20_000, part_retenue });
+    expect(lireRecette(point(1)).ok).toBe(true);
+    expect(lireRecette(point(0.6586)).ok).toBe(true);
+    expect(lireRecette(point(1.01)).ok).toBe(false);
+    expect(lireRecette(point(-0.1)).ok).toBe(false);
+    expect(lireRecette(point('1')).ok).toBe(false);
+    // Réservée au rayon autour d'un point.
+    expect(lireRecette({ v: 1, type: 'dessin', part_retenue: 1 }).ok).toBe(false);
+  });
+
   it('seuil sur territoires : fini et borné par SEUIL_TERRITOIRE_MAX_ABS, négatif admis', () => {
     const seuil = (s: number) => ({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: s, perimetre: PER });
     expect(lireRecette(seuil(-12.5)).ok).toBe(true);

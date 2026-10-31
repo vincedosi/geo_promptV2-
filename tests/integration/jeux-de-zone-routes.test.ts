@@ -166,7 +166,7 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
     const corps = await r.json();
     expect(corps.jeu).toMatchObject({ id: jeu, type: 'zone', nom: 'Lyon essai', version: 1, cible: 'ind' });
     expect(corps.jeu.org_id).toBeUndefined();
-    expect(corps.zone).toEqual({ id: zone, nom: 'Lyon 5 km', recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000 } });
+    expect(corps.zone).toEqual({ id: zone, nom: 'Lyon 5 km', recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 } });
     expect(corps.plateformes.map((c: { plateforme: string }) => c.plateforme)).toEqual(['dv360', 'meta']);
   });
 
