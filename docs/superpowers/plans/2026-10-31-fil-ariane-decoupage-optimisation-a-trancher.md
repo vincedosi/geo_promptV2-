@@ -499,6 +499,13 @@ La zone composite de 13 001 km² (895 CP, dérive d'arrondi de −230 habitants)
 
 Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recommandation de l'équipe.
 
+**Réponses de Vincent (31/10/2026) : Q1 à Q7 = A, avec conditions.**
+- Q1 (ARB-1) : A, avec la séquence E4 (brut = part × classe sur les CP retenus, normalisation à moyenne arithmétique non pondérée 1, écrêtage à la plage du mécanisme, pas de renormalisation) et le ticket A8 pour la part prévue. La plage DV360 0,1 à 10 reste « à vérifier » tant que dentsu ne l'a pas confirmée dans un compte.
+- Q2 (ARB-2) : A.
+- Q3 (ARB-3) : A, avec la ligne « diffusion à population inconnue » séparée dans le bilan (A4).
+- Q4 (ARB-4) : A. Q5 (ARB-5) : A. Q6 (ARB-6) : A.
+- Q7 (ARB-7) : A, avec les deux chiffres (couverture, taux utile) affichés dans la ligne d'explication.
+
 **Arbitrages du plan de corrections (provisoirement appliqués, à confirmer)**
 
 - **Q1 : ARB-1, sémantique du plan par CP.** A. Multiplicateur d'enchère (part ÷ moyenne des parts des retenus × poids de classe) (R). B. Répartition de budget (population dans la zone × poids de classe, restreinte aux retenus).

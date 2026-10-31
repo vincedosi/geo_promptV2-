@@ -21,13 +21,20 @@ Cocher une option par ligne.
 
 | Réf. | Question | Options |
 |---|---|---|
-| ARB-1 | Sémantique du plan par CP (§ 2.7) | [ ] Multiplicateur d'enchère (recommandé) : multiplicateur(CP) = part(CP) ÷ moyenne des parts des CP retenus, la population n'entre pas dans la formule, le poids de classe multiplie le résultat. [ ] Répartition de budget : poids = population dans la zone × poids de classe, restreint aux CP retenus. |
-| ARB-2 | Mode par défaut d'un jeu de zone | [ ] Exclusif (recommandé) tant qu'une seule classe est définie. [ ] Pondéré avec poids « hors zone » = 0 par défaut. |
-| ARB-3 | Unité à population totale inconnue (DROM non carroyés) | [ ] Achetable avec mention « population inconnue », même règle pour CP, département et pays (recommandé). [ ] Refusée partout, y compris en maille pays. |
-| ARB-4 | Minimum de ménages à la conversion | [ ] Appliqué dès qu'une cible autre que la population totale est choisie (recommandé). [ ] Jamais appliqué, mais la part de population issue de carreaux imputés est affichée. |
-| ARB-5 | Rayon minimal de la recette « rayon autour d'un point » | [ ] 250 m (recommandé). [ ] 100 m conservé, avec prorata de surface des carreaux sous 2 km². |
-| ARB-6 | Dépassement du nombre d'unités d'une maille territoriale (ex. > 3 000 communes TikTok) | [ ] Découpage automatique en N groupes triés par part décroissante (recommandé). [ ] Refus, comme pour les cercles Meta. |
-| ARB-7 | Choix de la maille par défaut | [ ] Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal D1), sous contraintes de la plateforme (recommandé) : parmi les mailles natives et disponibles dont la couverture simulée atteint la couverture cible, celle de taux utile maximal ; si aucune n'atteint la cible, celle de couverture maximale. Le taux utile seul est un critère dégénéré (il favorise la maille qui retient le moins : un CP unique à 95 % couvrant 10 % de la zone battrait des cercles à 70 % couvrant 90 %). [ ] Ordre de finesse conservé, le cercle classé selon son rayon. |
+| ARB-1 | Sémantique du plan par CP (§ 2.7) | [x] Multiplicateur d'enchère (recommandé) : multiplicateur(CP) = part(CP) ÷ moyenne des parts des CP retenus, la population n'entre pas dans la formule, le poids de classe multiplie le résultat. [ ] Répartition de budget : poids = population dans la zone × poids de classe, restreint aux CP retenus. |
+| ARB-2 | Mode par défaut d'un jeu de zone | [x] Exclusif (recommandé) tant qu'une seule classe est définie. [ ] Pondéré avec poids « hors zone » = 0 par défaut. |
+| ARB-3 | Unité à population totale inconnue (DROM non carroyés) | [x] Achetable avec mention « population inconnue », même règle pour CP, département et pays (recommandé). [ ] Refusée partout, y compris en maille pays. |
+| ARB-4 | Minimum de ménages à la conversion | [x] Appliqué dès qu'une cible autre que la population totale est choisie (recommandé). [ ] Jamais appliqué, mais la part de population issue de carreaux imputés est affichée. |
+| ARB-5 | Rayon minimal de la recette « rayon autour d'un point » | [x] 250 m (recommandé). [ ] 100 m conservé, avec prorata de surface des carreaux sous 2 km². |
+| ARB-6 | Dépassement du nombre d'unités d'une maille territoriale (ex. > 3 000 communes TikTok) | [x] Découpage automatique en N groupes triés par part décroissante (recommandé). [ ] Refus, comme pour les cercles Meta. |
+| ARB-7 | Choix de la maille par défaut | [x] Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal D1), sous contraintes de la plateforme (recommandé) : parmi les mailles natives et disponibles dont la couverture simulée atteint la couverture cible, celle de taux utile maximal ; si aucune n'atteint la cible, celle de couverture maximale. Le taux utile seul est un critère dégénéré (il favorise la maille qui retient le moins : un CP unique à 95 % couvrant 10 % de la zone battrait des cercles à 70 % couvrant 90 %). [ ] Ordre de finesse conservé, le cercle classé selon son rayon. |
+
+**Réponses de Vincent (31/10/2026) : Q1 à Q7 = A, avec conditions.**
+- Q1 (ARB-1) : A, avec la séquence E4 (brut = part × classe sur les CP retenus, normalisation à moyenne arithmétique non pondérée 1, écrêtage à la plage du mécanisme, pas de renormalisation) et le ticket A8 pour la part prévue. La plage DV360 0,1 à 10 reste « à vérifier » tant que dentsu ne l'a pas confirmée dans un compte.
+- Q2 (ARB-2) : A.
+- Q3 (ARB-3) : A, avec la ligne « diffusion à population inconnue » séparée dans le bilan (A4).
+- Q4 (ARB-4) : A. Q5 (ARB-5) : A. Q6 (ARB-6) : A.
+- Q7 (ARB-7) : A, avec les deux chiffres (couverture, taux utile) affichés dans la ligne d'explication.
 
 ---
 
