@@ -98,7 +98,8 @@ INV2  moyenne(poids_v2) = 1 avant écrêtage (moyenne arithmétique non pondér�
       la moyenne obtenue et le nombre de CP écrêtés sont exposés
 INV3  corr(cp) ∈ [3^-0,8, 3^0,8] = [0,415, 2,408]
 INV4  un CP avec livre_fen = 0 a corr(cp) = corr_dep(dep(cp))
-INV5  réponse proportionnelle simulée (a = w·r / Σ w·r) : l'erreur log moyenne est multipliée par ≤ 0,25 par itération
+INV5  réponse proportionnelle simulée (a = w·r / Σ w·r) : l'erreur log moyenne est multipliée par ≤ 0,25 par itération,
+      pour λ ≈ 1 seulement (CP bien servis) ; un CP peu observé suit son département (amendement E10)
 INV6  cible_part reste identique entre deux itérations si la livraison suit exactement cible_jour (pas de dérive de la cible)
 INV7  le ×0,6 n'apparaît nulle part dans la correction (grep)
 INV7b simulation avec un CP par défaut (cp_geoloc_defaut) recevant 3 % des impressions
@@ -229,7 +230,7 @@ type RebidResult = {
 
 **P3. Pacing, jour courant.** `get_campaign_expected` : `t = jours_livrés / N`, où `jours_livrés` = nombre de jours dont la livraison est effectivement disponible (dernière date du rollup quotidien), pas `date_du_jour − début + 1`. Supprime le biais de 1/N vers « en retard ».
 
-**P4. Univers des CP (méthode A).** Évaluer la courbe de pression sur le référentiel complet des codes postaux, pas sur les CP déjà vus en livraison.
+**P4. Univers des CP (méthode A).** Évaluer la courbe de pression sur le référentiel complet des codes postaux, pas sur les CP déjà vus en livraison. Univers nommés (amendement E10) : référentiel 6 187 CP (score, noyau) ; peuplés 6 009 CP (plan) ; métropole peuplés 5 956 CP (couverture) ; livrés Adform 6 030 CP (seule campagne réelle).
 
 **P5. Seuils réglables.** Sortir 0,85 / 1,15 / 1,25 / 70 % / 5 % / ±20 % / alpha / k / bornes de paliers / convention de normalisation (moyenne non pondérée, amendement E4) / seuil d'alerte du taux de fuite (amendement E8) dans une table `campaign_settings` (ou JSON par campagne) avec les valeurs actuelles comme défaut.
 

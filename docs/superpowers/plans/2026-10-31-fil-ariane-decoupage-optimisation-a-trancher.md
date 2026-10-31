@@ -1,4 +1,4 @@
-# dentsu.explore — Fil d'Ariane de la carte (① à ⑤) et noyau d'optimisation : relecture et décisions à trancher
+# dentsu.explore, fil d'Ariane de la carte (① à ⑤) et noyau d'optimisation : relecture et décisions à trancher
 
 Document de relecture, rédigé le 31/10/2026 pour un relecteur qui n'a pas accès au code. Il est autoportant : chaque chiffre vient du code, de la base locale ou des documents de conception du produit, lus le 31/10/2026. Quand un point n'a pas pu être vérifié, il est écrit comme tel. Les noms de fichiers sont donnés en note, pour l'équipe qui appliquera les décisions ; le relecteur n'en a pas besoin.
 
@@ -32,7 +32,7 @@ dentsu.explore est un logiciel SaaS de géomarketing pour l'affichage extérieur
 |---|---|---|
 | ① Périmètre | **Prêt** | Livré ; le périmètre borne tous les calculs lourds. Un écart avec l'ancienne interface React est assumé. |
 | ② Données | **Prêt** | Livré avec le catalogue, les indicateurs privés à un espace et les groupes d'espaces (lot du 28/10, preuve faite). |
-| ③ Zones | **Prêt, à corriger** | Livré (finitions du 29/10, preuve faite). Cinq tickets du plan de corrections le touchent (A5, B15, C19, C20, C21). |
+| ③ Zones | **Prêt, à corriger** | Livré (finitions du 29/10, preuve faite). Six tickets du plan de corrections le touchent (A5, B8, B15, C19, C20, C21 ; B8 porte ARB-5, rayon minimal de la recette, amendement E10). |
 | ④ Analyse | **Prêt** | Livré (finitions du 30/10, preuve faite). Quatre résidus mineurs à trancher. |
 | ⑤ Jeu de zones | **À corriger et à trancher** | Livré pour l'essentiel, finitions T0 à T5 faites, revue finale et preuve navigateur (T6) **non faites**. C'est l'étape que touche presque tout le plan de corrections ; le ticket A1, commencé, est mis de côté sur la branche `wip/A1-plan-cp` (amendement E6, 31/10), non vérifié. |
 | Noyau d'optimisation | **À construire et à trancher** | **N'existe pas encore comme module.** La spécification v2 est écrite (29/10) ; deux formules concurrentes vivent dans le code (rebid plafonné, recalage amorti). |
@@ -64,8 +64,9 @@ Chiffres de référence vérifiés en base le 31/10 :
 - Carreaux rattachés : **2 324 577** dans la table de correspondance carreau → CP / IRIS / commune / département.
 - Groupes de CP indiscernables (même contour dans le référentiel) : **71 groupes, 181 codes, jusqu'à 6 codes par groupe**.
 - 48 872 IRIS, 34 918 communes (chiffres des messages de refus du produit).
+- **Univers de CP** (amendement E10), nommés une fois et chacun à son usage : **référentiel, 6 187 CP** (score composite, noyau d'optimisation) ; **peuplés, 6 009 CP** (plan par CP) ; **métropole peuplés, 5 956 CP** (couverture d'une zone nationale métropolitaine) ; **livrés Adform, 6 030 CP** (seule campagne réelle, § 4.1).
 
-### 1.1 ① Périmètre — « où je regarde »
+### 1.1 ① Périmètre (« où je regarde »)
 
 **À quoi elle sert.** Fixer l'emprise de travail. Elle cadre la carte et, surtout, **borne tous les calculs lourds** des étapes ③ et ④ : sans périmètre, aucun calcul d'analyse ne part. C'est un garde-fou de charge de la base, né de trois incidents passés où des requêtes sur toute la France ont saturé les entrées-sorties et rendu l'application indisponible pendant des heures.
 
@@ -89,7 +90,7 @@ Chiffres de référence vérifiés en base le 31/10 :
 
 > Notes : `lib/carte/garde-perimetre.ts`, `angular/.../logique/perimetre-national.ts`, `lib/zones/recette.ts` (`TYPES_PERIMETRE`).
 
-### 1.2 ② Données — « ce que je vois »
+### 1.2 ② Données (« ce que je vois »)
 
 **À quoi elle sert.** Afficher et régler les jeux de données sur la carte, et connaître leur provenance. ② ne fabrique rien : elle prépare le regard et fournit les catégories de POI et les indicateurs que les recettes de ③ utiliseront.
 
@@ -113,7 +114,7 @@ Chiffres de référence vérifiés en base le 31/10 :
 
 > Notes : plan `docs/superpowers/plans/2026-10-28-carte-en-parcours-catalogue-groupes.md` ; `lib/auth/perimetre-donnees.ts`.
 
-### 1.3 ③ Zones — « ce que je fabrique »
+### 1.3 ③ Zones (« ce que je fabrique »)
 
 **À quoi elle sert.** Transformer toute sélection en **une seule zone**, nommée, enregistrée, qui garde sa recette pour pouvoir être recalculée. La forme exacte est la vérité : ③ ne convertit jamais en CP de son propre chef (c'est le rôle de ⑤).
 
@@ -133,7 +134,7 @@ Chiffres de référence vérifiés en base le 31/10 :
 | Dessin, import GeoJSON / KML, isochrone | La forme fournie, réparée, découpée sur la France | au plus 20 000 sommets | non (figée) |
 | Capture (dont score composite) | La forme affichée ; le score garde ses indicateurs et poids pour mémoire | au plus 6 indicateurs, calcul au CP, seuil de score 0 à 100 | non |
 | Combinaison | Union, intersection, différence de zones existantes | union 2 à 20 ; **intersection exactement 2** ; différence 2 à 20 (la première moins les suivantes) ; une zone nationale ne se combine pas | non |
-| Zone nationale | « France métropolitaine » (547 779 km²) ou « France entière » (636 299 km²), union des régions | — | non ; chiffrée sans lire un carreau |
+| Zone nationale | « France métropolitaine » (547 779 km²) ou « France entière » (636 299 km²), union des régions | aucune | non ; chiffrée sans lire un carreau |
 
 Autres règles :
 
@@ -150,7 +151,7 @@ Autres règles :
 
 > Notes : `lib/zones/recette.ts`, `lib/zones/recette-schema.ts`, `lib/zones/executer-recette.ts` ; plan `2026-10-29-carte-en-parcours-zones.md`.
 
-### 1.4 ④ Analyse — « ce que je calcule »
+### 1.4 ④ Analyse (« ce que je calcule »)
 
 **À quoi elle sert.** Chiffrer et comparer, sur la zone analysée ou sur le périmètre, avant de décider ce qu'on achète.
 
@@ -176,7 +177,7 @@ Autres règles :
 
 > Notes : plan `2026-10-30-carte-en-parcours-analyse.md`, section « Suites ».
 
-### 1.5 ⑤ Jeu de zones — le découpage
+### 1.5 ⑤ Jeu de zones (le découpage)
 
 **À quoi elle sert.** Figer ce qui sera acheté. L'utilisateur choisit, **plateforme par plateforme**, la maille d'achat ; l'écran montre ce que la plateforme accepte, un lien vers sa documentation officielle, et ce que la maille choisie fait perdre (diffusion hors zone, habitants manqués). Le résultat est une **extraction** immuable, transmise à ⑥ et ⑦.
 
@@ -192,7 +193,7 @@ Autres règles :
 
 ```
 part (%)           = 100 × population de l'unité DANS la zone ÷ population TOTALE de l'unité
-                     (arrondie au dixième, par la base, AVANT la comparaison — voir ticket B11)
+                     (arrondie au dixième, par la base, AVANT la comparaison, voir ticket B11)
 unité retenue      ⇔ part ≥ seuil   (borne incluse ; une part inconnue n'est jamais retenue)
 population couverte = Σ population dans la zone des unités retenues
 diffusion achetée   = Σ population totale des unités retenues
@@ -210,7 +211,7 @@ Exemple fictif, seuil 20 % : CP A (18 000 dans la zone sur 20 000, part 90 %), C
 | CP | règle ci-dessus | les groupes indiscernables sont achetés entiers |
 | IRIS | règle ci-dessus | calculé, acheté par aucune plateforme |
 | Commune | règle ci-dessus | Paris, Lyon, Marseille sortent en arrondissements |
-| Département | règle ci-dessus | — |
+| Département | règle ci-dessus | aucune |
 | Cercles | pavage hexagonal ; chaque cellule retenue devient le cercle circonscrit | rayon réglable ; bornes de sécurité : zone ≤ 100 000 km², rayon 1 à 200 km, au plus 5 000 cellules candidates ; une cellule est retenue si part ≥ seuil **et** population totale ≥ minimum de la plateforme (1 000 chez DV360) ; refus au-delà du maximum de la plateforme (200 chez Meta) |
 | Pays | zone nationale seulement | « France métropolitaine » → FR ; « France entière » → FR + GP, MQ, GF, RE, YT ; population `null` (jamais 0) pour un DROM non carroyé |
 | Polygone | la forme telle quelle | toujours exacte |
@@ -225,17 +226,17 @@ Bornes de la couverture : zone de plus de 100 000 km² ou de plus de 400 000 car
 |---|---|---|---|---|
 | DV360 | CP | oui | plage de multiplicateur 0,1 à 10, **non confirmée** (ajoutée par le ticket A1 en cours) | non *(amendement E9 : la plage est à vérifier ; la mention passe par paramètre)* |
 | DV360 | cercle | oui | rayon ≥ 1 km ; ≥ 1 000 habitants par cercle | non |
-| DV360 | pays | oui | — | DROM |
-| DV360 | polygone | non | — | non |
+| DV360 | pays | oui | aucune | DROM |
+| DV360 | polygone | non | sans objet | non |
 | Meta | cercle | oui | ≤ 200 cercles ; rayon 1 à 80 km | non |
 | Meta | CP | oui | ≤ 50 000 CP | **oui** |
-| Meta | pays | oui | — | DROM |
-| Meta | polygone | non | — | non |
+| Meta | pays | oui | aucune | DROM |
+| Meta | polygone | non | sans objet | non |
 | TikTok | département | oui | ≤ 3 000 lieux ; ≥ 1 000 personnes par groupe | non |
 | TikTok | commune | oui | ≤ 3 000 lieux ; ≥ 1 000 personnes par groupe | **oui** |
-| TikTok | cercle | non | — | **oui** |
-| TikTok | CP | non | — | non |
-| TikTok | pays | oui | — | DROM |
+| TikTok | cercle | non | sans objet | **oui** |
+| TikTok | CP | non | sans objet | non |
+| TikTok | pays | oui | aucune | DROM |
 | TTD | polygone, cercle, CP, pays | oui | aucune limite relevée | **oui (les quatre)** |
 
 *Maille par défaut* (règle actuelle) : parmi les mailles natives et disponibles, hors mailles sans objet pour la zone, d'abord une maille sûre avant une maille « à vérifier », puis une maille exacte avant une maille calculée, puis la plus fine dans l'ordre polygone, IRIS, CP, cercle, commune, département (le pays en tête pour une zone nationale, en dernier sinon). Rayon des cercles par défaut : celui de la recette, sinon 10 km.
@@ -301,7 +302,7 @@ poids'(cp)  = borner(poids(cp) × corr(cp) ; 0,001 ; 999,999), puis ÷ moyenne (
 
 Si la somme des cibles journalières vaut 0 : pas de correction, alerte « plan atteint ». Un CP du plan jamais servi existe dans le calcul avec une part observée nulle, donc suit la correction de son département.
 
-Invariants à tester : poids inchangés si la livraison suit le plan (à 1e-9) ; moyenne des poids = 1 ; corr(cp) dans [0,415 ; 2,408] ; un CP sans impression sur la fenêtre suit son département ; en réponse proportionnelle simulée, l'erreur logarithmique est multipliée par au plus 0,25 par itération ; pas de dérive de la cible ; le coefficient 0,6 n'apparaît plus dans la correction.
+Invariants à tester : poids inchangés si la livraison suit le plan (à 1e-9) ; moyenne des poids = 1 ; corr(cp) dans [0,415 ; 2,408] ; un CP sans impression sur la fenêtre suit son département ; en réponse proportionnelle simulée, l'erreur logarithmique est multipliée par au plus 0,25 par itération, ce qui ne vaut que pour λ ≈ 1, c'est-à-dire pour les CP bien servis (amendement E10) ; pas de dérive de la cible ; le coefficient 0,6 n'apparaît plus dans la correction.
 
 Quantification pour le script de custom bidding (paliers par valeur de poids, moyenne 1) : ≥ 2,0 ; 1,4 à 2,0 ; 0,8 à 1,4 ; 0,5 à 0,8 ; 0 à 0,5. Score d'un palier = médiane des poids du palier, à deux décimales. Hors zone : 0 en zones strictes, 0,8 × poids minimal en mode national. Au plus 2 000 CP par envoi.
 
@@ -351,7 +352,7 @@ Source : plan de corrections du découpage des zones, issu de la relecture de la
 
 Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérification faite, **seul C28 est purement une affaire de compte de plateforme**. Les cinq autres portent du code de ⑤ ou du registre, qui est à nous ; seule la **valeur** à confirmer dans un compte revient à dentsu. Ils sont reclassés « nous », avec une sous-tâche dentsu. Inversement, deux tickets « nous » portent une sous-tâche de vérification dentsu (A1, A2).
 
-**Lot 1 — contradictions de logique**
+**Lot 1 : contradictions de logique**
 
 | Ticket | Objet | Résumé du constat et de l'attendu | Porteur | État |
 |---|---|---|---|---|
@@ -364,7 +365,7 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
 | A6 | Bilan des cercles : cellule ou disque | Bilan sur l'union dédoublonnée des disques ; population par cercle = celle du disque (le disque circonscrit vaut 1,21 fois l'hexagone) | Nous | À faire |
 | A7 | Sommets et morceaux du polygone | Simplification à l'extraction (tolérance 50 m), contrôle contre le registre, refus chiffré, perte affichée au-delà de 0,1 % | **Nous (reclassé)** ; valeurs TTD à relever : dentsu | À faire |
 
-**Lot 2 — bornes et règles**
+**Lot 2 : bornes et règles**
 
 | Ticket | Objet | Résumé | Porteur | État |
 |---|---|---|---|---|
@@ -378,7 +379,7 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
 | B15 | Exactitude par composition | La recette garde ses unités constitutives ; l'exactitude se fonde sur elles, pas sur le type de recette | Nous | À faire |
 | B16 | Poussée branchée dans la règle de défaut | Paramètre « poussée branchée » dans le registre, affiché et utilisé comme départage à ±5 points de taux utile | **Nous (reclassé)** ; la valeur suit l'état des adaptateurs : dentsu | À faire |
 
-**Lot 3 — registre, chiffres, documentation**
+**Lot 3 : registre, chiffres, documentation**
 
 | Ticket | Objet | Résumé | Porteur |
 |---|---|---|---|
@@ -412,8 +413,8 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
 
 **Constat en base locale, 31/10 (lecture seule).**
 
-- La table des livraisons compte **1 038 459 lignes** (394 Mo) réparties sur **5 campagnes** seulement. Quatre sont synthétiques : « Démo pilotage — élections » (306 150 lignes, démonstration), deux simulations Seveso (217 823 et 167 977 lignes), « [DEMO] Risque industriel » (174 780 lignes). Elles ne peuvent pas servir à calibrer.
-- **Une seule campagne réelle** : « Démo — campagne nationale (données réelles) », importée d'Adform le 14/04/2026, **171 729 lignes**. Elle a des limites fortes :
+- La table des livraisons compte **1 038 459 lignes** (394 Mo) réparties sur **5 campagnes** seulement. Quatre sont synthétiques : « Démo pilotage, élections » (306 150 lignes, démonstration), deux simulations Seveso (217 823 et 167 977 lignes), « [DEMO] Risque industriel » (174 780 lignes). Elles ne peuvent pas servir à calibrer.
+- **Une seule campagne réelle** : « Démo : campagne nationale (données réelles) », importée d'Adform le 14/04/2026, **171 729 lignes**. Elle a des limites fortes :
   - **aucune date** sur aucune ligne : aucune période connue, aucune série quotidienne ;
   - la colonne « impressions » est vide ; seul le compteur « tracked ads » est rempli (70 844 538 au total). L'équivalence avec des impressions n'est pas vérifiée ;
   - aucune dépense renseignée ;
@@ -427,7 +428,7 @@ Le tri initial donnait à l'équipe dentsu A7, B14, B16, C27, C28, C29. Vérific
   - le 1 % des CP les plus livrés reçoit 26,9 % des impressions pour 6,8 % de la population ; les 10 % les plus livrés reçoivent 64,6 % pour 35,5 % ;
   - le CP 75001 reçoit 3,46 % des impressions pour 14 421 habitants : très probablement un artefact de géolocalisation (adresse IP rattachée au CP par défaut d'une ville). Les CP suivants (34000, 13001, 66000, 13008) vont dans le même sens. Ce point est une hypothèse, non vérifiée.
 
-**Lecture.** La livraison réelle est fortement concentrée sur les centres urbains et sur des CP par défaut. Le taux utile fondé sur la population résidente est donc une approximation optimiste pour les zones périurbaines et rurales. Mais la seule donnée disponible ne permet pas de calibrer proprement : une campagne, sans date, sans zone, avec des artefacts de géolocalisation.
+**Lecture.** La livraison réelle est fortement concentrée sur les centres urbains et sur des CP par défaut. Le taux utile fondé sur la population résidente porte donc un biais de sens inconnu, d'amplitude probablement forte (rapport médian 0,48 ; 37 % des CP à moins d'un facteur 2) : le sens dépend de la corrélation entre part et inventaire à l'intérieur de l'ensemble retenu, que les données citées ne mesurent pas. ~~Le taux utile fondé sur la population résidente est donc une approximation optimiste pour les zones périurbaines et rurales.~~ *(Amendement E10.)* Mais la seule donnée disponible ne permet pas de calibrer proprement : une campagne, sans date, sans zone, avec des artefacts de géolocalisation.
 
 **Options.**
 
@@ -500,68 +501,68 @@ Répondre ligne à ligne, par la lettre de l'option. « (R) » marque la recomma
 
 **Arbitrages du plan de corrections (provisoirement appliqués, à confirmer)**
 
-- **Q1 — ARB-1, sémantique du plan par CP.** A. Multiplicateur d'enchère (part ÷ moyenne des parts des retenus × poids de classe) (R). B. Répartition de budget (population dans la zone × poids de classe, restreinte aux retenus).
-- **Q2 — ARB-2, mode par défaut d'un jeu de zone.** A. Exclusif tant qu'une seule classe existe (R). B. Pondéré avec « hors zone » à 0.
-- **Q3 — ARB-3, unité à population inconnue.** A. Achetable avec « population inconnue », même règle pour toutes les mailles (R). B. Refusée partout.
-- **Q4 — ARB-4, minimum de ménages à la conversion.** A. Appliqué dès qu'une cible autre que la population totale est choisie (R). B. Jamais appliqué, part imputée affichée.
-- **Q5 — ARB-5, rayon minimal autour d'un point.** A. 250 m (R). B. 100 m avec prorata de surface sous 2 km².
-- **Q6 — ARB-6, dépassement du nombre d'unités d'une maille territoriale.** A. Découpage en N blocs par part décroissante (R). B. Refus.
-- **Q7 — ARB-7, maille par défaut.** A. Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal) (R) ~~A. Taux utile simulé sous contraintes de la plateforme (R).~~ B. Ordre de finesse conservé. *(Amendement E1 : le taux utile seul favorise la maille qui retient le moins ; si aucune maille n'atteint la couverture cible, celle de couverture maximale ; départage B16 à ± 5 points.)*
+- **Q1 : ARB-1, sémantique du plan par CP.** A. Multiplicateur d'enchère (part ÷ moyenne des parts des retenus × poids de classe) (R). B. Répartition de budget (population dans la zone × poids de classe, restreinte aux retenus).
+- **Q2 : ARB-2, mode par défaut d'un jeu de zone.** A. Exclusif tant qu'une seule classe existe (R). B. Pondéré avec « hors zone » à 0.
+- **Q3 : ARB-3, unité à population inconnue.** A. Achetable avec « population inconnue », même règle pour toutes les mailles (R). B. Refusée partout.
+- **Q4 : ARB-4, minimum de ménages à la conversion.** A. Appliqué dès qu'une cible autre que la population totale est choisie (R). B. Jamais appliqué, part imputée affichée.
+- **Q5 : ARB-5, rayon minimal autour d'un point.** A. 250 m (R). B. 100 m avec prorata de surface sous 2 km².
+- **Q6 : ARB-6, dépassement du nombre d'unités d'une maille territoriale.** A. Découpage en N blocs par part décroissante (R). B. Refus.
+- **Q7 : ARB-7, maille par défaut.** A. Taux utile simulé maximal sous couverture ≥ 80 % (paramètre partagé avec le seuil optimal) (R) ~~A. Taux utile simulé sous contraintes de la plateforme (R).~~ B. Ordre de finesse conservé. *(Amendement E1 : le taux utile seul favorise la maille qui retient le moins ; si aucune maille n'atteint la couverture cible, celle de couverture maximale ; départage B16 à ± 5 points.)*
 
 **Plan par CP et lien avec le noyau**
 
-- **Q8 — Si Q1 = A, que vaut la « part prévue » d'un CP dans le suivi ?** A. Part prévue = part × volume attendu × classe ÷ Σ, soit en V1 la part de population en zone, indépendante du multiplicateur (R) ~~A. Une part d'impressions distincte : multiplicateur × volume attendu du CP ÷ somme (R).~~ B. Multiplicateur ÷ somme des multiplicateurs (comportement actuel, faux avec un multiplicateur d'enchère). ~~C. Revenir à Q1 = B pour garder une seule notion.~~ *(Amendement E5 : option C supprimée, plus nécessaire ; la correction de la part prévue devient le ticket A8, lot 1, et A1 n'est plus bloqué par Q8, seulement par Q1.)*
-- **Q9 — Volume attendu d'un CP (pour Q8 et § 4.1).** A. Population totale carroyée du CP en V1, remplaçable plus tard par un volume observé (R). B. Population dans la zone. C. Impressions observées dès maintenant. *(Amendement E5 : question inchangée ; elle fixe le « volume attendu » de la formule de Q8 A.)*
-- **Q10 — Arrêter ou poursuivre le ticket A1 en cours avant la réponse à Q1 et Q8 ?** A. Commit WIP sur branche dédiée, reprise après la réponse à Q1 (R) ~~A. Le geler jusqu'aux réponses, puis le reprendre (R).~~ *(Amendement E6 : l'option A est **déjà appliquée** le 31/10 : A1 est commité en WIP sur la branche `wip/A1-plan-cp` (commits `3d487d55` et `e5038093`, ce dernier portant le script de rollback local de `sql/302`), le rollback local de `sql/302` est appliqué et la branche de travail est revenue à son état commité, propre. Depuis E5, A1 ne dépend plus que de Q1.)* B. Le terminer tel quel. C. L'abandonner.
-- **Q11 — Plage du mécanisme de poids DV360 « multiplicateur » (0,1 à 10, non confirmée).** ~~Q11 — Plage de multiplicateur DV360 (0,1 à 10, non confirmée).~~ A. La garder marquée « à vérifier » dans le registre du mécanisme et la faire confirmer par dentsu (R) ~~A. La garder marquée « à vérifier » et la faire confirmer par dentsu (R).~~ B. Revenir aux bornes techniques 0,001 / 999,999 jusqu'à confirmation. *(Amendement E2 : la plage appartient au mécanisme de poids, pas à la plateforme.)*
-- **Q12 — Groupes de CP indiscernables (A2) : diviser le multiplicateur par le nombre de membres ?** A. Oui par défaut, avec un paramètre par plateforme « division » ou « même valeur », à confirmer dans un compte (R). B. Même valeur pour tous les membres partout. C. Division partout, sans paramètre.
+- **Q8 : Si Q1 = A, que vaut la « part prévue » d'un CP dans le suivi ?** A. Part prévue = part × volume attendu × classe ÷ Σ, soit en V1 la part de population en zone, indépendante du multiplicateur (R) ~~A. Une part d'impressions distincte : multiplicateur × volume attendu du CP ÷ somme (R).~~ B. Multiplicateur ÷ somme des multiplicateurs (comportement actuel, faux avec un multiplicateur d'enchère). ~~C. Revenir à Q1 = B pour garder une seule notion.~~ *(Amendement E5 : option C supprimée, plus nécessaire ; la correction de la part prévue devient le ticket A8, lot 1, et A1 n'est plus bloqué par Q8, seulement par Q1.)*
+- **Q9 : Volume attendu d'un CP (pour Q8 et § 4.1).** A. Population totale carroyée du CP en V1, remplaçable plus tard par un volume observé (R). B. Population dans la zone. C. Impressions observées dès maintenant. *(Amendement E5 : question inchangée ; elle fixe le « volume attendu » de la formule de Q8 A.)*
+- **Q10 : Arrêter ou poursuivre le ticket A1 en cours avant la réponse à Q1 et Q8 ?** A. Commit WIP sur branche dédiée, reprise après la réponse à Q1 (R) ~~A. Le geler jusqu'aux réponses, puis le reprendre (R).~~ *(Amendement E6 : l'option A est **déjà appliquée** le 31/10 : A1 est commité en WIP sur la branche `wip/A1-plan-cp` (commits `3d487d55` et `e5038093`, ce dernier portant le script de rollback local de `sql/302`), le rollback local de `sql/302` est appliqué et la branche de travail est revenue à son état commité, propre. Depuis E5, A1 ne dépend plus que de Q1.)* B. Le terminer tel quel. C. L'abandonner.
+- **Q11 : Plage du mécanisme de poids DV360 « multiplicateur » (0,1 à 10, non confirmée).** ~~Q11 : Plage de multiplicateur DV360 (0,1 à 10, non confirmée).~~ A. La garder marquée « à vérifier » dans le registre du mécanisme et la faire confirmer par dentsu (R) ~~A. La garder marquée « à vérifier » et la faire confirmer par dentsu (R).~~ B. Revenir aux bornes techniques 0,001 / 999,999 jusqu'à confirmation. *(Amendement E2 : la plage appartient au mécanisme de poids, pas à la plateforme.)*
+- **Q12 : Groupes de CP indiscernables (A2) : diviser le multiplicateur par le nombre de membres ?** A. Oui par défaut, avec un paramètre par plateforme « division » ou « même valeur », à confirmer dans un compte (R). B. Même valeur pour tous les membres partout. C. Division partout, sans paramètre.
 
 **Découpage (⑤)**
 
-- **Q13 — Comparaison au seuil (B11).** A. Part non arrondie ; à seuil 0, part > 0 exigée (R). B. Garder la comparaison sur la part arrondie.
-- **Q14 — Un plan par plateforme (B12).** A. Oui, chaque plateforme à son propre seuil (R). B. Un plan unique au seuil le plus bas.
-- **Q15 — Population d'un cercle (A6).** A. Celle du disque, bilan sur l'union dédoublonnée (R). B. Celle de la cellule, en le disant.
-- **Q16 — Cercle d'un rayon en frontière (A3).** A. Non exact si moins de 100 % de la surface est retenue, perte et avertissement (R). B. Exact quand même, avertissement seul.
-- **Q17 — Polygone lourd (A7).** A. Simplification à 50 m puis contrôle contre le registre, refus chiffré au-delà (R). B. Refus sans simplification. C. Aucun contrôle (état actuel).
-- **Q18 — Rayon par défaut des cercles (B10).** A. Rayon de la recette, sinon √(surface / π) / 3 borné, avec proposition du plus petit rayon qui passe (R). B. 10 km fixe (état actuel).
-- **Q19 — Départage par la poussée branchée (B16), si Q7 = A.** A. Oui, à ±5 points de taux utile (R). B. Affiché seulement, sans effet sur le défaut.
-- **Q20 — Minimums de population (B13).** A. Deux paramètres (par unité, par groupe), chacun avec son comportement, lus du registre (R). B. Garder le paramètre unique actuel.
-- **Q21 — Exactitude par composition (B15).** A. Fondée sur les unités constitutives enregistrées dans la recette (R). B. Fondée sur le type de recette (état actuel).
-- **Q22 — Revue finale et preuve navigateur de ⑤ (T6).** A. Les faire avant le lot 1 des corrections, sur l'état commité, A1 mis de côté (R) ~~A. Les faire avant le lot 1 des corrections, sur l'état actuel (R).~~ *(Amendement E6.)* B. Les faire après les trois lots, une seule fois.
-- **Q23 — Catégories d'annonces spéciales Meta (C29).** A. Case sur le jeu de zone et borne conditionnelle (≥ 15 km) dans le registre (R). B. Note seulement (état actuel).
+- **Q13 : Comparaison au seuil (B11).** A. Part non arrondie ; à seuil 0, part > 0 exigée (R). B. Garder la comparaison sur la part arrondie.
+- **Q14 : Un plan par plateforme (B12).** A. Oui, chaque plateforme à son propre seuil (R). B. Un plan unique au seuil le plus bas.
+- **Q15 : Population d'un cercle (A6).** A. Celle du disque, bilan sur l'union dédoublonnée (R). B. Celle de la cellule, en le disant.
+- **Q16 : Cercle d'un rayon en frontière (A3).** A. Non exact si moins de 100 % de la surface est retenue, perte et avertissement (R). B. Exact quand même, avertissement seul.
+- **Q17 : Polygone lourd (A7).** A. Simplification à 50 m puis contrôle contre le registre, refus chiffré au-delà (R). B. Refus sans simplification. C. Aucun contrôle (état actuel).
+- **Q18 : Rayon par défaut des cercles (B10).** A. Rayon de la recette, sinon √(surface / π) / 3 borné, avec proposition du plus petit rayon qui passe (R). B. 10 km fixe (état actuel).
+- **Q19 : Départage par la poussée branchée (B16), si Q7 = A.** A. Oui, à ±5 points de taux utile (R). B. Affiché seulement, sans effet sur le défaut.
+- **Q20 : Minimums de population (B13).** A. Deux paramètres (par unité, par groupe), chacun avec son comportement, lus du registre (R). B. Garder le paramètre unique actuel.
+- **Q21 : Exactitude par composition (B15).** A. Fondée sur les unités constitutives enregistrées dans la recette (R). B. Fondée sur le type de recette (état actuel).
+- **Q22 : Revue finale et preuve navigateur de ⑤ (T6).** A. Les faire avant le lot 1 des corrections, sur l'état commité, A1 mis de côté (R) ~~A. Les faire avant le lot 1 des corrections, sur l'état actuel (R).~~ *(Amendement E6.)* B. Les faire après les trois lots, une seule fois.
+- **Q23 : Catégories d'annonces spéciales Meta (C29).** A. Case sur le jeu de zone et borne conditionnelle (≥ 15 km) dans le registre (R). B. Note seulement (état actuel).
 
 **Zones (③)**
 
-- **Q24 — Différence avec une zone nationale (C21).** A. Autoriser « zone nationale moins zones locales », la nationale en premier opérande seulement (R). B. Garder le refus.
-- **Q25 — Intersection (C20).** A. 2 à 20 zones, comme l'union et la différence (R). B. Exactement 2 (état actuel).
+- **Q24 : Différence avec une zone nationale (C21).** A. Autoriser « zone nationale moins zones locales », la nationale en premier opérande seulement (R). B. Garder le refus.
+- **Q25 : Intersection (C20).** A. 2 à 20 zones, comme l'union et la différence (R). B. Exactement 2 (état actuel).
 
 **Analyse (④)**
 
-- **Q26 — Journal de la bataille après un changement de zone.** A. Le vider (R). B. Le garder comme trace.
-- **Q27 — Boutons de la bataille en capitales.** A. Sentence case dans les deux interfaces (R). B. Capitales gardées par parité avec React.
-- **Q28 — « Script bidding DV360 » affiché sur un lien partagé de zone.** A. Le retirer, le custom bidding étant hors V1 (R). B. Le garder.
+- **Q26 : Journal de la bataille après un changement de zone.** A. Le vider (R). B. Le garder comme trace.
+- **Q27 : Boutons de la bataille en capitales.** A. Sentence case dans les deux interfaces (R). B. Capitales gardées par parité avec React.
+- **Q28 : « Script bidding DV360 » affiché sur un lien partagé de zone.** A. Le retirer, le custom bidding étant hors V1 (R). B. Le garder.
 
 **Répartition des rôles**
 
-- **Q29 — Reclassement des tickets.** A. Accepter : A7, B14, B16, C27, C29 à nous (valeurs à confirmer par dentsu), C28 seul à dentsu (R). B. Revenir au tri initial (A7, B14, B16, C27, C28, C29 à dentsu).
+- **Q29 : Reclassement des tickets.** A. Accepter : A7, B14, B16, C27, C29 à nous (valeurs à confirmer par dentsu), C28 seul à dentsu (R). B. Revenir au tri initial (A7, B14, B16, C27, C28, C29 à dentsu).
 
 **Noyau d'optimisation**
 
-- **Q30 — Formule de correction unique.** A. Spécification v2 amortie (reste à livrer, fenêtre glissante, département puis CP) (R). B. Rebid plafonné ±50 %. C. Recalage amorti actuel sans fenêtre ni hiérarchie.
-- **Q31 — Sort des deux formules actuelles.** A. Réexportées depuis le noyau, puis supprimées après validation ; l'ancienne gardée sous un drapeau pour comparaison (R). B. Gardées en parallèle.
-- **Q32 — Constantes α = 0,8, k = 200, fenêtre 7 jours (minimum 3), bornes de correction 1/3 à 3, convention de normalisation (moyenne arithmétique non pondérée, avant écrêtage).** ~~Q32 — Constantes α = 0,8, k = 200, fenêtre 7 jours (minimum 3), bornes de correction 1/3 à 3.~~ *(Amendements E4 et E10 : la convention fixe la dérive du coût moyen après correction.)* A. Valeurs de la spécification comme défauts, réglables par campagne (R). B. Constantes figées dans le code.
-- **Q33 — Bornes des poids dans le noyau.** A. Plage du mécanisme lue dans le registre, bornes techniques si inconnue (R) ~~A. Plage de la plateforme lue dans le registre, bornes techniques si inconnue (R).~~ B. 0,001 / 999,999 partout. *(Amendement E2.)*
-- **Q34 — Dilution ×0,6 (spécification § 4) avec Q1 = A.** A. Retirée : la restriction aux CP retenus la remplace (R). B. Gardée pour les seuils inférieurs à 20 %. C. Gardée telle que la spécification l'écrit.
-- **Q35 — Historique des cycles.** A. Une table de cycles (entrée, sortie, statut par cycle) écrite par la couche serveur, le noyau restant pur (R). B. Pas d'historique en V1.
-- **Q36 — Paliers du script de custom bidding.** A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu ; paliers et nb_max_entrees lus dans le registre du mécanisme (R) ~~A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu (R).~~ *(Amendement E2.)* B. Quantiles par rang (état actuel). C. Hors V1, rien dans le noyau.
+- **Q30 : Formule de correction unique.** A. Spécification v2 amortie (reste à livrer, fenêtre glissante, département puis CP) (R). B. Rebid plafonné ±50 %. C. Recalage amorti actuel sans fenêtre ni hiérarchie.
+- **Q31 : Sort des deux formules actuelles.** A. Réexportées depuis le noyau, puis supprimées après validation ; l'ancienne gardée sous un drapeau pour comparaison (R). B. Gardées en parallèle.
+- **Q32 : Constantes α = 0,8, k = 200, fenêtre 7 jours (minimum 3), bornes de correction 1/3 à 3, convention de normalisation (moyenne arithmétique non pondérée, avant écrêtage).** ~~Q32 : Constantes α = 0,8, k = 200, fenêtre 7 jours (minimum 3), bornes de correction 1/3 à 3.~~ *(Amendements E4 et E10 : la convention fixe la dérive du coût moyen après correction.)* A. Valeurs de la spécification comme défauts, réglables par campagne (R). B. Constantes figées dans le code.
+- **Q33 : Bornes des poids dans le noyau.** A. Plage du mécanisme lue dans le registre, bornes techniques si inconnue (R) ~~A. Plage de la plateforme lue dans le registre, bornes techniques si inconnue (R).~~ B. 0,001 / 999,999 partout. *(Amendement E2.)*
+- **Q34 : Dilution ×0,6 (spécification § 4) avec Q1 = A.** A. Retirée : la restriction aux CP retenus la remplace (R). B. Gardée pour les seuils inférieurs à 20 %. C. Gardée telle que la spécification l'écrit.
+- **Q35 : Historique des cycles.** A. Une table de cycles (entrée, sortie, statut par cycle) écrite par la couche serveur, le noyau restant pur (R). B. Pas d'historique en V1.
+- **Q36 : Paliers du script de custom bidding.** A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu ; paliers et nb_max_entrees lus dans le registre du mécanisme (R) ~~A. Paliers par valeur et score médian (spécification v2), dans le noyau, l'envoi restant à dentsu (R).~~ *(Amendement E2.)* B. Quantiles par rang (état actuel). C. Hors V1, rien dans le noyau.
 
 **Propositions complémentaires**
 
-- **Q37 — Calculs de fond (seuils sur la métropole).** A. Après ⑧, comme décidé le 27/10 (R). B. Avant la fin des corrections du découpage.
-- **Q38 — (a) Calibration sur les impressions livrées.** A. Option C du § 4.1 : volume attendu paramétrable, population en V1, calibration avec les données datées des adaptateurs (R). B. Calibrer tout de suite sur la campagne Adform. C. Rien.
-- **Q39 — (b) Zones de référence.** A. Cinq zones plus la zone composite, construites avant le lot 1 sur l'état commité, A1 mis de côté ; attendus versionnés par ticket (R) ~~A. Cinq zones plus la zone composite, construites avant le lot 1 (R).~~ *(Amendement E6.)* B. Cinq zones seulement. C. Rien.
-- **Q40 — (c) Seuil optimal.** A. Courbe et seuil proposé à 80 % de couverture, sans application automatique, après le lot 2 (R). B. Courbe seule. C. Application automatique. D. Rien.
-- **Q41 — (d) Population présente.** A. Étude de faisabilité après la V1 (R). B. Cible complète maintenant. C. Rien.
+- **Q37 : Calculs de fond (seuils sur la métropole).** A. Après ⑧, comme décidé le 27/10 (R). B. Avant la fin des corrections du découpage.
+- **Q38 : (a) Calibration sur les impressions livrées.** A. Option C du § 4.1 : volume attendu paramétrable, population en V1, calibration avec les données datées des adaptateurs (R). B. Calibrer tout de suite sur la campagne Adform. C. Rien.
+- **Q39 : (b) Zones de référence.** A. Cinq zones plus la zone composite, construites avant le lot 1 sur l'état commité, A1 mis de côté ; attendus versionnés par ticket (R) ~~A. Cinq zones plus la zone composite, construites avant le lot 1 (R).~~ *(Amendement E6.)* B. Cinq zones seulement. C. Rien.
+- **Q40 : (c) Seuil optimal.** A. Courbe et seuil proposé à 80 % de couverture, sans application automatique, après le lot 2 (R). B. Courbe seule. C. Application automatique. D. Rien.
+- **Q41 : (d) Population présente.** A. Étude de faisabilité après la V1 (R). B. Cible complète maintenant. C. Rien.
 
 ---
 
