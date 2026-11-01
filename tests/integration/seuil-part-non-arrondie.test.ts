@@ -22,12 +22,15 @@ describe('couverture_geometrie — part_brute à côté de part (sql/303)', () =
       with l as (select e from jsonb_array_elements(
                    public.couverture_geometrie('${COMPOSITE}', '${ORG}', 'ind', 'cp')->'lignes') e)
       select count(*) || '|' ||
+             count(*) filter (where e->>'part' is null) || '|' ||
              count(*) filter (where not e ? 'part_brute') || '|' ||
              count(*) filter (where round((e->>'part_brute')::numeric, 1) is distinct from (e->>'part')::numeric) || '|' ||
              coalesce(string_agg(e->>'code', ',' order by e->>'code')
                         filter (where (e->>'part')::numeric >= 20 and (e->>'part_brute')::numeric < 20), '')
         from l;`);
-    expect(r).toBe('895|0|0|06130,57230,79180');
+    // A4 (sql/308-309) : 901 lignes CP = 895 de population connue + 6 de 971/973 à population inconnue (part NULLE, ligne
+    // distincte). Les 895 connues portent toutes part_brute et passent le contrôle d'arrondi ; l'écart de lecture reste les trois CP.
+    expect(r).toBe('901|6|0|0|06130,57230,79180');
   }, LONG);
 });
 

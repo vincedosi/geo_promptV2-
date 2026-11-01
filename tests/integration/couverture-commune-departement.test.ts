@@ -4,8 +4,8 @@
  * même cache.
  *
  * Ce que ce fichier prouve :
- *   - la composite de 13 000 km² (copiée dans un espace de test) rend ≈ 1 410 communes et 91 départements (mesure M3 du
- *     plan) ; chaque découpage est une PARTITION de la forme ; aucune part > 100 % ;
+ *   - la composite de 13 000 km² (copiée dans un espace de test) rend ≈ 1 410 communes et 91 départements de population connue (mesure M3 du
+ *     plan), plus les unités à population inconnue de 971/973 (A4 : 6 communes, 2 départements) ; chaque découpage est une PARTITION de la forme ; aucune part > 100 % ;
  *   - une zone couvrant Paris rend ses ARRONDISSEMENTS (751xx), jamais la commune 75056 : c'est la maille de
  *     `carreau_couverture.code_commune` (Q-B du plan : TikTok les accepte-t-il ? « À vérifier »);
  *   - deux appels `commune` : le second est servi du cache ;
@@ -26,6 +26,7 @@ const COMPOSITE = '919ca65d-665a-43f6-834e-ea9f2eb68c72';
 
 interface Ligne { code: string; nom: string | null; commune: string | null; pop_en_zone: number; pop_totale: number | null; part: number | null }
 interface Resultat {
+  n_inconnues?: number;
   refus?: string; motif?: string; cache?: boolean; decoupage: string; population: number; n_carreaux: number;
   lignes: Ligne[]; hors_territoire: { n_carreaux: number; population: number }; n_territoires: number;
 }
@@ -39,15 +40,27 @@ async function couverture(zone: string, decoupage: string): Promise<Resultat> {
   return data as Resultat;
 }
 
-/** Somme des lignes + hors territoire = population de la forme (arrondis : 0,5 par ligne au plus) ; parts ≤ 100. */
+/**
+ * Somme des lignes + hors territoire = population de la forme (arrondis : 0,5 par ligne au plus) ; parts ≤ 100.
+ * A4 (sql/308-309) : une unité à population INCONNUE (971 et 973 : territoires non carroyés, d'où leurs communes) est une
+ * ligne DISTINCTE — population, effectif en zone et part NULS, jamais 0 —, comptée à part dans `n_inconnues`. Elle ne
+ * pèse pas dans la somme ; les assertions sur les lignes connues restent entières.
+ */
 function verifierPartition(r: Resultat, forme: Resultat) {
   expect(r.refus).toBeUndefined();
-  const somme = r.lignes.reduce((s, l) => s + l.pop_en_zone, 0) + r.hors_territoire.population;
+  const connues = r.lignes.filter((l) => l.pop_totale !== null);
+  const inconnues = r.lignes.filter((l) => l.pop_totale === null);
+  expect(r.n_inconnues).toBe(inconnues.length);
+  for (const l of inconnues) {
+    expect(l.pop_en_zone, l.code).toBeNull();
+    expect(l.part, l.code).toBeNull();
+    expect(l.code, l.code).toMatch(/^97[13]/);
+  }
+  const somme = connues.reduce((s, l) => s + l.pop_en_zone, 0) + r.hors_territoire.population;
   expect(Math.abs(somme - forme.population)).toBeLessThanOrEqual(0.5 * (r.lignes.length + 1) + 0.5);
   expect(r.population).toBe(forme.population);
   expect(r.n_territoires).toBe(r.lignes.length);
-  for (const l of r.lignes) {
-    expect(l.pop_totale, l.code).not.toBeNull();
+  for (const l of connues) {
     expect(l.part!, l.code).toBeLessThanOrEqual(100);
     // Un territoire à peine effleuré (un carreau sur 50 000 habitants) arrondit sa part à 0,0 : jamais négative.
     expect(l.part!, l.code).toBeGreaterThanOrEqual(0);
@@ -79,16 +92,23 @@ describe('couverture_geometrie par commune et par département — composite 13 
     const forme = await couverture(zones.composite, 'forme');
     const r = await couverture(zones.composite, 'commune');
     expect(r.decoupage).toBe('commune');
-    expect(Math.abs(r.n_territoires - 1410)).toBeLessThanOrEqual(15);
+    // ≈ 1 410 communes de population connue + 6 communes de 971/973 à population inconnue (A4), lignes distinctes.
+    const connues = r.lignes.filter((l) => l.pop_totale !== null);
+    expect(Math.abs(connues.length - 1410)).toBeLessThanOrEqual(15);
+    expect(r.n_territoires).toBe(connues.length + 6);
+    expect(r.n_inconnues).toBe(6);
     verifierPartition(r, forme);
     expect(r.lignes.filter((l) => l.nom !== null).length).toBeGreaterThan(r.lignes.length * 0.95);
     expect(r.lignes.every((l) => /^[0-9][0-9AB][0-9]{3}$/.test(l.code))).toBe(true);
   }, LONG);
 
-  it('département : 91 départements, partition exacte, nommés', async () => {
+  it('département : 91 départements de population connue + 971 et 973 à population inconnue (A4), nommés', async () => {
     const forme = await couverture(zones.composite, 'forme');
     const r = await couverture(zones.composite, 'departement');
-    expect(r.n_territoires).toBe(91);
+    expect(r.n_territoires).toBe(93);
+    expect(r.lignes.filter((l) => l.pop_totale !== null)).toHaveLength(91);
+    expect(r.lignes.filter((l) => l.pop_totale === null).map((l) => l.code).sort()).toEqual(['971', '973']);
+    expect(r.n_inconnues).toBe(2);
     verifierPartition(r, forme);
     expect(r.lignes.every((l) => l.nom !== null && l.commune === null)).toBe(true);
   }, LONG);
