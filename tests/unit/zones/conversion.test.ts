@@ -18,6 +18,7 @@ import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type MesureSimplification,
 } from '@/lib/zones/polygone-extraction';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
+import { avertissementsRayon } from '@/lib/zones/conversion-rayon';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { Recette } from '@/lib/zones/recette';
@@ -337,6 +338,45 @@ describe('A3 — le cercle d’un rayon autour d’un point n’est exact que si
   });
 });
 
+describe('B8 (ARB-5) — le rayon de la recette hors des bornes de la plateforme : ajusté, dit, non exact', () => {
+  // Bornes de test (jamais celles de la seed, lues en base) : la forme de DV360 (minimum seul) et de Meta (min et max).
+  const dv360 = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1_000 } });
+  const meta = ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 1_000, rayon_max_m: 80_000 } });
+  const point = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m, part_retenue: 1 });
+  it('recette 500 m sur DV360 → cercles de 1 km, avertissement avant/après, maille non exacte', () => {
+    expect(avertissementsRayon(point(500), 'cercle', dv360, 1_000)).toEqual([
+      { code: 'rayon_min', limite: 1_000, valeur: 500, rayon_m: 1_000, plateforme: 'dv360' },
+    ]);
+    expect(exactitude(point(500), 'cercle', dv360, 1_000)).toBe('calculee');
+    // Sans rayon choisi : la borne (le défaut de l'écran, `rayonParDefaut`).
+    expect(avertissementsRayon(point(500), 'cercle', dv360)[0].rayon_m).toBe(1_000);
+  });
+  it('au-dessus du maximum : rayon_max ; un rayon choisi autre que la borne est dit tel quel', () => {
+    expect(avertissementsRayon(point(100_000), 'cercle', meta, 80_000)).toEqual([
+      { code: 'rayon_max', limite: 80_000, valeur: 100_000, rayon_m: 80_000, plateforme: 'meta' },
+    ]);
+    expect(avertissementsRayon(point(500), 'cercle', meta, 3_000)[0]).toMatchObject({ code: 'rayon_min', valeur: 500, rayon_m: 3_000 });
+  });
+  it('« à vérifier » porté par le PARAMÈTRE de la borne (E9), pas par la ligne', () => {
+    const douteux = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1_000 }, parametres_a_verifier: ['rayon_min_m'] });
+    expect(avertissementsRayon(point(500), 'cercle', douteux, 1_000)[0].a_verifier).toBe(true);
+    const autre = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1_000 }, parametres_a_verifier: ['rayon_max_m'] });
+    expect(avertissementsRayon(point(500), 'cercle', autre, 1_000)[0].a_verifier).toBeUndefined();
+  });
+  it('un rayon autour des POI hors des bornes se dit aussi', () => {
+    expect(avertissementsRayon({ ...RECETTES.rayon_poi, rayon_m: 300 } as Recette, 'cercle', dv360, 1_000)[0])
+      .toMatchObject({ code: 'rayon_min', valeur: 300, rayon_m: 1_000 });
+  });
+  it('rien dans les bornes, sans borne connue, hors cercle, sans recette à rayon, sans ligne', () => {
+    expect(avertissementsRayon(point(1_000), 'cercle', dv360, 1_000)).toEqual([]);
+    expect(avertissementsRayon(point(500), 'cercle', ligne({ plateforme: 'ttd', maille: 'cercle' }), 500)).toEqual([]);
+    expect(avertissementsRayon(point(500), 'cp', dv360)).toEqual([]);
+    expect(avertissementsRayon(RECETTES.dessin, 'cercle', dv360, 1_000)).toEqual([]);
+    expect(avertissementsRayon(null, 'cercle', dv360, 1_000)).toEqual([]);
+    expect(avertissementsRayon(point(500), 'cercle', undefined, 1_000)).toEqual([]);
+  });
+});
+
 describe('mailleParDefaut (A-4)', () => {
   const lignes: PlateformeGeo[] = [
     ligne({ plateforme: 'dv360', maille: 'cp' }),
@@ -543,7 +583,7 @@ describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
   // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
-  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/polygone-extraction.ts']
+  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/polygone-extraction.ts']
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);

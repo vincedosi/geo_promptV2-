@@ -7,9 +7,8 @@
  * MÊME fonction, copiée côté Angular en T9 sous un test de parité (A-5). D'où les contraintes de ce fichier : aucun
  * import autre que des TYPES (ni Zod, ni Node, ni Next), des entrées et sorties en objets simples.
  *
- * Aucune limite de plateforme n'est écrite ici (nombre de cercles, bornes de rayon, nombre de lieux…) : elles se LISENT dans la ligne de
- * `plateformes_geo` passée en argument (§ 16.2-3) ; un test le verrouille par grep. Les refus de `paver_cercles`
- * ont leurs messages français ici (`MESSAGES_CONVERSION`, T8) ; les avertissements restent des codes, que l'écran dit.
+ * Aucune limite de plateforme n'est écrite ici : elles se LISENT dans la ligne de `plateformes_geo` passée en argument
+ * (§ 16.2-3), un test le verrouille. Refus de `paver_cercles` : messages français ici (`MESSAGES_CONVERSION`) ; avertissements : codes.
  */
 import type { LigneCouverture } from './couverture';
 import type { PlateformeGeo } from './plateformes';
@@ -96,14 +95,18 @@ export type Resume = ResumeMaille | ResumeExact;
  * Depuis A7, `perte_simplification` (`avertissementSimplification`, `polygone-extraction.ts`) : la forme envoyée en maille polygone a été
  * simplifiée — `valeur` la part de la population de la zone hors de la forme simplifiée (en %), `limite` le seuil
  * d'affichage lu en base, `n` les habitants perdus.
+ * Depuis B8, `rayon_min` / `rayon_max` : le rayon de la recette hors des bornes de la plateforme (`conversion-rayon.ts`).
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {
   code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees' | 'disque_hors_france'
-    | 'perte_simplification';
+    | 'perte_simplification' | 'rayon_min' | 'rayon_max';
   limite: number;
   valeur: number;
   n?: number;
+  /** B8 : le rayon des cercles achetés (l'après) et la plateforme dont la borne est franchie. */
+  rayon_m?: number;
+  plateforme?: Plateforme;
   /** `nb_max_entrees` : le mécanisme qui porte la limite (`script`…). */
   mecanisme?: string;
   a_verifier?: true;
@@ -186,7 +189,7 @@ export function resumeExact(population: number, surface_km2: number, n_unites = 
 }
 
 /** Le rayon est-il dans les bornes de la plateforme ? Une borne absente ne borne pas. */
-function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
+export function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
   const { rayon_min_m, rayon_max_m } = ligne?.limites ?? {};
   return (rayon_min_m === undefined || rayon_m >= rayon_min_m) && (rayon_max_m === undefined || rayon_m <= rayon_max_m);
 }

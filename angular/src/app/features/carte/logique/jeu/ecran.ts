@@ -79,6 +79,18 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
       + `${formaterNombre(Math.round((a.limite - a.valeur) * 10) / 10)} % en mer ou à l’étranger, achetés par la plateforme sans être comptés. `
       + 'Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.';
   }
+  if (a.code === 'rayon_min' || a.code === 'rayon_max') {
+    // B8 (ARB-5) : le rayon de la recette hors des bornes de la plateforme — avant, après, la borne ; la recette, elle,
+    // n'est pas modifiée. Un rayon choisi autre que la borne se dit aussi (« sous le minimum… : cercles de 3 km »).
+    const extreme = a.code === 'rayon_min' ? 'minimum' : 'maximum';
+    const qui = `${extreme} ${a.plateforme ? NOM_PLATEFORME[a.plateforme] : 'de la plateforme'}`;
+    const apres = a.rayon_m ?? a.limite;
+    const suite = 'maille non exacte, perte calculée.';
+    return apres === a.limite
+      ? `Rayon ajusté de ${distance(a.valeur)} à ${distance(apres)} (${qui}${a.a_verifier ? ', à vérifier' : ''}) : ${suite}`
+      : `Rayon de la recette (${distance(a.valeur)}) hors des bornes : ${qui} ${distance(a.limite)}${a.a_verifier ? ' (à vérifier)' : ''}, `
+        + `cercles de ${distance(apres)} : ${suite}`;
+  }
   if (a.code === 'perte_simplification') {
     // A7 : la forme envoyée en maille polygone a été simplifiée ; la part de la zone hors de la forme envoyée, et son seuil.
     return `Polygone simplifié avant l’envoi : ${formaterNombre(a.n ?? 0)} habitants de la zone (${formaterNombre(a.valeur)} %) `
@@ -149,6 +161,11 @@ export const MESSAGE_MOTIF_VIDE: Readonly<Record<NonNullable<ResultatCercles['mo
 
 /** Mètres par kilomètre : la réglette de rayon s'affiche en km, le choix se garde en mètres. */
 export const M_PAR_KM = 1e3;
+
+/** « 500 m », « 1 km », « 2,5 km » : un rayon en mètres, dit dans un avertissement (B8). */
+function distance(m: number): string {
+  return m >= M_PAR_KM ? `${formaterNombre(m / M_PAR_KM)} km` : `${formaterNombre(m)} m`;
+}
 
 /**
  * Les bornes de la réglette de rayon : celles de la ligne de la plateforme ; une borne absente (ligne « à vérifier »

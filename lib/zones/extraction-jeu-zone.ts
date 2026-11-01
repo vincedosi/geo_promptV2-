@@ -42,6 +42,7 @@ import {
   resumePays, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
+import { avertissementsRayon } from './conversion-rayon';
 import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type DepassementPolygone, type MesureSimplification,
 } from './polygone-extraction';
@@ -332,7 +333,10 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
       // A6 : la somme des lignes (disques) figée à côté du bilan (union dédoublonnée) — l'écart, ce sont les chevauchements.
       ...(o.somme_disques !== undefined ? { somme_disques: o.somme_disques } : {}),
       // A3 : un disque de rayon autour d'un point qui déborde du territoire se dit, figé avec le bilan.
-      avertissements: [...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille)],
+      // B8 : le rayon de la recette hors des bornes de la plateforme (avant → après), figé avec le bilan.
+      avertissements: [
+        ...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille), ...avertissementsRayon(ctx.recette, regle.maille, regle, rayon_m),
+      ],
     },
   };
 }

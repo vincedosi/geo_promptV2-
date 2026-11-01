@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
   CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MIN_MENAGES_CARREAUX_DEFAUT, MIN_MENAGES_CARREAUX_MAX, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
-  RAYON_POI_MAX_M, RAYON_POI_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
+  RAYON_POI_MAX_M, RAYON_POI_MIN_M, RAYON_POINT_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, refusPerimetreLocal, CODES_PAYS, type Recette,
 } from '@/lib/zones/recette';
@@ -64,6 +64,10 @@ describe('la recette d’une zone', () => {
     return Number(m![1]);
   }
 
+  it('B8 : le minimum de rayon de recette.ts est le littéral de la migration qui marque les recettes sous ce minimum (sql/314)', () => {
+    expect(litteral(/_rayon_minimum_recette\.sql$/, /v_minimum constant integer := (\d+);/)).toBe(RAYON_POINT_MIN_M);
+  });
+
   it('les plafonds de recette.ts sont les littéraux écrits dans les RPC (sql/254-256)', () => {
     const SURFACE = /resoudre_perimetre\(p_perimetre_type, p_perimetre_code, p_org_id, (\d+),/;
     const POI = /_zone_rayon_poi\.sql$/;
@@ -90,6 +94,21 @@ describe('la recette d’une zone', () => {
     expect(refusPerimetreLocal({ ...lourde, perimetre: null })).toBe('perimetre_absent');
     expect(refusPerimetreLocal({ ...lourde, perimetre: PER })).toBeNull();
     expect(refusPerimetreLocal({ v: 1, type: 'codes_postaux', codes: ['13001'] })).toBeNull();
+  });
+
+  it('B8 (ARB-5) : un rayon autour d’un point sous 250 m ne se calcule plus — refus dit, recette non modifiée, libellé qui le dit', () => {
+    expect(RAYON_POINT_MIN_M).toBe(250);
+    const point = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m });
+    expect(refusPerimetreLocal(point(249))).toBe('rayon_sous_minimum');
+    expect(refusPerimetreLocal(point(100))).toBe('rayon_sous_minimum');
+    expect(refusPerimetreLocal(point(250))).toBeNull();
+    // Un rayon autour des POI garde son minimum (ARB-5 ne vise que le rayon autour d'un point).
+    expect(refusPerimetreLocal({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: PER })).toBeNull();
+    expect(MESSAGES_REFUS.rayon_sous_minimum.replace(/\s/g, ' ')).toBe(
+      'Le rayon autour d’un point est de 250 m au moins depuis le 31/10 (sous ce rayon, le disque est plus petit qu’un carreau de population) : '
+      + 'cette zone, enregistrée avec un rayon plus petit, n’est pas modifiée et ne se recalcule plus ; recréez-la avec un rayon d’au moins 250 m.');
+    expect(libelleRecette(point(100))).toBe('Rayon de 100 m autour d’un point — sous le minimum de 250 m, ne se recalcule plus');
+    expect(libelleRecette(point(250))).toBe('Rayon de 250 m autour d’un point');
   });
 
   it('France métropolitaine (retours du 26/10) : « Autour des POI » passe, les seuils sont différés ; la France entière reste refusée', () => {

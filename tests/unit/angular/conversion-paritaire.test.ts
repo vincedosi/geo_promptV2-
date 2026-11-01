@@ -43,6 +43,8 @@ describe('conversion d’une zone : Angular = serveur', () => {
   });
   it('les deux fichiers sont identiques hors de leur en-tête et de leurs imports', () => {
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion.ts')).toBe(corps('lib/zones/conversion.ts'));
+    // B8 : le rayon hors des bornes d'une plateforme, sorti de `conversion.ts` (plafond de 400 lignes côté Angular).
+    expect(corps('angular/src/app/features/carte/logique/jeu/conversion-rayon.ts')).toBe(corps('lib/zones/conversion-rayon.ts'));
   });
   it('mêmes plateformes, mêmes mailles, dans le même ordre', () => {
     expect([...AP.PLATEFORMES]).toEqual([...SP.PLATEFORMES]);

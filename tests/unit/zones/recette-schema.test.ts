@@ -45,6 +45,13 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     expect(lireRecette(point(RAYON_POINT_MAX_M + 1)).ok).toBe(false);
   });
 
+  it('B8 (ARB-5) : une recette enregistrée sous 250 m (100 m avant le 31/10) se RELIT — le refus est au calcul, pas à la lecture', () => {
+    const point = (rayon_m: number) => ({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m });
+    const lue = lireRecette(point(100));
+    expect(lue.ok && lue.recette.type === 'rayon_point' && lue.recette.rayon_m).toBe(100);
+    expect(lireRecette(point(99)).ok).toBe(false);
+  });
+
   it('A3 : rayon autour d’un point — `part_retenue` (posée par la base, sql/307) admise entre 0 et 1, rien au-delà', () => {
     const point = (part_retenue: unknown) => ({ v: 1, type: 'rayon_point', lon: 7.75, lat: 48.57, rayon_m: 20_000, part_retenue });
     expect(lireRecette(point(1)).ok).toBe(true);

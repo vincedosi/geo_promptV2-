@@ -30,6 +30,7 @@ import { createAdminClient } from '@/lib/auth';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { lireCorps } from '@/lib/api/valider-corps';
 import { rpcJson } from '@/lib/supabase/rpc-json';
+import { RAYON_POINT_MIN_M } from '@/lib/zones/recette';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -40,8 +41,12 @@ export const maxDuration = 30;
  * requête que le budget I/O Nano interdit (CLAUDE.md).
  */
 const RAYON_MAX_M = 100_000;
-/** En deçà, un cercle ne contient aucun code postal entier : la zone serait vide. */
-const RAYON_MIN_M = 100;
+/**
+ * B8 (ARB-5) : le minimum d'une recette « rayon autour d'un point » (250 m, `RAYON_POINT_MIN_M`) — sous ce rayon le
+ * disque est plus petit qu'un carreau de population. Il était de 100 m ; les deux curseurs (React et Angular) partent
+ * de 500 m, aucun ne l'atteignait.
+ */
+const RAYON_MIN_M = RAYON_POINT_MIN_M;
 
 /**
  * Quota, ajoute apres relecture (2026-09-13). Mesure du cout unitaire :

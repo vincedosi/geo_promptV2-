@@ -49,6 +49,14 @@ export const RAYON_POI_MAX_M = 50_000;
 /** Rayon autour d'un point posé à la main : jusqu'à 100 km (le rayon de ③, un seul cercle, sans lecture de table). */
 export const RAYON_POINT_MAX_M = 100_000;
 /**
+ * B8 (ARB-5, Vincent, 31/10) : le rayon MINIMAL d'une nouvelle recette « rayon autour d'un point » — 250 m. Sous ce
+ * rayon, le disque est plus petit qu'un carreau Filosofi (200 m de côté) : sa population ne veut plus rien dire, et
+ * aucune plateforme ne l'achète exactement (DV360 et Meta : 1 km au moins). Une recette déjà enregistrée sous ce
+ * rayon (100 m le permettaient) n'est PAS modifiée : le schéma la relit encore (`RAYON_POI_MIN_M`), sql/314 l'a
+ * comptée et marquée, son libellé le dit et son recalcul est refusé (`rayon_sous_minimum`) — on la recrée.
+ */
+export const RAYON_POINT_MIN_M = 250;
+/**
  * Borne du seuil sur carreaux : la plus grande valeur qu'un indicateur de la liste puisse prendre est la densité
  * (individus / 0,04 km²), qui reste sous 100 000 hab./km² ; une part est sous 100 %.
  */
@@ -158,7 +166,7 @@ export type RefusRecette =
   | 'trop_de_poi' | 'trop_de_carreaux' | 'trop_de_territoires' | 'trop_de_sommets'
   | 'trop_de_poi_metropole' | 'seuil_metropole_differe'
   | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee'
-  | 'operande_pays';
+  | 'operande_pays' | 'rayon_sous_minimum';
 
 export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   perimetre_absent: 'Choisissez un périmètre à l’étape ① avant ce calcul.',
@@ -185,6 +193,9 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture, combinaison ou zone nationale) : elle ne se recalcule pas.',
   operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine pas avec une autre zone : '
     + 'combinez des zones locales, ou analysez la zone nationale telle quelle.',
+  rayon_sous_minimum: `Le rayon autour d’un point est de ${formaterNombre(RAYON_POINT_MIN_M)} m au moins depuis le 31/10 `
+    + '(sous ce rayon, le disque est plus petit qu’un carreau de population) : cette zone, enregistrée avec un rayon plus petit, '
+    + `n’est pas modifiée et ne se recalcule plus ; recréez-la avec un rayon d’au moins ${formaterNombre(RAYON_POINT_MIN_M)} m.`,
 };
 
 export function estRecalculable(r: Recette): boolean {
@@ -206,8 +217,11 @@ export function exigePerimetre(r: Recette): boolean {
  *
  * France métropolitaine (`METRO`, retours du 26/10) : « Autour des POI » se lance (sa capacité est refaite en base,
  * sql/285) ; les deux seuils attendent le calcul en tâche de fond. La France entière (`FR`) reste refusée partout.
+ * B8 (ARB-5) : un rayon autour d'un point sous `RAYON_POINT_MIN_M` est refusé AVANT le périmètre (`rayon_sous_minimum`).
  */
 export function refusPerimetreLocal(r: Recette): RefusRecette | null {
+  // B8 (ARB-5) : une recette sous le rayon minimal ne se calcule plus (création ou recalcul) ; jamais relevée en silence.
+  if (r.type === 'rayon_point' && r.rayon_m < RAYON_POINT_MIN_M) return 'rayon_sous_minimum';
   if (!exigePerimetre(r) || !('perimetre' in r)) return null;
   if (!r.perimetre) return 'perimetre_absent';
   if (r.perimetre.type === 'france') {
@@ -252,7 +266,7 @@ function minusculeInitiale(s: string): string {
  */
 export function libelleRecette(r: Recette, indicateurs: readonly IndicateurLibelle[] = []): string {
   switch (r.type) {
-    case 'rayon_point': return `Rayon de ${km(r.rayon_m)} autour d’un point`;
+    case 'rayon_point': return `Rayon de ${km(r.rayon_m)} autour d’un point${r.rayon_m < RAYON_POINT_MIN_M ? ` — sous le minimum de ${km(RAYON_POINT_MIN_M)}, ne se recalcule plus` : ''}`;
     case 'rayon_poi': return `Rayon de ${km(r.rayon_m)} autour des POI « ${r.categorie} »`;
     case 'seuil_carreaux': {
       const i = INDICATEURS_SEUIL_CARREAUX.find((x) => x.id === r.indicateur);

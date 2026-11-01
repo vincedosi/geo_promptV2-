@@ -4,6 +4,7 @@ import {
   type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, mailleParDefaut, resumeExact, resumePays, unitesPays,
   verifierLimites,
 } from './conversion';
+import { avertissementsRayon } from './conversion-rayon';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
@@ -184,7 +185,11 @@ export function bilanDe(
     resume = estExacte(c, ligne, recette) ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
   }
   // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.
-  return { resume, avertissements: [...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille)] };
+  // B8 : le rayon de la recette hors des bornes de la plateforme (avant → après, exact → calculé), comme à l'extraction.
+  return {
+    resume,
+    avertissements: [...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille), ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m)],
+  };
 }
 
 /** Une valeur par plateforme choisie et connue du registre ; les `undefined` sont omis. */

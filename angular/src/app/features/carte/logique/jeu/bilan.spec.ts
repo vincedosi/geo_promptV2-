@@ -65,6 +65,24 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     // Une autre maille : ses unités sont françaises, rien à dire.
     expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, strasbourg, couverture('cp', 'v1'))?.avertissements).toEqual([]);
   });
+  it('B8 (ARB-5) : recette 500 m sur DV360 (minimum 1 km) → rayon 1 km, message avant/après, maille non exacte', () => {
+    // Borne de test, de la forme de la ligne DV360 (la vraie se lit dans `plateformes_geo`).
+    const dv360 = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1000 } });
+    const recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 500, part_retenue: 1 } as const;
+    const c = choixDeBase(null, [dv360], recette).dv360!;
+    expect(c).toEqual({ maille: 'cercle', seuil: 20, rayon_m: 1000 });
+    expect(lectureRequise(c, dv360, recette)).toBe('cercles');
+    const b = bilanDe(c, dv360, recette, { ...pavage, rayon_m: 1000 });
+    expect(b?.resume.exacte).toBe(false);
+    expect(b?.avertissements).toEqual([{ code: 'rayon_min', limite: 1000, valeur: 500, rayon_m: 1000, plateforme: 'dv360' }]);
+    expect(texteAvertissement(b!.avertissements[0], 'cercle').replace(/\s/g, ' '))
+      .toBe('Rayon ajusté de 500 m à 1 km (minimum DV360) : maille non exacte, perte calculée.');
+    // Un rayon choisi au-delà de la borne, et une borne « à vérifier » (E9) : dits tels quels.
+    expect(texteAvertissement({ code: 'rayon_min', limite: 1000, valeur: 500, rayon_m: 3000, plateforme: 'dv360', a_verifier: true }, 'cercle').replace(/\s/g, ' '))
+      .toBe('Rayon de la recette (500 m) hors des bornes : minimum DV360 1 km (à vérifier), cercles de 3 km : maille non exacte, perte calculée.');
+    expect(texteAvertissement({ code: 'rayon_max', limite: 80000, valeur: 100000, rayon_m: 80000, plateforme: 'meta' }, 'cercle').replace(/\s/g, ' '))
+      .toBe('Rayon ajusté de 100 km à 80 km (maximum Meta) : maille non exacte, perte calculée.');
+  });
   it('la clé porte la date de mise à jour : une zone recalculée se relit', () => {
     expect(cleCouverture('z', 'm1', 'ind', 'cp')).not.toBe(cleCouverture('z', 'm2', 'ind', 'cp'));
     expect(cleCouverture('z', null, 'ind', 'cp')).toBe('z||ind|cp');
