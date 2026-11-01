@@ -4774,6 +4774,8 @@ export type Database = {
           pays_a_verifier: string[] | null
           plateforme: string
           poids_groupe_cp: string | null
+          polygone_morceaux_max: number | null
+          polygone_sommets_max: number | null
           releve_le: string
         }
         Insert: {
@@ -4791,6 +4793,8 @@ export type Database = {
           pays_a_verifier?: string[] | null
           plateforme: string
           poids_groupe_cp?: string | null
+          polygone_morceaux_max?: number | null
+          polygone_sommets_max?: number | null
           releve_le: string
         }
         Update: {
@@ -4808,6 +4812,8 @@ export type Database = {
           pays_a_verifier?: string[] | null
           plateforme?: string
           poids_groupe_cp?: string | null
+          polygone_morceaux_max?: number | null
+          polygone_sommets_max?: number | null
           releve_le?: string
         }
         Relationships: []
@@ -8445,6 +8451,10 @@ export type Database = {
         Returns: Json
       }
       simulation_entrees: { Args: { p_extraction: string }; Returns: Json }
+      simplification_polygone: {
+        Args: { p_cible?: string; p_org_id: string; p_zone_id: string }
+        Returns: Json
+      }
       sites_exposition: {
         Args: { p_depts?: string[]; p_gravites: string[]; p_natures?: string[] }
         Returns: {

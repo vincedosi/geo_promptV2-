@@ -112,10 +112,10 @@ describe('les règles des plateformes vivent dans plateformes_geo — côté Ang
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);
   it('aucun nombre de la seed en contexte de limite', () => {
-    for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000']) expect(code, n).not.toMatch(enContexte(n));
+    for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000', '20000', '20_000', '2000', '2_000']) expect(code, n).not.toMatch(enContexte(n));
   });
   it('aucune clé de limite reçoit un nombre écrit', () => {
-    expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
+    expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets|polygone_sommets_max|polygone_morceaux_max)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
   });
 });
 

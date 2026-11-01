@@ -14,9 +14,10 @@ export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cer
 /** Les valeurs de `poids_groupe_cp` (sql/304). */
 export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 
-/** Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, sql/304). */
+/** Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, sql/304 ; bornes du polygone, sql/312). */
 export const PARAMETRES_VERIFIABLES = [
   'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
+  'polygone_sommets_max', 'polygone_morceaux_max',
 ] as const;
 
 export type Plateforme = (typeof PLATEFORMES)[number];
@@ -50,4 +51,7 @@ export interface PlateformeGeo {
   poids_groupe_cp?: (typeof POIDS_GROUPE_CP)[number] | null | undefined;
   /** Les paramètres de la ligne non confirmés (sql/304, amendement E9) ; absent ou vide = aucun parmi eux. */
   parametres_a_verifier?: (typeof PARAMETRES_VERIFIABLES)[number][] | undefined;
+  /** Ligne polygone (sql/312, A7) : sommets et morceaux maximaux de la forme envoyée, après simplification ; `null` ou absent = aucune limite connue. */
+  polygone_sommets_max?: number | null | undefined;
+  polygone_morceaux_max?: number | null | undefined;
 }

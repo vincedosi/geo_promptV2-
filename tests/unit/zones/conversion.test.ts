@@ -14,6 +14,7 @@ import {
   NOTE_PAYS_A_VERIFIER, avertissementsDisque, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
   LIBELLE_POPULATION_INCONNUE, resumePays,
 } from '@/lib/zones/conversion';
+import { avertissementSimplification, depassementsPolygone, type MesureSimplification } from '@/lib/zones/polygone-extraction';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
@@ -478,21 +479,64 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
   });
 });
 
+describe('A7 — sommets et morceaux du polygone simplifié, perte de la simplification', () => {
+  // La zone POI à 2 000 disques de 1 km (mesurée le 01/11 en base) : 66 000 sommets, 2 000 morceaux ; simplifiée à 50 m,
+  // 34 000 sommets. À 500 m : 18 000. Les bornes viennent de la ligne, jamais du code.
+  const mesure = (p: Partial<MesureSimplification> = {}): MesureSimplification => ({
+    tolerance_m: 50, simplifiee: true, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000, morceaux: 2_000,
+    perdue: 0, gagnee: 0, seuil_perte_affichee: 0.1, ...p,
+  });
+  const ttd = (p: Partial<PlateformeGeo> = {}) =>
+    ligne({ plateforme: 'ttd', maille: 'polygone', polygone_sommets_max: 20_000, polygone_morceaux_max: 2_000, ...p });
+
+  it('sous les deux bornes après simplification : aucun dépassement (la forme d’avant, 66 000 sommets, ne compte pas)', () => {
+    expect(depassementsPolygone(mesure(), ttd())).toEqual([]);
+  });
+  it('au-dessus : un dépassement par borne, chiffré par la forme SIMPLIFIÉE, « à vérifier » si la ligne le dit', () => {
+    expect(depassementsPolygone(mesure({ sommets: 34_000, morceaux: 2_001 }),
+      ttd({ parametres_a_verifier: ['polygone_sommets_max'] }))).toEqual([
+      { code: 'polygone_sommets_max', limite: 20_000, valeur: 34_000, a_verifier: true },
+      { code: 'polygone_morceaux_max', limite: 2_000, valeur: 2_001 },
+    ]);
+  });
+  it('la borne est atteinte, pas dépassée : admise ; aucune borne connue (NULL ou absente) : rien n’est refusé', () => {
+    expect(depassementsPolygone(mesure({ sommets: 20_000 }), ttd())).toEqual([]);
+    expect(depassementsPolygone(mesure({ sommets: 10 ** 6 }), ttd({ polygone_sommets_max: null, polygone_morceaux_max: null }))).toEqual([]);
+    expect(depassementsPolygone(mesure({ sommets: 10 ** 6 }), ligne({ plateforme: 'ttd', maille: 'polygone' }))).toEqual([]);
+  });
+  it('perte au-delà du seuil de la base : un avertissement, part en % (deux décimales) et habitants perdus', () => {
+    // 1 234 habitants perdus sur 100 000 : 1,23 % > 0,1 %.
+    expect(avertissementSimplification(mesure({ perdue: 1_234, gagnee: 50 }), 100_000)).toEqual([
+      { code: 'perte_simplification', limite: 0.1, valeur: 1.23, n: 1_234 },
+    ]);
+  });
+  it('perte sous le seuil, au seuil, nulle, ou zone sans population : rien n’est affiché', () => {
+    expect(avertissementSimplification(mesure({ perdue: 99 }), 100_000)).toEqual([]);
+    expect(avertissementSimplification(mesure({ perdue: 100 }), 100_000)).toEqual([]);
+    expect(avertissementSimplification(mesure({ perdue: 0 }), 100_000)).toEqual([]);
+    expect(avertissementSimplification(mesure({ perdue: 5 }), 0)).toEqual([]);
+    // Le seuil est LU : à 0, toute perte se dit.
+    expect(avertissementSimplification(mesure({ perdue: 1, seuil_perte_affichee: 0 }), 100_000)).toEqual([
+      { code: 'perte_simplification', limite: 0, valeur: 0, n: 1 },
+    ]);
+  });
+});
+
 describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
   // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
-  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts']
+  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/polygone-extraction.ts']
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);
-  it('aucun nombre de la seed en contexte de limite dans lib/zones/conversion*.ts', () => {
-    for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000']) {
+  it('aucun nombre de la seed en contexte de limite dans lib/zones/conversion*.ts et polygone-extraction.ts', () => {
+    for (const n of ['200', '80000', '80_000', '3000', '3_000', '50000', '50_000', '1000', '1_000', '20000', '20_000', '2000', '2_000']) {
       expect(code, n).not.toMatch(enContexte(n));
     }
   });
   it('aucune clé de limite reçoit un nombre écrit', () => {
-    expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
+    expect(code).not.toMatch(/(max_unites|rayon_min_m|rayon_max_m|pop_min_unite|pop_min_groupe|max_sommets|polygone_sommets_max|polygone_morceaux_max)\s*(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)\s*\d/);
   });
   it('le contrôle mord : une limite écrite en dur serait vue', () => {
     expect('if (n > 200)').toMatch(enContexte('200'));

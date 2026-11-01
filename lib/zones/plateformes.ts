@@ -25,10 +25,12 @@ export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 
 /**
  * Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, fonction
- * `plateformes_geo_parametres_valides`, sql/304) : la règle de poids d'un groupe de CP et les clés de `limites`.
+ * `plateformes_geo_parametres_valides`, sql/304 ; sql/312) : la règle de poids d'un groupe de CP, les clés de
+ * `limites` et les bornes du polygone (A7).
  */
 export const PARAMETRES_VERIFIABLES = [
   'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
+  'polygone_sommets_max', 'polygone_morceaux_max',
 ] as const;
 
 /** Une limite est un entier positif ; absente = aucune limite connue (jamais 0 pour « illimité »). */
@@ -81,6 +83,12 @@ export const PlateformeGeoSchema = z.object({
   poids_groupe_cp: z.enum(POIDS_GROUPE_CP).nullable().optional(),
   /** Les paramètres de la ligne non confirmés (sql/304, amendement E9) ; absent ou vide = aucun parmi eux. */
   parametres_a_verifier: z.array(z.enum(PARAMETRES_VERIFIABLES)).optional(),
+  /**
+   * Ligne polygone (sql/312, A7) : sommets (anneaux compris) et morceaux maximaux de la forme envoyée, APRÈS
+   * simplification. `null` ou absent = aucune limite connue (TTD au 01/11 : 20 000 et 2 000, « à vérifier »).
+   */
+  polygone_sommets_max: z.number().int().positive().nullable().optional(),
+  polygone_morceaux_max: z.number().int().positive().nullable().optional(),
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;

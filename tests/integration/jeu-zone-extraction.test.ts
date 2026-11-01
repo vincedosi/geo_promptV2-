@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
+import { compterSommets } from '@/lib/zones/executer-recette';
 
 const sb = creerClientTest();
 const LONG = 120_000;
@@ -165,6 +166,10 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
     expect(ttd.couverte).toBe(ttd.population);
     expect(ttd.manques).toBe(0);
     expect(resumes.find((p) => p.plateforme === 'meta')?.exacte).toBe(false);
+    // A7 (sql/312) : la forme figée est la forme SIMPLIFIÉE, celle dont l'extraction a compté les sommets.
+    const simplification = (ttd as unknown as { simplification: { sommets: number; sommets_avant: number; morceaux: number } }).simplification;
+    expect(simplification.sommets).toBeLessThanOrEqual(simplification.sommets_avant);
+    expect(compterSommets(x.forme)).toBe(simplification.sommets);
 
     const { data: cps } = await sb.from('zone_set_extraction_cp').select('code_postal, classe, retenu, multiplicateur')
       .eq('extraction_id', extraction);

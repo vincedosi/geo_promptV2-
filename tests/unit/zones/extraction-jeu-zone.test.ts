@@ -230,10 +230,81 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
 
   it('polygone : la population de la zone dans le résumé (exacte, aucune perte, chiffré)', async () => {
     jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], DESSIN, [regle('ttd', 'polygone')]);
+    // A7 : la forme est mesurée avant d'être figée ; rien de simplifié ici.
+    etat.reponses.simplification_polygone = { data: {
+      tolerance_m: 50, simplifiee: false, sommets_avant: 33, morceaux_avant: 1, sommets: 33, morceaux: 1, carreaux_bande: 0,
+      perdue: 0, gagnee: 0, min_menages: 0, seuil_perte_affichee: 0.1,
+    }, error: null };
     expect((await extraire()).status).toBe(201);
     expect(argsCreation().p_resume.plateformes[0])
       .toMatchObject({ exacte: true, n_unites: 1, population: 10_000, couverte: 10_000, surface_km2: 78.5 });
     expect(etat.rpcs.find((r) => r.nom === 'couverture_zone')!.args).toMatchObject({ p_decoupage: 'forme', p_org_id: ORG });
+  });
+});
+
+describe('A7 — polygone : simplifié, sommets et morceaux contrôlés contre le registre, perte figée', () => {
+  /** La ligne TTD au polygone du seed de sql/312 : 20 000 sommets, 2 000 morceaux, toutes deux « à vérifier ». */
+  const ttdPolygone = {
+    ...regle('ttd', 'polygone'), a_verifier: true, polygone_sommets_max: 20_000, polygone_morceaux_max: 2_000,
+    parametres_a_verifier: ['polygone_morceaux_max', 'polygone_sommets_max'],
+  };
+  const POI_2000 = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 500, perimetre: { type: 'departement', code: '31' } };
+  const simplification = (p: Record<string, unknown> = {}) => ({
+    data: {
+      tolerance_m: 50, simplifiee: true, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000, morceaux: 2_000,
+      carreaux_bande: 900, perdue: 400, gagnee: 30, min_menages: 0, seuil_perte_affichee: 0.1, ...p,
+    },
+    error: null,
+  });
+
+  it('zone POI à 2 000 disques : simplifiée sous la borne, la mesure et la perte (4 %) figées dans le résumé', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], POI_2000, [ttdPolygone]);
+    etat.reponses.simplification_polygone = simplification();
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.find((r) => r.nom === 'simplification_polygone')!.args).toEqual({ p_zone_id: ZONE, p_org_id: ORG, p_cible: 'ind' });
+    const r = argsCreation().p_resume.plateformes[0];
+    // La zone reste chiffrée telle quelle (exacte) ; ce que la simplification lui retire est dit à côté.
+    expect(r).toMatchObject({ exacte: true, population: 10_000, couverte: 10_000 });
+    expect(r.simplification).toEqual({
+      tolerance_m: 50, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000, morceaux: 2_000, perdue: 400, gagnee: 30,
+    });
+    expect(r.avertissements).toEqual([{ code: 'perte_simplification', limite: 0.1, valeur: 4, n: 400 }]);
+  });
+
+  it('zone importée à 500 sommets, rien de simplifié : inchangée, aucune perte, aucun avertissement', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], { v: 1, type: 'import' }, [ttdPolygone]);
+    etat.reponses.simplification_polygone = simplification({
+      simplifiee: false, sommets_avant: 500, morceaux_avant: 1, sommets: 500, morceaux: 1, carreaux_bande: 0, perdue: 0, gagnee: 0,
+    });
+    expect((await extraire()).status).toBe(201);
+    const r = argsCreation().p_resume.plateformes[0];
+    expect(r.simplification).toMatchObject({ sommets_avant: 500, sommets: 500, perdue: 0 });
+    expect(r.avertissements).toEqual([]);
+  });
+
+  it('au-dessus de la borne APRÈS simplification : 422 chiffré (obtenu, admis, à vérifier), rien d’écrit', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], POI_2000, [ttdPolygone]);
+    etat.reponses.simplification_polygone = simplification({ sommets: 34_000, morceaux: 2_400 });
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    const corps = await r.json();
+    expect(corps).toMatchObject({
+      refus: 'polygone_trop_lourd', plateforme: 'ttd', tolerance_m: 50,
+      sommets_avant: 66_000, sommets: 34_000, sommets_max: 20_000, morceaux: 2_400, morceaux_max: 2_000,
+    });
+    // `formaterNombre` sépare les milliers par une espace insécable fine : comparée ici comme une espace.
+    expect(corps.error.replace(/\s/g, ' ')).toBe('ttd — Le polygone simplifié à 50 m compte 34 000 sommets pour 20 000 admis par la plateforme '
+      + '(à vérifier) et 2 400 morceaux pour 2 000 admis (à vérifier) : réduisez la zone, ou choisissez une autre maille.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('un refus de la RPC (zone introuvable) : préfixé de la plateforme, même statut, rien d’écrit', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], POI_2000, [ttdPolygone]);
+    etat.reponses.simplification_polygone = { data: { refus: 'zone_introuvable' }, error: null };
+    const r = await extraire();
+    expect(r.status).toBe(404);
+    expect((await r.json()).error).toMatch(/^ttd — /);
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
   });
 });
 

@@ -79,6 +79,11 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
       + `${formaterNombre(Math.round((a.limite - a.valeur) * 10) / 10)} % en mer ou à l’étranger, achetés par la plateforme sans être comptés. `
       + 'Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.';
   }
+  if (a.code === 'perte_simplification') {
+    // A7 : la forme envoyée en maille polygone a été simplifiée ; la part de la zone hors de la forme envoyée, et son seuil.
+    return `Polygone simplifié avant l’envoi : ${formaterNombre(a.n ?? 0)} habitants de la zone (${formaterNombre(a.valeur)} %) `
+      + `sont hors de la forme envoyée (perte dite au-delà de ${formaterNombre(a.limite)} %).`;
+  }
   if (a.code === 'max_unites') {
     return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }

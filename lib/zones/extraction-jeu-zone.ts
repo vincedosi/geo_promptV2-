@@ -42,6 +42,9 @@ import {
   resumePays, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
+import {
+  avertissementSimplification, depassementsPolygone, type DepassementPolygone, type MesureSimplification,
+} from './polygone-extraction';
 import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
@@ -95,6 +98,12 @@ interface ResumePlateforme {
    * dépasse `achetee` (union dédoublonnée) dès que des disques se chevauchent ; absent pour une autre maille.
    */
   somme_disques?: number;
+  /**
+   * A7 (sql/312) : maille polygone — la forme envoyée a été simplifiée (tolérance du réglage) : sommets et morceaux
+   * avant / après, habitants de la zone perdus et habitants hors zone gagnés. La forme figée (`zone_set_extractions.forme`)
+   * est la forme simplifiée ; les chiffres de la zone (`population`, `couverte`…) restent ceux de la zone.
+   */
+  simplification?: Omit<MesureSimplification, 'simplifiee' | 'seuil_perte_affichee'>;
   /**
    * A5 (ARB-4, sql/310) : le minimum de ménages d'un carreau compté dans ces chiffres (0 pour la population totale),
    * figé avec le bilan — changer le réglage ensuite ne change pas ce qu'une extraction a compté.
@@ -199,12 +208,66 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
     unites = [{ plateforme: c.plateforme, maille: 'cercle', lon: r.lon, lat: r.lat, rayon_m: r.rayon_m, ...toute }];
   } else {
-    // Le polygone : une unité sans code, la forme est copiée par la RPC.
+    // Le polygone : une unité sans code ; la RPC fige la forme SIMPLIFIÉE (A7), mesurée et contrôlée ici d'abord.
+    const mesure = await mesurerPolygone(ctx, c.plateforme, regle);
+    if (!mesure.ok) return mesure;
     unites = [{ plateforme: c.plateforme, maille: 'polygone', ...toute }];
+    const bilanPolygone = resumeExact(forme.population, forme.surface_km2, unites.length);
+    const m = mesure.mesure;
+    const simplification = {
+      tolerance_m: m.tolerance_m, sommets_avant: m.sommets_avant, morceaux_avant: m.morceaux_avant, sommets: m.sommets,
+      morceaux: m.morceaux, perdue: m.perdue, gagnee: m.gagnee,
+    };
+    return {
+      ok: true, unites,
+      resume: {
+        ...bilanPolygone, plateforme: c.plateforme, min_menages: forme.min_menages, simplification,
+        avertissements: [...verifierLimites(bilanPolygone, regle), ...avertissementSimplification(m, forme.population)],
+      },
+    };
   }
   const bilan = resumeExact(forme.population, forme.surface_km2, unites.length);
   const aVerifier = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
   return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
+}
+
+/** « 34 000 sommets pour 20 000 admis par la plateforme (à vérifier) » — les nombres viennent de la base et du registre. */
+function texteDepassement(d: DepassementPolygone, premier: boolean): string {
+  const unite = d.code === 'polygone_sommets_max' ? 'sommets' : 'morceaux';
+  return `${formaterNombre(d.valeur)} ${unite} pour ${formaterNombre(d.limite)} admis${premier ? ' par la plateforme' : ''}`
+    + `${d.a_verifier ? ' (à vérifier)' : ''}`;
+}
+
+/**
+ * A7 (sql/312) : la forme de la zone simplifiée par la base (`simplification_polygone`, tolérance du réglage), puis ses
+ * sommets et morceaux contrôlés contre les bornes de la plateforme. Un dépassement REFUSE l'extraction (422
+ * `polygone_trop_lourd`) avec les nombres obtenus et admis — la plateforme rejetterait le fichier. Un refus de la RPC
+ * est préfixé de la plateforme, comme ceux de la couverture.
+ */
+async function mesurerPolygone(
+  ctx: Contexte, plateforme: string, regle: PlateformeGeo,
+): Promise<{ ok: true; mesure: MesureSimplification } | Echec> {
+  const r = await ctx.supabase.rpc('simplification_polygone', {
+    p_zone_id: ctx.jeu.custom_geo_zone_id ?? '', p_org_id: ctx.jeu.org_id, p_cible: ctx.jeu.cible,
+  });
+  const m = rpcJson<MesureSimplification & { refus?: string }>(r.data);
+  if (r.error || !m || m.refus !== undefined || typeof m.sommets !== 'number' || typeof m.morceaux !== 'number') {
+    return refusDe(plateforme, repondreCouverture(r, MESSAGES_REFUS_COUVERTURE, 'zones/extractions polygone', ECHEC));
+  }
+  const depassements = depassementsPolygone(m, regle);
+  if (depassements.length > 0) {
+    const message = `${plateforme} — Le polygone simplifié à ${formaterNombre(m.tolerance_m)} m compte `
+      + `${depassements.map((d, i) => texteDepassement(d, i === 0)).join(' et ')} : réduisez la zone, ou choisissez une autre maille.`;
+    return {
+      ok: false,
+      reponse: NextResponse.json({
+        error: message, refus: 'polygone_trop_lourd', plateforme, tolerance_m: m.tolerance_m,
+        sommets_avant: m.sommets_avant, morceaux_avant: m.morceaux_avant, sommets: m.sommets, morceaux: m.morceaux,
+        sommets_max: regle.polygone_sommets_max ?? null, morceaux_max: regle.polygone_morceaux_max ?? null, depassements,
+      }, { status: 422 }),
+    };
+  }
+  return { ok: true, mesure: m };
 }
 
 /** Une maille territoriale calculée : la couverture du découpage, puis le seuil. */

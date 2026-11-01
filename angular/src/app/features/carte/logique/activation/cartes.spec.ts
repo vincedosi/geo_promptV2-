@@ -165,6 +165,16 @@ describe('cartesActivation — cas aux bords', () => {
     ]);
   });
 
+  it('A7 : la perte de la simplification du polygone, figée dans l’extraction, est dite sur la carte TTD', () => {
+    const c = cartesActivation({
+      canaux: ['ttd'], prevol: prevol('reel'), registre: REGISTRE,
+      extraction: extraction([{ ...RESUMES[3], avertissements: [{ code: 'perte_simplification', limite: 0.1, valeur: 4.25, n: 1234 }] }]),
+    })[0];
+    expect(c.avertissements).toEqual([
+      `Polygone simplifié avant l’envoi : ${(1234).toLocaleString('fr-FR')} habitants de la zone (4,25 %) sont hors de la forme envoyée (perte dite au-delà de 0,1 %).`,
+    ]);
+  });
+
   it('« à vérifier » : lu dans la règle (plateforme, maille) du registre, jamais sur une carte muette (T5)', () => {
     const registre = [ligne('dv360', 'cp', 10), { ...ligne('ttd', 'polygone', 20), a_verifier: true }];
     const c = cartesActivation({ canaux: ['dv360', 'ttd'], extraction: extraction(RESUMES), prevol: prevol('reel'), registre });

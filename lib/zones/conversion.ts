@@ -93,10 +93,14 @@ export type Resume = ResumeMaille | ResumeExact;
  * - `nb_max_entrees` : `valeur` codes envoyés pour `limite` par envoi, découpés en `n` envois.
  * Depuis A3, `disque_hors_france` (`avertissementsDisque`) : le disque d'un rayon autour d'un point déborde du
  * territoire — `limite` 100 (% du disque, avant : le cercle se disait exact), `valeur` la part en France (après).
+ * Depuis A7, `perte_simplification` (`avertissementSimplification`, `polygone-extraction.ts`) : la forme envoyée en maille polygone a été
+ * simplifiée — `valeur` la part de la population de la zone hors de la forme simplifiée (en %), `limite` le seuil
+ * d'affichage lu en base, `n` les habitants perdus.
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {
-  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees' | 'disque_hors_france';
+  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees' | 'disque_hors_france'
+    | 'perte_simplification';
   limite: number;
   valeur: number;
   n?: number;
@@ -352,8 +356,9 @@ export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Pl
  * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités achetées — en CODES au CP
  * (`n_codes`, groupes développés, A1) —, maille exacte comprise :
  * une liste de codes postaux exacte au CP peut dépasser le plafond de la plateforme (relecture T5). `pop_min_groupe`
- * porte sur la diffusion achetée — le palier unique d'A-9. `max_sommets` n'est pas vérifié ici : aucune forme n'est
- * simplifiée par ce module (le polygone part tel que ③ l'a enregistré).
+ * porte sur la diffusion achetée — le palier unique d'A-9. Les sommets et morceaux du polygone ne sont pas vérifiés
+ * ici mais par `depassementsPolygone` (`polygone-extraction.ts`), sur la forme SIMPLIFIÉE que mesure la base à l'extraction (A7) ; la clé
+ * `limites.max_sommets` (sql/274) n'a ni valeur ni lecteur.
  */
 export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertissement[] {
   const { max_unites, pop_min_groupe } = ligne.limites;

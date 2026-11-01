@@ -19,7 +19,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
-const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql']
+// A7 : sql/312 porte la DERNIÈRE définition de `creer_extraction_jeu_zone` (forme simplifiée au polygone) — rejouée
+// après 277-278, l'empreinte (corps de la RPC compris) est celle de la base.
+const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql', '312_polygone_sommets_morceaux.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join(';\n');
 
 /** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local. */
@@ -119,12 +121,15 @@ describe('sql/277-278 — jeux de zone', () => {
     expect(r.stderr).toContain(contrainte);
   });
 
+  // A7 (sql/312) : le jeu a TTD au polygone — la forme figée est la forme SIMPLIFIÉE (2 792 sommets avant).
   it('extraction : forme copiée, unités numérotées dans l’ordre reçu, ordre indifférent à l’empreinte', () => {
     const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
       ${extraire(unites(CERCLES))}
       ${extraire(unites([...CERCLES].reverse()))}
       select count(*) from public.zone_set_extractions where zone_set_id = '${JEU}';
-      select ST_Equals(e.forme, z.geometry) from public.zone_set_extractions e, public.custom_geo_zones z
+      select ST_Equals(e.forme, public.forme_simplifiee(z.geometry, public.reglage_conversion('simplification_polygone_m')))
+             and ST_NPoints(e.forme) < ST_NPoints(z.geometry)
+        from public.zone_set_extractions e, public.custom_geo_zones z
        where e.zone_set_id = '${JEU}' and z.id = '${ZONE}';
       select string_agg(u.plateforme || ':' || u.ordinal || ':' || coalesce(round(ST_X(u.centre)::numeric, 3)::text, '-'),
                         ',' order by u.plateforme, u.ordinal)
