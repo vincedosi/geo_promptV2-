@@ -38,6 +38,16 @@ describe('mg-extractions-jeu', () => {
     expect(texte(el, '[data-version="1"] [data-resume]')).toBe('DV360 : codes postaux 2, 45,0 % · The Trade Desk : polygones 1, exacte');
   });
 
+  it('A7 tour 1 : un polygone simplifié dit sa tolérance, ses sommets, sa perte et son gain hors zone', async () => {
+    const v = { ...version(1), plateformes: [{
+      plateforme: 'ttd', maille: 'polygone', seuil: 20, rayon_m: null, exacte: false, n_unites: 1, taux_utile: 99.7,
+      simplification: { tolerance_m: 25, sommets_avant: 66000, morceaux_avant: 2000, sommets: 18000, morceaux: 2000, perdue: 400, gagnee: 30 },
+    }] };
+    const { el } = await ouvert([v]);
+    expect(texte(el, '[data-version="1"] [data-resume]')?.replace(/\s/g, ' ')).toBe(
+      'The Trade Desk : polygones 1, 99,7 % (simplifié à 25 m : 66 000 → 18 000 sommets, 400 habitants de la zone perdus, 30 hors zone inclus)');
+  });
+
   it('T5 (A-14) : sous chaque version, ses fichiers par plateforme — l’annonce « arrivent avec les exports » a disparu', async () => {
     const { el } = await ouvert([version(2), version(1)]);
     expect(el.textContent).not.toContain('arrivent avec les exports');

@@ -91,6 +91,17 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
 }
 
 /**
+ * A7 (tour 1) : la simplification figée d'un polygone, dite dans la liste des versions de ⑤ — « simplifié à 50 m :
+ * 66 000 → 18 000 sommets, 400 habitants de la zone perdus, 30 hors zone inclus ». `null` sans simplification
+ * (tolérance 0, ou extraction d'avant A7).
+ */
+export function texteSimplification(s: { tolerance_m: number; sommets_avant: number; sommets: number; perdue: number; gagnee: number } | undefined): string | null {
+  if (!s || !(s.tolerance_m > 0)) return null;
+  return `simplifié à ${formaterNombre(s.tolerance_m)} m : ${formaterNombre(s.sommets_avant)} → ${formaterNombre(s.sommets)} sommets, `
+    + `${formaterNombre(s.perdue)} habitants de la zone perdus, ${formaterNombre(s.gagnee)} hors zone inclus`;
+}
+
+/**
  * Le refus `trop_de_cercles` du pavage, CHIFFRÉ (E4, ⑤ finitions T5) : le corps porte `n_cercles` et `plafond`
  * (sql/276), dits par la phrase de l'avertissement `max_unites` — « 481 cercles pour 200 admis par la plateforme :
  * augmentez le rayon ou le seuil. », sans seconde phrase. `null` pour tout autre corps (la phrase du serveur reste).

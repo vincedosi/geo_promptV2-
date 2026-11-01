@@ -9,7 +9,7 @@
  * `plateformes_geo` (`polygone_sommets_max`, `polygone_morceaux_max`) et dans la mesure (seuil d'affichage) ; le grep
  * de `tests/unit/zones/conversion.test.ts` le verrouille.
  */
-import type { Avertissement } from './conversion';
+import type { Avertissement, ResumeMaille } from './conversion';
 import type { PlateformeGeo } from './plateformes';
 
 /**
@@ -18,8 +18,14 @@ import type { PlateformeGeo } from './plateformes';
  * la zone hors de la forme simplifiée (`perdue`) et habitants hors zone dedans (`gagnee`), seuil d'affichage de la perte.
  */
 export interface MesureSimplification {
+  /**
+   * Tour 1 (sql/313) : le palier RETENU — 0 si la forme était déjà sous les bornes (aucune simplification), sinon le
+   * plus fin des paliers de `reglages_conversion` qui la fait passer sous les bornes, ou le plus grossier si aucun.
+   */
   tolerance_m: number;
   simplifiee: boolean;
+  /** Tour 1 : la forme envoyée passe sous les bornes lues par la base (faux = refus). Absent avant sql/313. */
+  sous_bornes?: boolean;
   sommets_avant: number;
   morceaux_avant: number;
   sommets: number;
@@ -65,4 +71,23 @@ export function avertissementSimplification(m: Pick<MesureSimplification, 'perdu
   const part = (100 * m.perdue) / population;
   if (part <= m.seuil_perte_affichee) return [];
   return [{ code: 'perte_simplification', limite: m.seuil_perte_affichee, valeur: Math.round(part * 100) / 100, n: m.perdue }];
+}
+
+/**
+ * Tour 1 (M-1 de la relecture) : le bilan d'un polygone dont la forme envoyée a été SIMPLIFIÉE — ce n'est plus la zone,
+ * donc plus une maille exacte : `manques` = habitants de la zone hors de la forme envoyée (`perdue`), `hors_zone` =
+ * habitants hors zone dedans (`gagnee`), `couverte = population − perdue`, `achetee = couverte + gagnee`, taux d'utile
+ * au dixième (règle de `appliquerSeuil`). `null` si rien n'a changé de côté (forme non simplifiée, ou aucune population
+ * dans la bande) : le bilan exact reste vrai.
+ */
+export function resumePolygoneSimplifie(
+  m: Pick<MesureSimplification, 'simplifiee' | 'perdue' | 'gagnee'>, population: number,
+): ResumeMaille | null {
+  if (!m.simplifiee || m.perdue + m.gagnee <= 0) return null;
+  const couverte = population - m.perdue;
+  const achetee = couverte + m.gagnee;
+  return {
+    exacte: false, n_unites: 1, n_touchees: 1, couverte, achetee, manques: m.perdue, hors_zone: m.gagnee,
+    taux_utile: achetee > 0 ? Math.round((1000 * couverte) / achetee) / 10 : null,
+  };
 }

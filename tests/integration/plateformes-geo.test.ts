@@ -18,7 +18,10 @@ import { unitesPays } from '@/lib/zones/conversion';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.sql'), 'utf8');
-const MIGRATION_PAYS = readFileSync(join(process.cwd(), 'sql', '300_maille_pays.sql'), 'utf8');
+// sql/311 (A6) réécrit le commentaire de `zone_set_extraction_unites.pop_totale` posé par sql/300 : rejouée après elle,
+// l'empreinte est celle de la base (reliquat A6 corrigé au tour 1 d'A7).
+const MIGRATION_PAYS = ['300_maille_pays.sql', '311_cercle_population_disque.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Empreinte du contenu ET des contraintes de la table : un rejeu qui en changerait l'un ou l'autre la changerait. */
 const EMPREINTE = `select md5(

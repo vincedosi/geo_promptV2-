@@ -19,9 +19,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
-// A7 : sql/312 porte la DERNIÈRE définition de `creer_extraction_jeu_zone` (forme simplifiée au polygone) — rejouée
-// après 277-278, l'empreinte (corps de la RPC compris) est celle de la base.
-const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql', '312_polygone_sommets_morceaux.sql']
+// A7 : sql/313 (tour 1) porte la DERNIÈRE définition de `creer_extraction_jeu_zone` (forme simplifiée à la tolérance
+// retenue) — rejouée après 277-278 (et 312, qui crée `forme_simplifiee`), l'empreinte est celle de la base.
+const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql', '312_polygone_sommets_morceaux.sql',
+  '313_polygone_paliers_tolerance.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join(';\n');
 
 /** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local. */
@@ -68,6 +69,10 @@ const unites = (ordre: string[]) => `'[${ordre.join(',')}]'::jsonb`;
 const RESUME = `'{"n_cp":2,"n_retenus":1,"taux_utile":90,"part_plan_en_zone":60,"population_exposee":900,
                   "plateformes":[{"plateforme":"meta","n_unites":2,"n_retenus":1},{"plateforme":"ttd","n_unites":1}]}'::jsonb`;
 const extraire = (u: string, cp = CP) => `select public.creer_extraction_jeu_zone('${JEU}', ${cp}, ${u}, ${RESUME});`;
+
+/** Le même résumé, la plateforme polygone portant la tolérance RETENUE par la mesure (A7 tour 1, sql/313). */
+const resumeTolerance = (t: number) => RESUME.replace('{"plateforme":"ttd","n_unites":1}',
+  `{"plateforme":"ttd","n_unites":1,"simplification":{"tolerance_m":${t}}}`);
 
 describe('sql/277-278 — jeux de zone', () => {
   it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
@@ -121,15 +126,13 @@ describe('sql/277-278 — jeux de zone', () => {
     expect(r.stderr).toContain(contrainte);
   });
 
-  // A7 (sql/312) : le jeu a TTD au polygone — la forme figée est la forme SIMPLIFIÉE (2 792 sommets avant).
+  // A7 tour 1 (sql/313) : sans tolérance dans le résumé (forme sous les bornes), la forme figée est la zone telle quelle.
   it('extraction : forme copiée, unités numérotées dans l’ordre reçu, ordre indifférent à l’empreinte', () => {
     const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
       ${extraire(unites(CERCLES))}
       ${extraire(unites([...CERCLES].reverse()))}
       select count(*) from public.zone_set_extractions where zone_set_id = '${JEU}';
-      select ST_Equals(e.forme, public.forme_simplifiee(z.geometry, public.reglage_conversion('simplification_polygone_m')))
-             and ST_NPoints(e.forme) < ST_NPoints(z.geometry)
-        from public.zone_set_extractions e, public.custom_geo_zones z
+      select ST_Equals(e.forme, z.geometry) from public.zone_set_extractions e, public.custom_geo_zones z
        where e.zone_set_id = '${JEU}' and z.id = '${ZONE}';
       select string_agg(u.plateforme || ':' || u.ordinal || ':' || coalesce(round(ST_X(u.centre)::numeric, 3)::text, '-'),
                         ',' order by u.plateforme, u.ordinal)
@@ -153,6 +156,24 @@ describe('sql/277-278 — jeux de zone', () => {
     expect(cps).toBe('29000:hors:0.800,29200:zone:1.200');
     // Seuil du choix CP, choix lus en base (et non dans le résumé), chiffres du résumé rattachés par plateforme.
     expect(entete).toBe('20|pondere|["dv360", "meta", "ttd"]|1|10000');
+  });
+
+  it('A7 tour 1 : la forme figée est simplifiée à la tolérance du RÉSUMÉ, et cette tolérance entre dans l’empreinte', () => {
+    const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(25)});
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(25)});
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(50)});
+      select string_agg((ST_Equals(e.forme, public.forme_simplifiee(z.geometry, case e.version when 1 then 25 else 50 end))
+                         and ST_NPoints(e.forme) < ST_NPoints(z.geometry))::text, ',' order by e.version)
+        from public.zone_set_extractions e, public.custom_geo_zones z
+       where e.zone_set_id = '${JEU}' and z.id = '${ZONE}';
+      rollback;`);
+    const [a, b, c, formes] = lignes.slice(-4);
+    expect(JSON.parse(a)).toMatchObject({ deja_extraite: false, version: 1 });
+    expect(JSON.parse(b)).toMatchObject({ deja_extraite: true, version: 1 });
+    // Même contenu, autre tolérance : une autre forme, donc une nouvelle version (et non un `deja_extraite`).
+    expect(JSON.parse(c)).toMatchObject({ deja_extraite: false, version: 2 });
+    expect(formes).toBe('true,true');
   });
 
   it('extraction : une unité changée → nouvelle version ; une unité ne se modifie pas', () => {

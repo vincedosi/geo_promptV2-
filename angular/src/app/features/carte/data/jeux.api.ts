@@ -126,6 +126,22 @@ export interface ResumeExtraction {
   avertissements?: Avertissement[];
   /** Maille pays : le ciblage n'est pas confirmé pour la recette figée (« France entière », `paysAVerifier`) ; absent sinon. */
   pays_a_verifier?: true;
+  /**
+   * Maille polygone (A7, sql/312-313) : la forme envoyée — tolérance retenue (0 = non simplifiée), sommets et morceaux
+   * avant / après, habitants de la zone perdus et habitants hors zone gagnés. Absent avant A7.
+   */
+  simplification?: SimplificationPolygone;
+}
+
+/** Ce que l'extraction a figé de la simplification du polygone (A7). */
+export interface SimplificationPolygone {
+  tolerance_m: number;
+  sommets_avant: number;
+  morceaux_avant: number;
+  sommets: number;
+  morceaux: number;
+  perdue: number;
+  gagnee: number;
 }
 
 /** Une ligne de `GET …/extractions` : les colonnes d'une extraction, et pour un jeu de zone son résumé par plateforme. */

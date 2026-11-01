@@ -24,14 +24,20 @@ import { psql, psqlLignes } from './_psql';
 
 const admin = creerClientTest();
 const LONG = 180_000;
-const MIGRATION = readFileSync(join(process.cwd(), 'sql', '312_polygone_sommets_morceaux.sql'), 'utf8');
+// Tour 1 : sql/313 redéfinit forme_simplifiee, simplification_polygone et creer_extraction_jeu_zone — rejouée après 312.
+const MIGRATION = ['312_polygone_sommets_morceaux.sql', '313_polygone_paliers_tolerance.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 let org = '';
 const zones: Record<string, string> = {};
 
 /** 2 000 points sur une grille 40 × 50 au pas de 2,5 km autour de Toulouse, disques géodésiques (règle de zone_rayon_poi, sql/254). */
-const disques = (rayon: number) => `(select ST_AsGeoJSON(ST_Union(ST_Buffer(ST_SetSRID(ST_MakePoint(1.1 + i * 0.031, 43.3 + j * 0.0225), 4326)::geography, ${rayon})::geometry))
-   from generate_series(0, 39) i, generate_series(0, 49) j)`;
+const disques = (rayon: number, extra = '') => `(select ST_AsGeoJSON(ST_Union(g)) from (
+   select ST_Buffer(ST_SetSRID(ST_MakePoint(1.1 + i * 0.031, 43.3 + j * 0.0225), 4326)::geography, ${rayon})::geometry g
+     from generate_series(0, 39) i, generate_series(0, 49) j
+   ${extra}) d)`;
+/** Tour 1 (I-1 b) : un 2 001e disque, isolé au nord de la grille — 2 001 morceaux, un de plus que la borne TTD. */
+const DISQUE_EN_PLUS = `union all select ST_Buffer(ST_SetSRID(ST_MakePoint(1.1, 44.5), 4326)::geography, 500)::geometry`;
 /** Une étoile de 499 sommets distincts (rayons 10 et 9 km en alternance) : chaque sommet s'écarte de ≈ 1 km de ses voisins. */
 const ETOILE = `(select ST_AsGeoJSON(ST_MakePolygon(ST_AddPoint(l, ST_StartPoint(l)))) from (
    select ST_MakeLine(array_agg(ST_Project(ST_SetSRID(ST_MakePoint(1.44, 43.6), 4326)::geography,
@@ -44,8 +50,11 @@ function creerZone(nom: string, recette: string, geojson: string): string {
   return id;
 }
 
-const mesurer = (zone: string, cible = 'ind'): MesureSimplification & { carreaux_bande: number } =>
-  JSON.parse(psql(`select public.simplification_polygone('${zone}', '${org}', '${cible}');`));
+/** La mesure telle que l'extraction la demande : bornes de TTD au polygone, lues par la base (tour 1, sql/313). */
+const mesurer = (zone: string, cible = 'ind'): MesureSimplification & { carreaux_bande: number; sous_bornes: boolean } =>
+  JSON.parse(psql(`select public.simplification_polygone_plateforme('${zone}', '${org}', '${cible}', 'ttd');`));
+const sommetsA = (zone: string, tolerance: number) =>
+  Number(psql(`select ST_NPoints(public.forme_simplifiee(geometry, ${tolerance})) from public.custom_geo_zones where id = '${zone}';`));
 const population = (zone: string): number =>
   Number(psql(`select public.couverture_geometrie('${zone}', '${org}', 'ind', 'forme')->>'population';`));
 /** La ligne TTD au polygone telle que la route la lit (schéma Zod compris). */
@@ -63,6 +72,7 @@ beforeAll(async () => {
   zones.poi500 = creerZone('POI 2 000 x 500 m (A7)', poi, disques(500));
   zones.poi1000 = creerZone('POI 2 000 x 1 km (A7)', poi.replace('500', '1000'), disques(1000));
   zones.etoile = creerZone('Import 500 sommets (A7)', '{"v":1,"type":"import"}', ETOILE);
+  zones.poi2001 = creerZone('POI 2 001 x 500 m (A7)', poi, disques(500, DISQUE_EN_PLUS));
 }, LONG);
 
 afterAll(async () => {
@@ -85,16 +95,23 @@ describe('sql/312 — le registre et les réglages', () => {
     ['une borne sur une ligne CP', `update public.plateformes_geo set polygone_sommets_max = 10 where plateforme = 'ttd' and maille = 'cp'`],
     ['une borne nulle', `update public.plateformes_geo set polygone_morceaux_max = 0 where plateforme = 'ttd' and maille = 'polygone'`],
     ['une tolérance au pas du carreau', `update public.reglages_conversion set valeur = 200 where cle = 'simplification_polygone_m'`],
+    ['un palier au pas du carreau', `update public.reglages_conversion set valeur = 200 where cle = 'simplification_polygone_palier_4'`],
     ['un seuil d’affichage négatif', `update public.reglages_conversion set valeur = -1 where cle = 'perte_simplification_affichee'`],
     ['un paramètre « à vérifier » inconnu', `update public.plateformes_geo set parametres_a_verifier = '{polygone_max}' where plateforme = 'ttd' and maille = 'polygone'`],
   ])('la base refuse %s', (_cas, ordre) => {
     expect(() => psql(`begin;\n${ordre};\nrollback;`)).toThrow(/violates check constraint/);
   });
 
-  it('les réglages : tolérance 50 m, perte affichée au-delà de 0,1 %', () => {
-    expect(psql(`select string_agg(cle || '=' || valeur, ',' order by cle) from public.reglages_conversion
-                   where cle in ('simplification_polygone_m', 'perte_simplification_affichee');`))
-      .toBe('perte_simplification_affichee=0.1,simplification_polygone_m=50');
+  it('les réglages : paliers 5, 10, 25, 50 m (tour 1), perte affichée au-delà de 0,1 %', () => {
+    expect(psql(`select string_agg(valeur::text, ',' order by valeur) from public.reglages_conversion
+                   where cle in ('simplification_polygone_palier_1', 'simplification_polygone_palier_2',
+                                 'simplification_polygone_palier_3', 'simplification_polygone_palier_4');`)).toBe('5,10,25,50');
+    expect(psql(`select valeur from public.reglages_conversion where cle = 'perte_simplification_affichee';`)).toBe('0.1');
+  });
+
+  it('tour 1 (I-1) : la note TTD dit que les deux bornes sont des valeurs de test, sans source', () => {
+    expect(psql(`select note from public.plateformes_geo where plateforme = 'ttd' and maille = 'polygone';`))
+      .toContain('(20 000 sommets, 2 000 morceaux) : valeurs de test, sans source, a relever par dentsu (Q29)');
   });
 
   it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
@@ -103,7 +120,8 @@ describe('sql/312 — le registre et les réglages', () => {
       || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)
       || (select string_agg(pg_get_functiondef(p.oid), ';' order by p.proname) from pg_proc p
            where p.pronamespace = 'public'::regnamespace
-             and p.proname in ('forme_simplifiee', 'simplification_polygone', 'creer_extraction_jeu_zone', 'plateformes_geo_parametres_valides')));`;
+             and p.proname in ('forme_simplifiee', 'simplification_polygone', 'simplification_polygone_plateforme',
+                               'creer_extraction_jeu_zone', 'plateformes_geo_parametres_valides')));`;
     const base = psql(empreinte);
     const lignes = psqlLignes(`begin;\n${MIGRATION}\n${empreinte}\n${MIGRATION}\n${empreinte}\nrollback;`);
     const [premiere, seconde] = lignes.slice(-2);
@@ -113,10 +131,16 @@ describe('sql/312 — le registre et les réglages', () => {
 });
 
 describe('simplification_polygone — la forme envoyée, ses bornes, sa perte', () => {
-  it('zone POI à 2 000 disques de 500 m : 66 000 sommets → sous la borne TTD, perte affichée (> 0,1 %)', () => {
+  it('zone POI à 2 000 disques de 500 m : 66 000 sommets → sous la borne au palier le PLUS FIN qui passe, perte affichée', () => {
     const m = mesurer(zones.poi500);
-    expect(m).toMatchObject({ tolerance_m: 50, simplifiee: true, sommets_avant: 66_000, morceaux_avant: 2_000, morceaux: 2_000 });
+    expect(m).toMatchObject({ simplifiee: true, sous_bornes: true, sommets_avant: 66_000, morceaux_avant: 2_000, morceaux: 2_000 });
     expect(m.sommets).toBeLessThanOrEqual(20_000);
+    // Le palier retenu est le plus fin qui passe : le palier au-dessous (s'il existe) laisse trop de sommets.
+    const paliers = [5, 10, 25, 50];
+    const i = paliers.indexOf(m.tolerance_m);
+    expect(i).toBeGreaterThanOrEqual(0);
+    if (i > 0) expect(sommetsA(zones.poi500, paliers[i - 1])).toBeGreaterThan(20_000);
+    expect(sommetsA(zones.poi500, m.tolerance_m)).toBe(m.sommets);
     expect(depassementsPolygone(m, ligneTtd())).toEqual([]);
     // Un disque de 500 m simplifié à 50 m près est un polygone inscrit : la perte est réelle et se dit.
     const pop = population(zones.poi500);
@@ -129,18 +153,31 @@ describe('simplification_polygone — la forme envoyée, ses bornes, sa perte', 
     expect(m.carreaux_bande).toBeLessThan(Number(psql(`select public.couverture_geometrie('${zones.poi500}', '${org}', 'ind', 'forme')->>'n_carreaux';`)));
   }, LONG);
 
-  it('la même à 1 km : 34 000 sommets après simplification → refusée, chiffrée (obtenu, admis, à vérifier)', () => {
+  it('la même à 1 km : 34 000 sommets même au palier le plus grossier → refusée, chiffrée (obtenu, admis, à vérifier)', () => {
     const m = mesurer(zones.poi1000);
-    expect(m).toMatchObject({ sommets_avant: 66_000, morceaux: 2_000 });
+    expect(m).toMatchObject({ sommets_avant: 66_000, morceaux: 2_000, sous_bornes: false, tolerance_m: 50, perdue: 0, carreaux_bande: 0 });
     expect(depassementsPolygone(m, ligneTtd())).toEqual([
       { code: 'polygone_sommets_max', limite: 20_000, valeur: m.sommets, a_verifier: true },
     ]);
     expect(m.sommets).toBeGreaterThan(20_000);
   }, LONG);
 
+  it('tour 1 (I-1 b) : 2 001 disques → 2 001 morceaux, refus « morceaux » chiffré sur la vraie base, sans essayer les paliers fins', () => {
+    const m = mesurer(zones.poi2001);
+    expect(m).toMatchObject({ morceaux_avant: 2_001, morceaux: 2_001, sous_bornes: false, tolerance_m: 50, morceaux_max: 2_000 });
+    expect(depassementsPolygone(m, ligneTtd())).toContainEqual(
+      { code: 'polygone_morceaux_max', limite: 2_000, valeur: 2_001, a_verifier: true });
+  }, LONG);
+
+  it('tour 1 (I-2) : une forme déjà sous les bornes n’est PAS simplifiée — CIRFA Bretagne (2 792 sommets) telle quelle', () => {
+    const cirfa = JSON.parse(psql(`select public.simplification_polygone_plateforme(id, org_id, 'ind', 'ttd') from public.custom_geo_zones
+                                    where id = 'f001b479-b870-4958-978d-e7a98b90de57';`));
+    expect(cirfa).toMatchObject({ tolerance_m: 0, simplifiee: false, sous_bornes: true, sommets: cirfa.sommets_avant, carreaux_bande: 0, perdue: 0 });
+  });
+
   it('zone importée à 500 sommets, tous significatifs : inchangée à l’octet, aucun carreau lu, aucune perte', () => {
     const m = mesurer(zones.etoile);
-    expect(m).toMatchObject({ simplifiee: false, sommets_avant: 500, sommets: 500, morceaux: 1, carreaux_bande: 0, perdue: 0, gagnee: 0 });
+    expect(m).toMatchObject({ tolerance_m: 0, simplifiee: false, sommets_avant: 500, sommets: 500, morceaux: 1, carreaux_bande: 0, perdue: 0, gagnee: 0 });
     expect(psql(`select ST_AsEWKB(public.forme_simplifiee(geometry, 50)) = ST_AsEWKB(geometry) from public.custom_geo_zones
                    where id = '${zones.etoile}';`)).toBe('t');
     expect(avertissementSimplification(m, population(zones.etoile))).toEqual([]);
@@ -155,8 +192,12 @@ describe('simplification_polygone — la forme envoyée, ses bornes, sa perte', 
   }, LONG);
 
   it('une zone d’un autre espace : zone_introuvable ; une cible inconnue : cible_inconnue', () => {
-    expect(JSON.parse(psql(`select public.simplification_polygone('${zones.poi500}', gen_random_uuid(), 'ind');`))).toEqual({ refus: 'zone_introuvable' });
-    expect(JSON.parse(psql(`select public.simplification_polygone('${zones.poi500}', '${org}', 'xxx');`))).toEqual({ refus: 'cible_inconnue' });
+    expect(JSON.parse(psql(`select public.simplification_polygone_plateforme('${zones.poi500}', gen_random_uuid(), 'ind', 'ttd');`))).toEqual({ refus: 'zone_introuvable' });
+    expect(JSON.parse(psql(`select public.simplification_polygone_plateforme('${zones.poi500}', '${org}', 'xxx', 'ttd');`))).toEqual({ refus: 'cible_inconnue' });
+    // Une plateforme sans ligne polygone (TikTok n'en a pas) : regle_introuvable.
+    expect(JSON.parse(psql(`select public.simplification_polygone_plateforme('${zones.poi500}', '${org}', 'ind', 'tiktok');`))).toEqual({ refus: 'regle_introuvable' });
+    // L'ancienne mesure (enveloppe, sans plateforme) : aucune borne, donc aucune simplification.
+    expect(JSON.parse(psql(`select public.simplification_polygone('${zones.poi500}', '${org}', 'ind');`))).toMatchObject({ tolerance_m: 0, simplifiee: false });
   });
 
   it('EXPLAIN ANALYZE : la bande de la zone POI se lit par l’index des centroïdes, sans parcours séquentiel', () => {

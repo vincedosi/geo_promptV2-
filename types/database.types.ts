@@ -8455,6 +8455,10 @@ export type Database = {
         Args: { p_cible?: string; p_org_id: string; p_zone_id: string }
         Returns: Json
       }
+      simplification_polygone_plateforme: {
+        Args: { p_cible: string; p_org_id: string; p_plateforme: string; p_zone_id: string }
+        Returns: Json
+      }
       sites_exposition: {
         Args: { p_depts?: string[]; p_gravites: string[]; p_natures?: string[] }
         Returns: {

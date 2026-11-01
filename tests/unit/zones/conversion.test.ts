@@ -14,7 +14,9 @@ import {
   NOTE_PAYS_A_VERIFIER, avertissementsDisque, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
   LIBELLE_POPULATION_INCONNUE, resumePays,
 } from '@/lib/zones/conversion';
-import { avertissementSimplification, depassementsPolygone, type MesureSimplification } from '@/lib/zones/polygone-extraction';
+import {
+  avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type MesureSimplification,
+} from '@/lib/zones/polygone-extraction';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
@@ -519,6 +521,21 @@ describe('A7 — sommets et morceaux du polygone simplifié, perte de la simplif
     expect(avertissementSimplification(mesure({ perdue: 1, seuil_perte_affichee: 0 }), 100_000)).toEqual([
       { code: 'perte_simplification', limite: 0, valeur: 0, n: 1 },
     ]);
+  });
+});
+
+describe('A7 tour 1 — bilan d’un polygone simplifié : ce n’est plus la zone', () => {
+  it('perdue = manques, gagnée = hors zone ; les deux égalités du bilan tiennent', () => {
+    const r = resumePolygoneSimplifie({ simplifiee: true, perdue: 19_828, gagnee: 12 }, 236_697)!;
+    expect(r).toEqual({
+      exacte: false, n_unites: 1, n_touchees: 1, couverte: 216_869, achetee: 216_881, manques: 19_828, hors_zone: 12, taux_utile: 100,
+    });
+    expect(r.manques + r.couverte).toBe(236_697);
+    expect(r.hors_zone + r.couverte).toBe(r.achetee);
+  });
+  it('non simplifiée, ou bande sans habitant : null (le bilan exact reste vrai)', () => {
+    expect(resumePolygoneSimplifie({ simplifiee: false, perdue: 0, gagnee: 0 }, 1_000)).toBeNull();
+    expect(resumePolygoneSimplifie({ simplifiee: true, perdue: 0, gagnee: 0 }, 1_000)).toBeNull();
   });
 });
 

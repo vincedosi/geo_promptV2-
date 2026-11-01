@@ -9,7 +9,7 @@ import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
 import { type FormatFichier, formatsDe } from '../../logique/activation/cartes';
-import { NOM_PLATEFORME, UNITE_MAILLE } from '../../logique/jeu/ecran';
+import { NOM_PLATEFORME, UNITE_MAILLE, texteSimplification } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { FichiersExtractionComponent } from '../activation/fichiers-extraction.component';
 import { BOUTON_CALCUL, ENCART_ERREUR, LISTE_CHAMP } from '../analyse/styles-analyse';
@@ -123,7 +123,9 @@ export class ExtractionsJeuComponent {
     commentaire: e.commentaire,
     date: dateHeureFr(e.created_at),
     resume: (e.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
-      + ` ${formaterNombre(p.n_unites ?? 0)}, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`).join(' · '),
+      + ` ${formaterNombre(p.n_unites ?? 0)}, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`
+      // A7 tour 1 : un polygone simplifié dit sa tolérance, sa perte et son gain hors zone.
+      + (texteSimplification(p.simplification) ? ` (${texteSimplification(p.simplification)})` : '')).join(' · '),
     fichiers: (e.plateformes ?? []).flatMap((p) => {
       const formats = formatsDe(p.plateforme, p.maille);
       // Sans unité, la route répond 409 : aucun bouton plutôt qu'un échec promis.
