@@ -91,6 +91,11 @@ interface ResumePlateforme {
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
   /**
+   * A6 (sql/311) : cercles calculés — somme des populations des DISQUES retenus (les `pop_totale` des unités), qui
+   * dépasse `achetee` (union dédoublonnée) dès que des disques se chevauchent ; absent pour une autre maille.
+   */
+  somme_disques?: number;
+  /**
    * A5 (ARB-4, sql/310) : le minimum de ménages d'un carreau compté dans ces chiffres (0 pour la population totale),
    * figé avec le bilan — changer le réglage ensuite ne change pas ce qu'une extraction a compté.
    */
@@ -107,6 +112,9 @@ interface Couverture { population: number; surface_km2: number; lignes: LigneCou
 interface Pavage {
   n_candidates: number; n_cercles: number; population: number; couverte: number; manques: number; hors_zone: number;
   achetee: number; taux_utile: number | null; min_menages?: number;
+  /** A6 (sql/311) : somme des `pop_totale` des cercles (populations des disques), ≥ `achetee`. */
+  somme_disques?: number;
+  /** A6 : chaque cercle porte la population de son DISQUE (pas de sa cellule hexagonale). */
   cercles: { lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }[];
 }
 
@@ -240,6 +248,8 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
     })),
     resume: {
       ...chiffres, plateforme: c.plateforme, exacte: false, n_candidates: o.n_candidates, population: o.population, min_menages: o.min_menages,
+      // A6 : la somme des lignes (disques) figée à côté du bilan (union dédoublonnée) — l'écart, ce sont les chevauchements.
+      ...(o.somme_disques !== undefined ? { somme_disques: o.somme_disques } : {}),
       // A3 : un disque de rayon autour d'un point qui déborde du territoire se dit, figé avec le bilan.
       avertissements: [...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille)],
     },

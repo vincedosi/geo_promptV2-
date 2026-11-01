@@ -1,6 +1,6 @@
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ResultatCercles } from './bilan';
-import type { Avertissement } from './conversion';
+import type { Avertissement, Resume } from './conversion';
 import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
 
 /**
@@ -110,6 +110,17 @@ export function texteUnitePays(u: { code: string; nom: string; population: numbe
  */
 export function texteDiffusionInconnue(n: number | undefined, maille: Maille): string | null {
   return n ? `${nombreUnites(n, maille)}, acheté${UNITE_MAILLE[maille].accord}${n > 1 ? 's' : ''} sans chiffre d’habitants` : null;
+}
+
+/**
+ * A6 (sql/311) : la note du bilan d'un pavage en cercles — la somme des cercles (populations des DISQUES) dépasse la
+ * diffusion achetée, comptée une fois par habitant sur l'union des disques. `null` sans chevauchement, ou pour une
+ * autre maille (pas de `somme_disques`).
+ */
+export function texteChevauchement(resume: Resume): string | null {
+  if (resume.exacte || resume.somme_disques === undefined || resume.somme_disques <= resume.achetee) return null;
+  return `Les disques voisins se chevauchent : la somme des cercles (${formaterNombre(resume.somme_disques)} habitants) `
+    + `dépasse la diffusion achetée (${formaterNombre(resume.achetee)}), où chaque habitant n’est compté qu’une fois.`;
 }
 
 /** Pourquoi un pavage en cercles ne retient rien (`motif_vide`, sql/276, sql/310) — quatre causes, quatre phrases. */

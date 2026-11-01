@@ -101,6 +101,26 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     expect(resume).not.toHaveProperty('n_touchees');
   });
 
+  it('A6 : cercles — chaque unité porte la population de son DISQUE, la somme des disques est figée à côté du bilan', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 0, rayon_m: 2000 }], POINT, [regle('meta', 'cercle', { rayon_min_m: 1000 })]);
+    // Deux disques qui se chevauchent : 7 000 + 6 000 = 13 000 habitants sur les lignes, 11 000 dans l'union achetée.
+    etat.reponses.paver_cercles = {
+      data: {
+        n_candidates: 2, n_cercles: 2, population: 10_000, couverte: 9_000, manques: 1_000, hors_zone: 2_000, achetee: 11_000,
+        taux_utile: 81.8, somme_disques: 13_000, chevauchement: 2_000,
+        cercles: [{ lon: 4.8, lat: 45.7, pop_en_zone: 6_000, pop_totale: 7_000, part: 85.7 },
+                  { lon: 4.82, lat: 45.7, pop_en_zone: 5_000, pop_totale: 6_000, part: 83.3 }],
+      },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    const { p_unites, p_resume } = argsCreation();
+    expect(p_unites.map((u) => u.pop_totale)).toEqual([7_000, 6_000]);
+    const r = p_resume.plateformes[0] as { couverte: number; hors_zone: number; achetee: number };
+    expect(r).toMatchObject({ achetee: 11_000, hors_zone: 2_000, couverte: 9_000, somme_disques: 13_000 });
+    expect(r.couverte + r.hors_zone).toBe(r.achetee);
+  });
+
   it('A3 : disque partiellement hors de France (Strasbourg 20 km) au MÊME rayon : pavage, perte calculée, avertissement figé', async () => {
     jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 20_000 }], STRASBOURG,
       [regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000 })]);

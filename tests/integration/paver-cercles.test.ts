@@ -7,7 +7,7 @@
  *   - CIRFA Bretagne (≈ 5 000 km², copiée dans un espace de test) à 5 km, seuil 20 : moins de 141 cercles (la grille
  *     carrée du prototype M5), taux d'utile ≥ 85 % ; `couverte + manques = population`, `couverte + hors_zone = achetee` ;
  *   - tout carreau de la zone dont la cellule est retenue est à ≤ r (distance géodésique) du centre de son cercle ;
- *   - `p_pop_min` retire les cellules sous le seuil d'habitants, et seulement elles ;
+ *   - `p_pop_min` retire les cercles sous le seuil d'habitants (population du DISQUE, A6), et seulement eux ;
  *   - refus : `trop_de_cercles` (avec le nombre), `trop_de_candidates`, `zone_introuvable` (autre espace),
  *     `cible_inconnue`, `zone_trop_vaste` motif `rayon` (borne de coût : > 200 000 km² balayés) ; rayon hors
  *     [1 000, 200 000] → 22023 (borne de SÉCURITÉ, la règle de plateforme vient de `plateformes_geo`) ;
@@ -127,11 +127,13 @@ describe('paver_cercles — CIRFA Bretagne (≈ 5 000 km², M5)', () => {
     expect(distanceMax).toBeLessThanOrEqual(5000);
   }, LONG);
 
-  it('p_pop_min = 1 000 retire les cellules sous 1 000 habitants, et seulement elles', async () => {
+  // A6 (sql/311) : la population d'un cercle est celle de son DISQUE (1,21 fois l'hexagone, voisins compris) — aucun
+  // disque de la CIRFA n'a moins de 1 000 habitants (le plus petit : 1 367 le 01/11) ; 3 000 en retire quelques-uns.
+  it('p_pop_min = 3 000 retire les cercles sous 3 000 habitants (population du disque), et seulement eux', async () => {
     const base = await paver({});
-    const r = await paver({ p_pop_min: 1000 });
-    expect(r.cercles.every((c) => c.pop_totale >= 1000)).toBe(true);
-    expect(r.n_cercles).toBe(base.cercles.filter((c) => c.pop_totale >= 1000).length);
+    const r = await paver({ p_pop_min: 3000 });
+    expect(r.cercles.every((c) => c.pop_totale >= 3000)).toBe(true);
+    expect(r.n_cercles).toBe(base.cercles.filter((c) => c.pop_totale >= 3000).length);
     expect(r.n_cercles).toBeLessThan(base.n_cercles);
   }, LONG);
 

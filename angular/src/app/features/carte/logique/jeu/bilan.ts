@@ -22,6 +22,7 @@ export interface ResultatCercles {
   /** Cellules hexagonales examinées — pas des territoires. */
   n_candidates: number;
   n_cercles: number;
+  /** A6 (sql/311) : chiffres du DISQUE de chaque cercle (pas de sa cellule hexagonale) — population, part, seuil. */
   cercles: Array<{ lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }>;
   population: number;
   couverte: number;
@@ -29,6 +30,12 @@ export interface ResultatCercles {
   hors_zone: number;
   achetee: number;
   taux_utile: number | null;
+  /**
+   * A6 (sql/311) : somme des `pop_totale` des cercles — elle dépasse `achetee` (l'union dédoublonnée) de
+   * `chevauchement` habitants, comptés dans plusieurs disques voisins.
+   */
+  somme_disques: number;
+  chevauchement: number;
   n_carreaux: number;
   /** A5 (ARB-4, sql/310) : le minimum de ménages appliqué aux carreaux de la zone, des cellules et de l'union. */
   min_menages: number;
@@ -159,6 +166,8 @@ export function bilanDe(
     resume = {
       exacte: false, n_unites: k.n_cercles, n_touchees: k.n_candidates, couverte: k.couverte, achetee: k.achetee,
       manques: k.manques, hors_zone: k.hors_zone, taux_utile: k.taux_utile,
+      // A6 : la somme des lignes (disques), que le bilan compare à la diffusion achetée (`texteChevauchement`).
+      ...(typeof k.somme_disques === 'number' ? { somme_disques: k.somme_disques } : {}),
     };
   } else {
     const cv = lu as ResultatCouverture;

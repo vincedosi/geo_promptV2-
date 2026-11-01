@@ -57,6 +57,12 @@ export interface ResumeMaille {
    * aucun chiffre d'habitants — la ligne « diffusion à population inconnue » du bilan. Absent s'il n'y en a aucune.
    */
   n_inconnues?: number;
+  /**
+   * A6 (sql/311) : cercles calculés — la somme des populations des DISQUES retenus (la ligne de chaque cercle). Elle
+   * dépasse `achetee`, l'union dédoublonnée, dès que deux disques voisins se chevauchent : le bilan le dit
+   * (`texteChevauchement`). Absent pour une autre maille.
+   */
+  somme_disques?: number;
 }
 
 /** Une maille exacte pour la recette (A-6) : zéro perte par construction, aucun calcul. */

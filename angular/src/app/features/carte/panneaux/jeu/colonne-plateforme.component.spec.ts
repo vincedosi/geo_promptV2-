@@ -112,10 +112,26 @@ describe('mg-colonne-plateforme', () => {
     http.expectOne((r) => r.url.includes('/cercles')).flush({
       zone_id: Z1, cible: 'ind', rayon_m: 20000, seuil: 20, n_candidates: 4, n_cercles: 0, cercles: [], population: 1000, couverte: 0,
       manques: 1000, hors_zone: 0, achetee: 0, taux_utile: null, n_carreaux: 5, motif_vide: 'aucune_cellule_au_seuil',
+      somme_disques: 0, chevauchement: 0,
     });
     await stable();
     expect(texte(el, '[data-motif-vide]')).toBe('Aucun cercle n’atteint le seuil : baissez le seuil ou changez le rayon.');
     expect(texte(el, '[data-chiffres]')).toContain('Cercles retenus / cellules examinées');
+    expect(el.querySelector('[data-chevauchement]')).toBeNull();
+  });
+  it('A6 : cercles — la somme des disques dépasse la diffusion achetée, le bilan le dit', async () => {
+    const { el, http, jeu, stable } = await colonne('meta');
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush({
+      zone_id: Z1, cible: 'ind', rayon_m: 10000, seuil: 20, n_candidates: 9, n_cercles: 7, population: 1000, couverte: 900,
+      manques: 100, hors_zone: 300, achetee: 1200, taux_utile: 75, n_carreaux: 5, motif_vide: null,
+      cercles: [], somme_disques: 1500, chevauchement: 300,
+    });
+    await stable();
+    expect(texte(el, '[data-hors-zone]')).toBe('300');
+    expect(texte(el, '[data-chevauchement]')).toBe(
+      'Les disques voisins se chevauchent : la somme des cercles (1 500 habitants) dépasse la diffusion achetée (1 200), '
+      + 'où chaque habitant n’est compté qu’une fois.');
   });
   it('« Voir sur la carte » (T11) : la plateforme devient la REGARDÉE, une seule à la fois', async () => {
     const { el, stable } = await colonne('dv360');

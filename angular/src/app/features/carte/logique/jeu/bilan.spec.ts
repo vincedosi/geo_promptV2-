@@ -1,6 +1,6 @@
 import type { ResultatCouverture } from '../analyses/couverture';
 import { type ResultatCercles, bilanDe, choixDeBase, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture } from './bilan';
-import { texteAvertissement } from './ecran';
+import { texteAvertissement, texteChevauchement } from './ecran';
 import type { PlateformeGeo } from './plateformes';
 
 const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'maille'>): PlateformeGeo => ({
@@ -39,6 +39,19 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     expect(b?.avertissements).toEqual([{ code: 'max_unites', limite: 2, valeur: 3 }]);
     expect(bilanDe({ maille: 'cercle', seuil: 40, rayon_m: 5000 }, cercle, null, pavage)).toBeNull();
     expect(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 6000 }, cercle, null, pavage)).toBeNull();
+  });
+  it('A6 : cercles — la somme des disques passe dans le bilan, et la note de chevauchement la compare à la diffusion achetée', () => {
+    const b = bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, null, { ...pavage, somme_disques: 1500, chevauchement: 300 });
+    expect(b?.resume).toMatchObject({ achetee: 1200, hors_zone: 300, couverte: 900, somme_disques: 1500 });
+    // `formaterNombre` sépare les milliers par une espace fine insécable : normalisée pour la comparaison.
+    expect(texteChevauchement(b!.resume)?.replace(/\s/g, ' ')).toBe(
+      'Les disques voisins se chevauchent : la somme des cercles (1 500 habitants) dépasse la diffusion achetée (1 200), '
+      + 'où chaque habitant n’est compté qu’une fois.');
+    // Aucun chevauchement (un seul disque), ou une réponse sans la somme : pas de note.
+    expect(texteChevauchement(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, null, { ...pavage, somme_disques: 1200 })!.resume)).toBeNull();
+    expect(texteChevauchement(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, null, pavage)!.resume)).toBeNull();
+    // Une autre maille ne porte pas de somme de disques.
+    expect(texteChevauchement(bilanDe({ maille: 'cp', seuil: 20 }, cp, null, couverture('cp', 'v1'))!.resume)).toBeNull();
   });
   it('A3 : disque tronqué (Strasbourg 20 km, 65,9 % en France) — pavage au rayon de la recette, avertissement avant/après', () => {
     const strasbourg = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 5000, part_retenue: 0.6586 } as const;

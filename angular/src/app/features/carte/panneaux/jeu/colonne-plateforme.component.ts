@@ -10,7 +10,7 @@ import { estExacte } from '../../logique/jeu/bilan';
 import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
-  texteDiffusionInconnue, texteUnitePays,
+  texteChevauchement, texteDiffusionInconnue, texteUnitePays,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
@@ -114,6 +114,7 @@ import { ChoixMailleComponent } from './choix-maille.component';
                 <dd data-population-inconnue class="m-0 text-right font-mono text-primary">{{ d }}</dd>
               }
             </dl>
+            @if (chevauchement(); as t) { <p data-chevauchement class="m-0 text-[11px] text-tertiary">{{ t }}</p> }
           }
           @for (a of avertissements(); track a) { <div data-avertissement [class]="encartAvertissement">{{ a }}</div> }
         }
@@ -213,6 +214,11 @@ export class ColonnePlateformeComponent {
   /** A4 (ARB-3) : la ligne séparée « Diffusion à population inconnue », quand une telle unité est retenue ; sinon `null`. */
   protected readonly libellePopulationInconnue = LIBELLE_POPULATION_INCONNUE;
   protected readonly diffusionInconnue = computed(() => texteDiffusionInconnue(this.bilan()?.resume.n_inconnues, this.choix()?.maille ?? 'cp'));
+  /** A6 (sql/311) : cercles — la somme des disques dépasse la diffusion achetée (chevauchements) ; sinon `null`. */
+  protected readonly chevauchement = computed(() => {
+    const b = this.bilan();
+    return b ? texteChevauchement(b.resume) : null;
+  });
   protected readonly unite = computed(() => UNITE_MAILLE[this.choix()?.maille ?? 'cp']);
   protected readonly curseur = computed(() => libelleCurseurSeuil(this.choix()?.maille ?? 'cp'));
   protected readonly releve = computed(() => dateReleve(this.ligne()?.releve_le ?? ''));
