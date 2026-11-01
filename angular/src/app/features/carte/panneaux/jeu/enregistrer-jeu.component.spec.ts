@@ -27,7 +27,7 @@ describe('mg-enregistrer-jeu', () => {
     expect(post.request.body).toEqual({
       nom: 'Lycées 5 km',
       jeu: {
-        type: 'zone', zone_id: Z1, cible: 'ind', mode_plan: 'pondere',
+        type: 'zone', zone_id: Z1, cible: 'ind', mode_plan: 'exclusif',
         plateformes: [
           { plateforme: 'dv360', maille: 'cp', seuil: 30 }, { plateforme: 'ttd', maille: 'polygone', seuil: 20 },
           { plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 10000 }, { plateforme: 'tiktok', maille: 'departement', seuil: 20 },

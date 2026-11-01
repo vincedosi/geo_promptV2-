@@ -21,8 +21,9 @@ const LONG = 180_000;
 const ORG = '00000000-0000-0000-0000-000000000001';
 const ZONE = 'a2a2a2a2-0000-4000-8000-000000000304';
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.sql'), 'utf8');
-/** sql/308 (A4) redéfinit les trois fonctions de couverture : rejouée après 304, la base revient à son état courant. */
-const MIGRATION_A4 = readFileSync(join(process.cwd(), 'sql', '308_population_inconnue.sql'), 'utf8');
+/** sql/308 et sql/309 (A4) redéfinissent les fonctions de couverture : rejouées après 304, la base revient à son état courant. */
+const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
 const ZONE_SAINT_DENIS = `

@@ -105,10 +105,12 @@ export interface Avertissement {
  * unité où la zone n'a personne) ; 0,02 % (affichée 0,0 %) l'est. Même règle en SQL dans `paver_cercles` (sql/303).
  *
  * A4 (ARB-3) : une part NULL — territoire non carroyé, population totale inconnue — ne se compare à AUCUN seuil. Ce
- * qui retient une telle unité : être ENTIÈRE dans la zone (`incluse`, posé par la base, sql/308), car sa part vaut alors
- * 100 % quelle que soit sa population. Pour une zone nationale (recette `pays`), c'est toute unité du territoire de la
- * recette ; pour une zone locale, `ST_Covers(zone, unité)`. Une unité seulement touchée, ou dont l'inclusion n'est pas
- * dite (ligne figée avant sql/308), n'est jamais retenue : on ne sait pas ce qu'on achèterait de la zone.
+ * qui retient une telle unité : être DANS la zone (`incluse`, posé par la base), car sa part vaut alors ≈ 100 % quelle
+ * que soit sa population. Pour une zone nationale (recette `pays`), c'est toute unité du territoire de la recette
+ * (sql/308) ; pour une zone locale, la part de SA surface dans la zone atteint la tolérance `inclusion_surface_inconnue`
+ * de `reglages_conversion` (0,95 par défaut, `unite_inconnue_dans_zone`, sql/309 — les contours du département, des
+ * communes et des CP ne venant pas de la même source, l'inclusion stricte ne retenait presque rien). Une unité trop peu
+ * couverte, ou dont l'inclusion n'est pas dite (ligne figée avant sql/308), n'est jamais retenue.
  */
 export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'> & Partial<Pick<LigneSeuil, 'incluse'>>, seuil: number): boolean {
   if (ligne.part_brute === null) return ligne.incluse === true;
@@ -117,7 +119,7 @@ export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'> & Partial<Pick<
 
 /**
  * Retient les unités dont la part (en %) atteint le seuil ({@link estRetenue}) — la borne est retenue, comme dans `appliquer_seuil_zone_set`.
- * Une ligne à `part_brute` NULL (population inconnue, A4) n'est retenue que si elle est entière dans la zone : comptée
+ * Une ligne à `part_brute` NULL (population inconnue, A4) n'est retenue que si elle est dans la zone (`incluse`) : comptée
  * dans `n_unites` et `n_inconnues`, dans AUCUN chiffre d'habitants (ni `couverte`, ni `achetee` : on ne les connaît pas).
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
  *
@@ -137,7 +139,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     if (!estRetenue(l, seuil)) continue;
     n_unites += 1;
     n_codes += l.membres?.length || 1;
-    // A4 : retenue sans population (entière dans la zone) — achetée, comptée à part, jamais à 0 habitant.
+    // A4 : retenue sans population (dans la zone, `incluse`) — achetée, comptée à part, jamais à 0 habitant.
     if (l.pop_totale === null) n_inconnues += 1;
     couverte += l.pop_en_zone ?? 0;
     achetee += l.pop_totale ?? 0;

@@ -66,11 +66,14 @@ export interface LigneCouverture {
    */
   membres?: string[];
   /**
-   * A4 (sql/308), ligne d'un territoire NON CARROYÉ seulement (population inconnue, ARB-3) : l'unité est-elle ENTIÈRE
-   * dans la zone ? C'est ce qui la retient (`estRetenue`), à défaut de part à comparer au seuil — toujours vrai pour
-   * une zone pays (le territoire entier), `ST_Covers(zone, unité)` pour une zone locale. Absent sur les autres lignes.
+   * A4 (sql/308), ligne d'un territoire NON CARROYÉ seulement (population inconnue, ARB-3) : l'unité est-elle dans la
+   * zone ? C'est ce qui la retient (`estRetenue`), à défaut de part à comparer au seuil — toujours vrai pour une zone
+   * pays (le territoire entier) ; pour une zone locale, `part_surface` ≥ la tolérance `inclusion_surface_inconnue` de
+   * `reglages_conversion` (sql/309). Absent sur les autres lignes.
    */
   incluse?: boolean;
+  /** A4 tour 1 (sql/309), zone locale, ligne inconnue seulement : part de la surface de l'unité dans la zone (0-1, au millième). */
+  part_surface?: number;
 }
 
 /** Les paramètres de requête. Absents : la population totale (`ind`), la zone telle quelle (`forme`). */

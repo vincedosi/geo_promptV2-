@@ -5,9 +5,10 @@
  * commune, le département et le pays, et une ligne « diffusion à population inconnue » séparée dans le bilan.
  *
  * LA RÈGLE DE RÉTENTION (`estRetenue`, une fonction pour toutes les mailles). Le seuil de B11 compare une part ; une
- * unité sans population n'en a pas. Ce qui la retient : être ENTIÈRE dans la zone (`incluse`, sql/308) — sa part vaut
- * alors 100 % quelle que soit sa population. Pour la zone nationale, c'est toute unité du territoire de la recette ;
- * pour une zone locale, `ST_Covers(zone, unité)` ; une unité seulement touchée ne l'est jamais.
+ * unité sans population n'en a pas. Ce qui la retient : être dans la zone (`incluse`) — sa part vaut alors ≈ 100 % quelle
+ * que soit sa population. Pour la zone nationale, c'est toute unité du territoire de la recette (sql/308) ; pour une
+ * zone locale, la part de SA surface dans la zone atteint la tolérance `inclusion_surface_inconnue` de
+ * `reglages_conversion` (0,95, `unite_inconnue_dans_zone`, sql/309 — tour 1 de relecture, I-1).
  *
  * Constat vérifié en base le 31/10, AVANT correctif : `couverture_pays_jsonb('FR', 'ind', 'departement')` rendait 98
  * lignes et 0 à population inconnue (les trois départements non carroyés étaient ABSENTS, pas « non retenus ») ; au CP,
@@ -22,7 +23,7 @@ import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { psql, psqlLignes } from './_psql';
+import { psql, psqlBrut, psqlLignes } from './_psql';
 import { appliquerSeuil, estRetenue } from '@/lib/zones/conversion';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 
@@ -185,7 +186,7 @@ describe('A4 — l’extraction « France entière » : département, CP et pays
   }, LONG);
 });
 
-describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue seulement si l’unité est entière dans la zone', () => {
+describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue si la part de sa surface atteint la tolérance', () => {
   it('Pointe-à-Pitre et 300 m autour, à la commune : 97120 entière → retenue ; ses voisines touchées → non retenues', async () => {
     const geo = psql(`select ST_AsGeoJSON(ST_Buffer(geom::geography, 300)::geometry) from public.ref_communes where code_commune = '97120';`);
     const { data: z, error } = await sb.rpc('creer_zone_recette', {
@@ -212,10 +213,37 @@ describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue seulem
       ['97110', true, ['97110']], ['97122', false, ['97122']], ['97139', false, ['97139', '97142']], ['97190', false, ['97190']],
     ]);
     expect(cp.n_inconnues).toBe(4);
+    expect(cp.lignes.find((l) => l.code === '97110')?.part_surface).toBe(1);
+  }, LONG);
+
+  // Tour 1 (I-1) : zone = contour du département. Résultat VÉRIFIÉ EN BASE le 31/10 à la tolérance 0,95 : le département
+  // est retenu sur les trois territoires, mais pas toutes ses communes ni tous ses CP — les contours du référentiel ne
+  // viennent pas de la même source (Terre-de-Haut : 34 % de sa surface dans le contour de 971). À l'inclusion stricte
+  // (sql/308), c'était 1/32, 3/22, 2/17 communes et 1/32, 3/22, 0/11 unités CP.
+  it.each([
+    ['971', [18, 32], [18, 32]],
+    ['973', [21, 22], [21, 22]],
+    ['976', [8, 17], [6, 11]],
+  ])('zone = département %s : département retenu ; communes et CP retenus à la tolérance (comptes de la base)', async (dep, communes, cps) => {
+    const geo = psql(`select ST_AsGeoJSON(ST_Multi(coalesce(geom_perimetre, geom))) from public.ref_departements where code_dept = '${dep}';`);
+    const { data: z, error } = await sb.rpc('creer_zone_recette', {
+      p_nom: `Département ${dep} (A4)`, p_org_id: org, p_cree_par: null, p_recette: { v: 1, type: 'dessin' }, p_geometry_geojson: geo,
+    });
+    if (error) throw new Error(error.message);
+    const compter = async (decoupage: string) => {
+      const r = await sb.rpc('couverture_geometrie', { p_zone_id: (z as { id: string }).id, p_org_id: org, p_decoupage: decoupage });
+      if (r.error) throw new Error(r.error.message);
+      const c = r.data as Couverture & { tolerance_inclusion: number };
+      expect(c.tolerance_inclusion).toBe(0.95);
+      return [appliquerSeuil(c.lignes, c.population, 100).n_unites, c.lignes.length];
+    };
+    expect(await compter('departement')).toEqual([1, 1]);
+    expect(await compter('commune')).toEqual(communes);
+    expect(await compter('cp')).toEqual(cps);
   }, LONG);
 });
 
-describe('A4 — sql/308 : cache et rejeu', () => {
+describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
   const ORG = '00000000-0000-0000-0000-000000000001';
   const ZONE = 'a4a4a4a4-0000-4000-8000-000000000308';
 
@@ -241,11 +269,53 @@ describe('A4 — sql/308 : cache et rejeu', () => {
     expect(r).toBe('false|true');
   }, LONG);
 
-  it('la migration rejouée deux fois : fonctions à empreinte identique, et identique à la base', () => {
-    const MIGRATION = readFileSync(join(process.cwd(), 'sql', '308_population_inconnue.sql'), 'utf8');
-    const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)) from pg_proc p
+  it('la tolérance est LUE en base : un réglage changé change la rétention ; absent → exception (transaction annulée)', () => {
+    const juger = `select (public.unite_inconnue_dans_zone(z.g, c.geom)->>'incluse') || ':' || (public.unite_inconnue_dans_zone(z.g, c.geom)->>'part_surface')
+                     from public.ref_communes c, (select coalesce(geom_perimetre, geom) g from public.ref_departements where code_dept = '971') z
+                    where c.code_commune = '97131';`;
+    expect(psql(`select valeur::text from public.reglages_conversion where cle = 'inclusion_surface_inconnue';`)).toBe('0.95');
+    const r = psqlLignes(`begin;
+      ${juger}
+      update public.reglages_conversion set valeur = 0.3 where cle = 'inclusion_surface_inconnue';
+      ${juger}
+      rollback;`);
+    expect(r.slice(-2)).toEqual(['false:0.340', 'true:0.340']);
+    const absent = psqlBrut(`begin; delete from public.reglages_conversion; select public.reglage_conversion('inclusion_surface_inconnue'); rollback;`);
+    expect(absent.status).not.toBe(0);
+    expect(absent.stderr).toContain('reglage de conversion absent');
+  }, LONG);
+
+  it('cache : une zone locale à lignes inconnues jugées à une autre tolérance n’est plus servie (transaction annulée)', () => {
+    const ecrire = (tolerance: string) => `
+      insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
+      select g.id, 'ind', 'commune', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+             jsonb_build_object('lignes', jsonb_build_array('{"code":"97120","part":null,"part_brute":null,"incluse":true}'::jsonb),
+                                'n_inconnues', 1${tolerance}), now()
+        from public.custom_geo_zones g where g.id = '${ZONE}'
+      on conflict (zone_id, cible, decoupage) do update
+        set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
+    const servi = `(public.couverture_zone_en_cache('${ZONE}', '${ORG}', 'ind', 'commune') is not null)::text`;
+    const r = psqlLignes(`begin;
+      insert into public.custom_geo_zones (id, name, org_id, source_type, geometry)
+      select '${ZONE}', '[ESSAI A4] Pointe-à-Pitre', '${ORG}', 'test', ST_Multi(c.geom) from public.ref_communes c where c.code_commune = '97120';
+      ${ecrire('')}
+      select ${servi};
+      ${ecrire(", 'tolerance_inclusion', 0.5")}
+      select ${servi};
+      ${ecrire(", 'tolerance_inclusion', 0.95")}
+      select ${servi};
+      rollback;`);
+    expect(r.slice(-3)).toEqual(['false', 'false', 'true']);
+  }, LONG);
+
+  it('les migrations rejouées deux fois (308 puis 309) : empreinte identique, et identique à la base', () => {
+    const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql']
+      .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
+    const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
+                              || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p
       where p.pronamespace = 'public'::regnamespace
-        and p.proname in ('couverture_geometrie', 'couverture_pays_jsonb', 'couverture_zone_en_cache');`;
+        and p.proname in ('couverture_geometrie', 'couverture_pays_jsonb', 'couverture_zone_en_cache', 'reglage_conversion',
+                          'unite_inconnue_dans_zone');`;
     const base = psql(EMPREINTE);
     const lignes = psqlLignes(`begin;\n${MIGRATION}\n${EMPREINTE}\n${MIGRATION}\n${EMPREINTE}\nrollback;`);
     const [premiere, seconde] = lignes.slice(-2);
