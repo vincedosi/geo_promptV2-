@@ -9,7 +9,7 @@
  *   - tout carreau de la zone dont la cellule est retenue est à ≤ r (distance géodésique) du centre de son cercle ;
  *   - `p_pop_min` retire les cercles sous le seuil d'habitants (population du DISQUE, A6), et seulement eux ;
  *   - refus : `trop_de_cercles` (avec le nombre), `trop_de_candidates`, `zone_introuvable` (autre espace),
- *     `cible_inconnue`, `zone_trop_vaste` motif `rayon` (borne de coût : > 200 000 km² balayés) ; rayon hors
+ *     `cible_inconnue`, `zone_trop_vaste` motif `rayon` (borne de coût : > 240 000 km² d'enveloppes de disques relues, A6) ; rayon hors
  *     [1 000, 200 000] → 22023 (borne de SÉCURITÉ, la règle de plateforme vient de `plateformes_geo`) ;
  *   - `motif_vide` : `territoire_non_carroye` (Guadeloupe), `aucun_carreau` (en mer), `aucune_cellule_au_seuil`.
  *
@@ -150,12 +150,12 @@ describe('paver_cercles — CIRFA Bretagne (≈ 5 000 km², M5)', () => {
 });
 
 describe('paver_cercles — refus et bornes', () => {
-  it('borne de coût : 80 km passe sur la CIRFA, 200 km balaierait > 200 000 km² → zone_trop_vaste motif rayon', async () => {
+  it('borne de coût : 80 km passe sur la CIRFA, 200 km balaierait > 240 000 km² (enveloppes de disques, A6) → zone_trop_vaste motif rayon', async () => {
     const r80 = await paver({ p_rayon_m: 80000 });
     expect(r80.refus).toBeUndefined();
     expect(r80.n_cercles).toBeGreaterThan(0);
     expect(await paver({ p_rayon_m: 200000 })).toEqual({
-      refus: 'zone_trop_vaste', motif: 'rayon', n_candidates_max: 1, plafond_balaye_km2: 200000,
+      refus: 'zone_trop_vaste', motif: 'rayon', n_candidates_max: 1, plafond_balaye_km2: 240000,
     });
   }, LONG);
 

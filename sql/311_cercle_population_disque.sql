@@ -29,7 +29,9 @@
 --      « part > 100 » sur la CIRFA pendant ce correctif). Le test géodésique tranche toujours dans l'anneau.
 --
 -- COÛT. L'étape (2) lit les carreaux du disque au lieu de ceux de l'hexagone (enveloppe 4r² au lieu de 2√3·r², plus
--- le test géodésique dans l'anneau) ; la borne de coût `c_max_balaye` (candidates × 2√3·r² km²) est inchangée. Les
+-- le test géodésique dans l'anneau). La borne de coût suit : `c_max_balaye` compte désormais l'enveloppe du DISQUE lue
+-- par candidate, (2 × 1,01 r)² = 4,0804 r² (avant : l'hexagone, 2√3·r² ≈ 3,46 r², ce qui sous-comptait de 18 %), et
+-- passe de 200 000 à 240 000 km² pour que le pire cas admis (ARA 40 km, ≈ 222 000 km² relus) le reste. Les
 -- mesures avant/après sont dans le rapport A6 et la ligne `paver_cercles` d'ARCHITECTURE.md.
 --
 -- Corps recopié de sql/310 (5c) ; les lignes changées sont marquées « A6 ». Même signature, même type de retour
@@ -60,7 +62,12 @@ as $fn$
 declare
   c_max_km2      constant numeric := 100000;
   c_max_cand     constant integer := 5000;
-  c_max_balaye   constant numeric := 200000;  -- km² relus par l'étape 2 (en-tête)
+  -- km² d'enveloppes de DISQUES relus par l'étape 2 (candidates × 4,0804 r², A6). 200 000 avec l'hexagone avant A6 ;
+  -- relevé à 240 000 pour garder ARA 40 km (≈ 222 000 km² : 34 candidates × 6 529 km²). Mesure À FROID le 01/11
+  -- (zones jamais lues, cache partagé froid pour leurs carreaux) : Occitanie 40 km, 31 candidates (≈ 202 000 km²),
+  -- 8,2 s, 21 872 blocs lus hors cache, aucun fichier temporaire ; ARA 40 km 5,8 s, 20 742 blocs lus, aucun
+  -- fichier temporaire. Le cache du système hôte n'a pas pu être vidé (base partagée, conteneur non redémarré).
+  c_max_balaye   constant numeric := 240000;
   v_limite       integer;
   v_n_carreaux   bigint;
   v_non_carr     jsonb := '[]'::jsonb;
@@ -122,8 +129,9 @@ begin
     return jsonb_build_object('refus', 'zone_trop_vaste', 'surface_km2', round(v_surface, 1), 'plafond_km2', c_max_km2);
   end if;
 
-  -- Borne de coût : au plus `c_max_balaye` km² relus (candidates × 2√3·r², la cellule faisant r de rayon au sol).
-  v_limite := least(p_max_candidates, floor(c_max_balaye * 1e6 / (2 * sqrt(3) * p_rayon_m::numeric ^ 2))::integer);
+  -- Borne de coût : au plus `c_max_balaye` km² relus — chaque candidate lit l'enveloppe de son DISQUE par l'index,
+  -- un carré de côté 2 × `r_ext` ≈ 2 × 1,01 r au sol, soit 4,0804 r² (A6 ; avant : l'hexagone, 2√3·r²).
+  v_limite := least(p_max_candidates, floor(c_max_balaye * 1e6 / (4.0804 * p_rayon_m::numeric ^ 2))::integer);
 
   -- Pas de dénominateur ici (la population d'un disque se compte sur ses carreaux) : seule la table étroite compte.
   v_motif := public.carreau_couverture_complete();

@@ -34,8 +34,8 @@ export interface ResultatCercles {
    * A6 (sql/311) : somme des `pop_totale` des cercles — elle dépasse `achetee` (l'union dédoublonnée) de
    * `chevauchement` habitants, comptés dans plusieurs disques voisins.
    */
-  somme_disques: number;
-  chevauchement: number;
+  somme_disques?: number;
+  chevauchement?: number;
   n_carreaux: number;
   /** A5 (ARB-4, sql/310) : le minimum de ménages appliqué aux carreaux de la zone, des cellules et de l'union. */
   min_menages: number;
