@@ -18,6 +18,7 @@ const A = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const BASE: ResultatCouverture = {
   zone_id: A, cible: 'ind', decoupage: 'forme', surface_km2: 5103.4, n_carreaux: 33100, population: 1906414, lignes: [],
   hors_territoire: { n_carreaux: 0, population: 0 }, n_territoires: 0, motif_vide: null, territoires_non_carroyes: [],
+  min_menages: 0, carreaux_ecartes: { n_carreaux: 0, population: 0 },
   reference: { source: 'carroyage', millesime: 2021, population_france: 63783569, n_carreaux_france: 2324577 },
   base_construite_le: '2026-10-22', calcule_le: '2026-10-22T10:00:00Z', cache: false, zone_maj: '2026-10-22T09:00:00+00:00',
 };

@@ -8,7 +8,7 @@ import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { dateFr } from '../../logique/analyses/commun';
 import {
   CIBLE_PAR_DEFAUT, DECOUPAGES_ANALYSE, type DecoupageAnalyse, MESSAGES_REFUS_COUVERTURE, avertissementNonCarroye, libelleDecoupage, ligneHorsTerritoire, messageZoneVide,
-  phraseReference,
+  phraseMinimumMenages, phraseReference,
 } from '../../logique/analyses/couverture';
 import { libellesPaliers } from '../../couches/couche-unites';
 import { ChoixCibleComponent } from './choix-cible.component';
@@ -100,6 +100,8 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
                 }
               </div>
               @if (horsTerritoire(); as h) { <div data-hors-territoire class="text-[11px] leading-[1.5] text-secondary">{{ h }}</div> }
+              <!-- A5 (ARB-4) : une cible autre que la population totale écarte les carreaux sous le minimum de ménages. -->
+              @if (minimumMenages(); as m) { <div data-min-menages class="text-[11px] leading-[1.5] text-tertiary">{{ m }}</div> }
               @if (avertissement(); as a) { <div data-non-carroye [class]="encartAvertissement">{{ a }}</div> }
             }
 
@@ -189,6 +191,11 @@ export class OutilCouvertureComponent {
   protected readonly avertissement = computed(() => {
     const r = this.z.resultat();
     return r ? avertissementNonCarroye(r) : null;
+  });
+  /** A5 : dit seulement quand un minimum s'applique (cible autre que la population totale) ; ⑤ le dit toujours. */
+  protected readonly minimumMenages = computed(() => {
+    const r = this.z.resultat();
+    return r && r.min_menages > 0 ? phraseMinimumMenages(r) : null;
   });
   protected readonly horsTerritoire = computed(() => {
     const r = this.z.resultat();

@@ -2,7 +2,8 @@
  * Finitions de ③ Zones (plan 2026-10-29-carte-en-parcours-zones, Groupe A).
  *
  * T1 — seuil sur carreaux : un carreau de moins de N ménages (valeurs IMPUTÉES par l'INSEE sous 11 ménages, secret
- * statistique) peut être écarté ; une zone d'avant le lot (recette sans `min_menages`) se recalcule À L'IDENTIQUE.
+ * statistique) peut être écarté ; une zone d'avant le lot (recette migrée avec `min_menages = 0`, A5 / sql/310) se
+ * recalcule À L'IDENTIQUE.
  * Chiffres mesurés le 29/10 sur la base locale (Gironde, ménages pauvres ≥ 40 %) : 732 carreaux et 29,28 km² sans
  * minimum, 191 carreaux à 11 ménages (244 des 732 ont moins d'UN ménage). Codes de département normalisés à l'entrée.
  *
@@ -77,8 +78,11 @@ describe('T1 — seuil sur carreaux : minimum de ménages', () => {
     }
   });
 
-  it('l’exécuteur passe le minimum de la recette enregistrée, et 0 quand la recette n’en porte pas', async () => {
-    const lue = lireRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' } });
+  // A5 (sql/310) : une recette d'avant le lot a reçu `min_menages = 0` EXPLICITE ; sans valeur, le schéma la refuse.
+  it('l’exécuteur passe le minimum de la recette enregistrée ; une recette migrée (0) se recalcule à l’identique', async () => {
+    const base = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' } };
+    expect(lireRecette(base).ok).toBe(false);
+    const lue = lireRecette({ ...base, min_menages: 0 });
     if (!lue.ok) throw new Error(lue.message);
     const sans = await executerRecette(admin as unknown as ClientAdmin, lue.recette, { orgId: '00000000-0000-0000-0000-000000000000', sources: [] });
     const avec = await executerRecette(admin as unknown as ClientAdmin, { ...lue.recette, min_menages: 11 } as typeof lue.recette, { orgId: '00000000-0000-0000-0000-000000000000', sources: [] });

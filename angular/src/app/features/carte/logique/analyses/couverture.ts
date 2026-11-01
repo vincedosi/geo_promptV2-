@@ -92,8 +92,19 @@ export interface ResultatCouverture {
   lignes: LigneCouverture[];
   hors_territoire: { n_carreaux: number; population: number };
   n_territoires: number;
-  /** Zone sans aucun carreau : `territoire_non_carroye` (Guadeloupe, Guyane, Mayotte…) ou `aucun_carreau`. */
-  motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | null;
+  /**
+   * A5 (ARB-4, sql/310) : le minimum de ménages d'un carreau compté — 0 pour la population totale, le réglage
+   * `min_menages_cible` de `reglages_conversion` (11, secret statistique INSEE) pour toute autre cible. Les carreaux en
+   * dessous sont écartés du chiffre ET des dénominateurs des parts.
+   */
+  min_menages: number;
+  /** A5 : les carreaux de la zone écartés par ce minimum (avant = `n_carreaux` + écartés ; après = `n_carreaux`). */
+  carreaux_ecartes: { n_carreaux: number; population: number };
+  /**
+   * Zone sans aucun carreau compté : `territoire_non_carroye` (Guadeloupe, Guyane, Mayotte…), `aucun_carreau`, ou
+   * `carreaux_tous_ecartes` (A5 : des carreaux, tous sous le minimum de ménages).
+   */
+  motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'carreaux_tous_ecartes' | null;
   territoires_non_carroyes: Array<{ code: string; nom: string }>;
   reference: { source: string; millesime: number | string | null; population_france: number; n_carreaux_france: number };
   base_construite_le: string;
@@ -216,7 +227,25 @@ export function messageZoneVide(r: Pick<ResultatCouverture, 'motif_vide' | 'terr
   if (r.motif_vide === 'aucun_carreau') {
     return 'Aucun carreau habité dans cette zone (mer, étang, montagne inhabitée…) : aucun ménage fiscal n’y est recensé.';
   }
+  if (r.motif_vide === 'carreaux_tous_ecartes') {
+    return 'Tous les carreaux de la zone comptent moins de ménages que le minimum : leurs valeurs sont imputées par l’INSEE (secret statistique), aucun n’est compté pour cette cible.';
+  }
   return null;
+}
+
+/**
+ * A5 (ARB-4) : le minimum de ménages APPLIQUÉ et ce qu'il écarte, avant / après — jamais un ajustement silencieux.
+ * « Minimum de ménages par carreau : 11 (secret statistique INSEE) · 581 carreaux comptés sur 618, 37 écartés » ;
+ * « Minimum de ménages par carreau : 0 (population totale : tous les carreaux comptent) ». `null` pour une réponse
+ * sans la clé (aucune ne devrait l'être : le cache d'avant sql/310 n'est plus servi).
+ */
+export function phraseMinimumMenages(r: { min_menages?: number; n_carreaux: number; carreaux_ecartes?: { n_carreaux: number } }): string | null {
+  if (r.min_menages === undefined || r.min_menages === null) return null;
+  const tete = `Minimum de ménages par carreau : ${formaterNombre(r.min_menages)}`;
+  if (r.min_menages === 0) return `${tete} (population totale : tous les carreaux comptent)`;
+  const ecartes = r.carreaux_ecartes?.n_carreaux ?? 0;
+  const avant = r.n_carreaux + ecartes;
+  return `${tete} (secret statistique INSEE : en dessous, valeurs imputées) · ${formaterNombre(r.n_carreaux)} carreau${r.n_carreaux > 1 ? 'x' : ''} compté${r.n_carreaux > 1 ? 's' : ''} sur ${formaterNombre(avant)}, ${formaterNombre(ecartes)} écarté${ecartes > 1 ? 's' : ''}`;
 }
 
 /** Une zone qui DÉBORDE sur un territoire non carroyé, mais compte des habitants ailleurs : l'avertir. */

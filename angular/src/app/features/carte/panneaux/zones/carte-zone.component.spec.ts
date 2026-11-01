@@ -110,6 +110,6 @@ describe('CarteZoneComponent — Dupliquer, sans script de bidding (③ finition
 
   it('seuil sur carreaux : le minimum de ménages dans la ligne de recette', async () => {
     const { el } = await monter(zone({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' }, min_menages: 11 }, 'recette_seuil_carreaux'));
-    expect(el.querySelector('[data-recette]')!.textContent!.trim()).toMatch(/ · carreaux d’au moins 11 ménages$/);
+    expect(el.querySelector('[data-recette]')!.textContent!.trim()).toMatch(/ · minimum de ménages : 11$/);
   });
 });

@@ -301,6 +301,24 @@ else
   echo "  déjà construit : $(n "public.unite_population_totale where maille = 'iris'") IRIS"
 fi
 
+# ── 7bis. LE DÉNOMINATEUR FILTRÉ PAR LE MINIMUM DE MÉNAGES (sql/310, A5) ─────
+#
+# `denominateur_menages_min` : les quatre mailles (cp, iris, commune,
+# département) comptées sur les seuls carreaux d'au moins `min_menages_cible`
+# ménages (réglage de `reglages_conversion`, 11) — le dénominateur de la
+# couverture pour toute cible autre que la population totale (ARB-4). Construit
+# DEPUIS `carreau_couverture`, comme l'IRIS : périmé s'il est plus ancien que le
+# journal, ou construit à un autre minimum que le réglage. ≈ 20 s.
+etape "7bis/8 dénominateur filtré (minimum de ménages)"
+menages_motif=$(sql "select coalesce(public.denominateur_menages_motif('cp'), public.denominateur_menages_motif('iris'),
+                                     public.denominateur_menages_motif('commune'), public.denominateur_menages_motif('departement'), 'ok')" | tr -d ' \r')
+if [ "$menages_motif" != "ok" ]; then
+  echo "  à construire : ${menages_motif:-motif illisible}"
+  sql "select public.construire_denominateur_menages_min()" || { echo "ÉCHEC dénominateur filtré" >&2; exit 1; }
+else
+  echo "  déjà construit : $(n "public.denominateur_menages_min") lignes"
+fi
+
 # ── 8. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
 # ⚠ `--tout` N'EST PAS UN LUXE ICI, et c'est l'erreur la plus coûteuse du

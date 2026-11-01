@@ -250,6 +250,11 @@ function main() {
   const ti = Date.now();
   const d = JSON.parse(psql('select public.construire_denominateur_iris()::text'));
   console.log(`✓ Dénominateur IRIS reconstruit : ${nb(d.n_iris)} IRIS, ${nb(d.n_carreaux)} carreaux · ${Math.round((Date.now() - ti) / 1000)} s`);
+
+  // A5 (sql/310) : le dénominateur filtré par le minimum de ménages dérive AUSSI de cette table — même raison.
+  const tm = Date.now();
+  const m = JSON.parse(psql('select public.construire_denominateur_menages_min()::text'));
+  console.log(`✓ Dénominateur filtré reconstruit : ${nb(m.n_lignes)} lignes, minimum ${m.min_menages} ménages · ${Math.round((Date.now() - tm) / 1000)} s`);
 }
 
 main();

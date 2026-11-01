@@ -90,9 +90,9 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     }
   });
 
-  it('seuil sur carreaux : min_menages entier de 0 à 1 000, facultatif (absent = zone d’avant le lot)', () => {
+  it('seuil sur carreaux : min_menages entier de 0 à 1 000, OBLIGATOIRE (A5 : aucun défaut implicite, sql/310)', () => {
     const c = (extra: Record<string, unknown>) => lireRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, ...extra });
-    expect(c({}).ok).toBe(true);
+    expect(c({}).ok).toBe(false);
     const onze = c({ min_menages: 11 });
     expect(onze.ok && onze.recette).toMatchObject({ min_menages: 11 });
     expect(c({ min_menages: 0 }).ok).toBe(true);

@@ -42,6 +42,9 @@ describe('mg-panneau-jeu', () => {
     expect(el.querySelectorAll('mg-colonne-plateforme')).toHaveLength(4);
     expect(el.querySelectorAll('[data-corps-colonne]')).toHaveLength(1);
     expect(el.querySelector('[data-forme]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('1 000 habitants carroyés · 10 km²');
+    // A5 : le minimum de ménages appliqué est TOUJOURS dit, 0 compris (population totale).
+    expect(el.querySelector('[data-min-menages]')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('Minimum de ménages par carreau : 0 (population totale : tous les carreaux comptent)');
     expect(el.querySelector('[data-reference]')?.textContent?.trim())
       .toBe('Habitants carroyés (Filosofi 2021) ; la part rapporte chaque territoire à ses propres habitants carroyés.');
     // Déplier TikTok : sa maille seule se lit.

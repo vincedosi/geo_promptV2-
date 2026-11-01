@@ -242,7 +242,7 @@ const RECETTES: Record<Recette['type'], Recette> = {
   // Disque entier en France (`part_retenue` = 1, posée par la base, sql/307) : la seule forme exacte au cercle (A3).
   rayon_point: { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 10_000, part_retenue: 1 },
   rayon_poi: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 2_000, perimetre: PERIM },
-  seuil_carreaux: { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 5, perimetre: PERIM },
+  seuil_carreaux: { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 5, perimetre: PERIM, min_menages: 11 },
   seuil_territoire: { v: 1, type: 'seuil_territoire', indicateur: 'revenu', operateur: '>=', seuil: 5, perimetre: PERIM },
   codes_postaux: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] },
   dessin: { v: 1, type: 'dessin' },

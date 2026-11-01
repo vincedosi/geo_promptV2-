@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { formaterNombre } from '../../../../core/format/nombre';
 import {
   DECOUPAGES, DECOUPAGES_ANALYSE, type LigneCouverture, avertissementNonCarroye, ecrireParamCouverture, libelleDecoupage, ligneHorsTerritoire, lireParamCouverture,
-  lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseReference, trierLignes,
+  lireZoneAnalyse, messageZoneVide, pageDeLignes, phraseMinimumMenages, phraseReference, trierLignes,
 } from './couverture';
 import { messageErreurCouverture, refusDeLErreur } from './couverture-erreurs';
 
@@ -114,7 +114,17 @@ describe('textes Q-J de la couverture (T8)', () => {
     expect(messageZoneVide({ motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '973', nom: 'Guyane' }] })).toContain('ne couvre pas ce territoire (Guyane)');
     expect(messageZoneVide({ motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [] })).toContain('ces territoires (Guadeloupe, Guyane, Mayotte)');
     expect(messageZoneVide({ motif_vide: 'aucun_carreau', territoires_non_carroyes: [] })).toContain('Aucun carreau habité');
+    expect(messageZoneVide({ motif_vide: 'carreaux_tous_ecartes', territoires_non_carroyes: [] })).toContain('moins de ménages que le minimum');
     expect(messageZoneVide({ motif_vide: null, territoires_non_carroyes: [] })).toBeNull();
+  });
+  it('A5 phraseMinimumMenages : la valeur appliquée et les carreaux écartés, avant / après', () => {
+    expect(phraseMinimumMenages({ min_menages: 11, n_carreaux: 581, carreaux_ecartes: { n_carreaux: 37 } }))
+      .toBe('Minimum de ménages par carreau : 11 (secret statistique INSEE : en dessous, valeurs imputées) · 581 carreaux comptés sur 618, 37 écartés');
+    expect(phraseMinimumMenages({ min_menages: 11, n_carreaux: 1, carreaux_ecartes: { n_carreaux: 1 } }))
+      .toBe('Minimum de ménages par carreau : 11 (secret statistique INSEE : en dessous, valeurs imputées) · 1 carreau compté sur 2, 1 écarté');
+    expect(phraseMinimumMenages({ min_menages: 0, n_carreaux: 618, carreaux_ecartes: { n_carreaux: 0 } }))
+      .toBe('Minimum de ménages par carreau : 0 (population totale : tous les carreaux comptent)');
+    expect(phraseMinimumMenages({ n_carreaux: 618 })).toBeNull();
   });
   it('avertissementNonCarroye : seulement une zone peuplée qui déborde sur un territoire non carroyé', () => {
     expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] })).toContain('Guadeloupe');

@@ -56,6 +56,8 @@ export const REGISTRE: PlateformeGeo[] = [
 
 export const couvertureCp = {
   zone_id: Z1, cible: 'ind', decoupage: 'cp', population: 1000, surface_km2: 10, n_carreaux: 5, zone_maj: 'v1',
+  // A5 (sql/310) : la population totale ne porte aucun minimum de ménages.
+  min_menages: 0, carreaux_ecartes: { n_carreaux: 0, population: 0 },
   lignes: [
     { code: '13001', nom: null, commune: null, n_carreaux: 2, pop_en_zone: 600, pop_totale: 1000, part: 60, part_brute: 60 },
     { code: '13002', nom: null, commune: null, n_carreaux: 2, pop_en_zone: 300, pop_totale: 1000, part: 30, part_brute: 30 },

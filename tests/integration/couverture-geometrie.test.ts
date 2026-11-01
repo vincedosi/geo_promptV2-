@@ -87,7 +87,7 @@ beforeAll(async () => {
 
   // Une zone fabriquée par ③ : l'union des carreaux retenus (ménages pauvres ≥ 40 %, Bouches-du-Rhône).
   const seuil = psql(`select (z->>'compte') || '|' || (public.creer_zone_recette('Seuil carreaux', '${org}', null,
-                        '{"v":1,"type":"seuil_carreaux"}', (z->'geometry')::text)->>'id')
+                        '{"v":1,"type":"seuil_carreaux","min_menages":0}', (z->'geometry')::text)->>'id')
                         from public.zone_seuil_carreaux('part_men_pauv', '>=', 40, 'departement', '13', null, 20000) z;`)
     .split('|');
   compteSeuil = Number(seuil[0]);
@@ -146,16 +146,18 @@ describe('couverture_geometrie — rayon de 5 km autour de Lyon (mesures A du pl
     verifierPartition(r, forme);
   });
 
-  it('cible men_pauv : la somme des ménages pauvres des mêmes carreaux, lue indépendamment dans carreaux_filosofi', async () => {
+  // A5 (ARB-4, sql/310) : hors population totale, seuls les carreaux d'au moins `min_menages_cible` ménages comptent.
+  it('cible men_pauv : la somme des ménages pauvres des carreaux d’au moins 11 ménages, lue indépendamment dans carreaux_filosofi', async () => {
     const r = await couverture(zones.lyon, { p_cible: 'men_pauv' });
+    const min = Number(psql(`select valeur from public.reglages_conversion where cle = 'min_menages_cible';`));
     const attendu = Number(psql(`
       with z as materialized (select ST_Subdivide(ST_Transform(geometry, 3857), 256) g
                                 from public.custom_geo_zones where id = '${zones.lyon}'),
-           c as materialized (select distinct on (cf.id) (cf.metadata->>'men_pauv')::numeric v
+           c as materialized (select distinct on (cf.id) (cf.metadata->>'men_pauv')::numeric v, (cf.metadata->>'men')::numeric men
                                 from public.carreaux_filosofi cf
                                 join z on cf.geom_3857 && z.g and ST_Intersects(ST_Centroid(cf.geom_3857), z.g)
                                order by cf.id)
-      select round(sum(v)) from c;`));
+      select round(sum(v) filter (where men >= ${min})) from c;`));
     expect(r.cible).toBe('men_pauv');
     expect(Math.abs(r.population - attendu)).toBeLessThanOrEqual(1);
   });

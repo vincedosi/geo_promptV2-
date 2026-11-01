@@ -9,7 +9,7 @@ import type { Recette } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PiedRecetteComponent } from './pied-recette.component';
 
-const SEUIL: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '13' } };
+const SEUIL: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '13' }, min_menages: 11 };
 const APERCU: ApercuZone = { geometry: { type: 'MultiPolygon', coordinates: [] }, surface_km2: 3.2, compte: 505, part_retenue: 0.87, population: 41230 };
 const FORME: GeoJSON.Geometry = { type: 'MultiPolygon', coordinates: [] };
 
@@ -88,7 +88,7 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     atelier.apercu.set(APERCU);
     await stable();
     const nom = el.querySelector<HTMLInputElement>('[data-nom]')!;
-    expect(nom.value).toBe('Carreaux où part des ménages pauvres ≥ 40 %');
+    expect(nom.value).toBe('Carreaux où part des ménages pauvres ≥ 40 % · minimum de ménages : 11');
     nom.value = 'Nom saisi'; nom.dispatchEvent(new Event('input'));
     await stable();
     expect(b('[data-enregistrer]').disabled).toBe(false);

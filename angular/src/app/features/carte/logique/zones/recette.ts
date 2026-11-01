@@ -72,8 +72,10 @@ export const MAX_CARREAUX_SEUIL = 20_000;
 /**
  * Seuil sur carreaux : le minimum de ménages d'un carreau retenu (V-2, Q-2 tranchée le 29/10). Sous 11 ménages,
  * l'INSEE IMPUTE les valeurs du carreau (secret statistique) : un carreau de 0,4 ménage passait « 100 % de ménages
- * pauvres ». Défaut d'une NOUVELLE recette (l'écran le pose) ; une recette enregistrée sans `min_menages` vaut 0 et se
- * recalcule à l'identique. Borne haute refaite en base (`zone_seuil_carreaux_min`, sql/292).
+ * pauvres ». Valeur proposée par l'écran à une NOUVELLE recette. Toute recette enregistrée PORTE sa valeur (A5,
+ * sql/310) : les recettes d'avant sql/292 ont reçu `min_menages = 0` explicitement, la base l'exige (CHECK) et le
+ * schéma aussi — aucun défaut implicite. Borne haute refaite en base (`zone_seuil_carreaux_min`, sql/292).
+ * Le minimum de la CONVERSION (⑤, ARB-4) n'est pas celui-ci : réglage `min_menages_cible` de `reglages_conversion`.
  */
 export const MIN_MENAGES_CARREAUX_DEFAUT = 11;
 export const MIN_MENAGES_CARREAUX_MAX = 1_000;
@@ -139,7 +141,7 @@ export type Recette =
   // exact (A3, `exactitude`) ; absente (zone jamais réécrite) : inconnue, donc non exacte.
   | { readonly v: 1; readonly type: 'rayon_point'; readonly lon: number; readonly lat: number; readonly rayon_m: number; readonly part_retenue?: number }
   | { readonly v: 1; readonly type: 'rayon_poi'; readonly categorie: string; readonly rayon_m: number; readonly perimetre: PerimetreRecette | null }
-  | { readonly v: 1; readonly type: 'seuil_carreaux'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null; readonly min_menages?: number }
+  | { readonly v: 1; readonly type: 'seuil_carreaux'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null; readonly min_menages: number }
   | { readonly v: 1; readonly type: 'seuil_territoire'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null }
   | { readonly v: 1; readonly type: 'codes_postaux'; readonly codes: readonly string[] }
   | { readonly v: 1; readonly type: 'dessin' }
@@ -255,8 +257,8 @@ export function libelleRecette(r: Recette, indicateurs: readonly IndicateurLibel
     case 'seuil_carreaux': {
       const i = INDICATEURS_SEUIL_CARREAUX.find((x) => x.id === r.indicateur);
       const ligne = ligneSeuil('Carreaux', i ? minusculeInitiale(i.libelle) : r.indicateur, r.operateur, r.seuil, i?.unite);
-      const min = r.min_menages ?? 0;
-      return min > 0 ? `${ligne} · carreaux d’au moins ${formaterNombre(min)} ${min > 1 ? 'ménages' : 'ménage'}` : ligne;
+      // A5 : la valeur TOUJOURS dite, 0 compris (une recette migrée affiche « minimum de ménages : 0 »).
+      return `${ligne} · minimum de ménages : ${formaterNombre(r.min_menages)}`;
     }
     case 'seuil_territoire': {
       const i = indicateurs.find((x) => x.indicator_code === r.indicateur);

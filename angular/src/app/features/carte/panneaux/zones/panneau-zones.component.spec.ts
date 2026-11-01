@@ -62,7 +62,7 @@ class PaysFactice { readonly cree = output<void>(); }
 @Component({ selector: 'mg-capture', template: '' })
 class CaptureFactice { readonly cree = output<void>(); readonly fermer = output<void>(); }
 const R_POI: Recette = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'departement', code: '13' } };
-const R_CARREAUX: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '13' } };
+const R_CARREAUX: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '13' }, min_menages: 11 };
 @Component({ selector: 'mg-recette-rayon-poi', template: '' })
 class RayonPoiFactice { readonly recette = computed(() => R_POI); }
 @Component({ selector: 'mg-recette-seuil-carreaux', template: '' })

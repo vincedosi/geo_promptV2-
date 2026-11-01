@@ -112,10 +112,11 @@ export function texteDiffusionInconnue(n: number | undefined, maille: Maille): s
   return n ? `${nombreUnites(n, maille)}, acheté${UNITE_MAILLE[maille].accord}${n > 1 ? 's' : ''} sans chiffre d’habitants` : null;
 }
 
-/** Pourquoi un pavage en cercles ne retient rien (`motif_vide`, sql/276) — trois causes, trois phrases. */
+/** Pourquoi un pavage en cercles ne retient rien (`motif_vide`, sql/276, sql/310) — quatre causes, quatre phrases. */
 export const MESSAGE_MOTIF_VIDE: Readonly<Record<NonNullable<ResultatCercles['motif_vide']>, string>> = {
   territoire_non_carroye: 'Le carroyage Filosofi ne couvre pas ce territoire : aucun habitant chiffrable. Ce n’est pas une population nulle, c’est une donnée absente à la source.',
   aucun_carreau: 'Aucun carreau habité dans la zone : rien à couvrir.',
+  carreaux_tous_ecartes: 'Tous les carreaux de la zone comptent moins de ménages que le minimum (valeurs imputées par l’INSEE) : rien à couvrir pour cette cible.',
   aucune_cellule_au_seuil: 'Aucun cercle n’atteint le seuil : baissez le seuil ou changez le rayon.',
 };
 

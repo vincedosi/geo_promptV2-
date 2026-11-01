@@ -30,7 +30,11 @@ export interface ResultatCercles {
   achetee: number;
   taux_utile: number | null;
   n_carreaux: number;
-  motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'aucune_cellule_au_seuil' | null;
+  /** A5 (ARB-4, sql/310) : le minimum de ménages appliqué aux carreaux de la zone, des cellules et de l'union. */
+  min_menages: number;
+  /** A5 : les carreaux de la zone écartés par ce minimum. */
+  carreaux_ecartes: { n_carreaux: number; population: number };
+  motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'carreaux_tous_ecartes' | 'aucune_cellule_au_seuil' | null;
 }
 
 /** Le bilan d'une plateforme pour son choix courant : la perte (ou « exacte ») et les limites dépassées. */

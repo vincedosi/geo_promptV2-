@@ -16,7 +16,7 @@ describe('recette de zone : Angular = serveur', () => {
     const cas: R.Recette[] = [
       { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 20_000 },
       { v: 1, type: 'rayon_poi', categorie: 'cirfa', rayon_m: 10_000, perimetre: { type: 'france', code: 'FR' } },
-      { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 2.5, perimetre: { type: 'region', code: '84' } },
+      { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 2.5, perimetre: { type: 'region', code: '84' }, min_menages: 11 },
       { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '<=', seuil: 10, perimetre: null },
       { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] },
       { v: 1, type: 'dessin' },

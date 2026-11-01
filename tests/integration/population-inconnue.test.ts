@@ -251,7 +251,8 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
     const ecrire = (cles: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
       select g.id, 'ind', 'departement', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
-             jsonb_build_object('lignes', jsonb_build_array('{"code":"13","part":100,"part_brute":100}'::jsonb)${cles}), now()
+             -- A5 (sql/310) : un chiffrage porte aussi le minimum de ménages de sa cible (0 pour \`ind\`), sinon il n'est plus servi.
+             jsonb_build_object('lignes', jsonb_build_array('{"code":"13","part":100,"part_brute":100}'::jsonb), 'min_menages', 0${cles}), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
       on conflict (zone_id, cible, decoupage) do update
         set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
@@ -290,7 +291,7 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
       select g.id, 'ind', 'commune', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
              jsonb_build_object('lignes', jsonb_build_array('{"code":"97120","part":null,"part_brute":null,"incluse":true}'::jsonb),
-                                'n_inconnues', 1${tolerance}), now()
+                                'n_inconnues', 1, 'min_menages', 0${tolerance}), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
       on conflict (zone_id, cible, decoupage) do update
         set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;
@@ -308,8 +309,10 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
     expect(r.slice(-3)).toEqual(['false', 'false', 'true']);
   }, LONG);
 
-  it('les migrations rejouées deux fois (308 puis 309) : empreinte identique, et identique à la base', () => {
-    const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql']
+  // A5 : sql/310 redéfinit ensuite couverture_geometrie, couverture_pays_jsonb et couverture_zone_en_cache — la chaîne
+  // rejouée jusqu'à elle est celle qui doit rendre la base.
+  it('les migrations rejouées deux fois (308, 309 puis 310) : empreinte identique, et identique à la base', () => {
+    const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql']
       .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
     const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
                               || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p

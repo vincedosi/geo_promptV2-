@@ -152,11 +152,11 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
     case 'seuil_carreaux': {
       const p = recette.perimetre;
       if (!p) return refuser('perimetre_absent');
-      // La jumelle (sql/292). Le minimum vient de la RECETTE enregistrée, jamais d'un défaut serveur : absent (zone
-      // d'avant le lot), il vaut 0 et la zone se recalcule à l'identique.
+      // La jumelle (sql/292). Le minimum vient de la RECETTE enregistrée, jamais d'un défaut serveur : toute recette
+      // le porte (A5, sql/310 : les recettes d'avant le lot ont reçu 0 explicitement, la base et le schéma l'exigent).
       return lire('zone_seuil_carreaux_min', supabase.rpc('zone_seuil_carreaux_min', {
         p_indicateur: recette.indicateur, p_operateur: recette.operateur, p_seuil: recette.seuil,
-        p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId, p_min_menages: recette.min_menages ?? 0,
+        p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId, p_min_menages: recette.min_menages,
       }));
     }
     case 'seuil_territoire': {

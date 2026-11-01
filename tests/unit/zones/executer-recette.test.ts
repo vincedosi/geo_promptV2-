@@ -92,7 +92,7 @@ describe('executerRecette', () => {
   it('seuils sur la métropole : le message différé, SANS appel', async () => {
     const METRO = { type: 'france', code: 'METRO' } as const;
     for (const r of [
-      { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: METRO },
+      { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: METRO, min_menages: 11 },
       { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '<=', seuil: 10, perimetre: METRO },
     ] as const) {
       expect(await exec(r)).toEqual({ ok: false, statut: 422, refus: 'seuil_metropole_differe', message: MESSAGES_REFUS.seuil_metropole_differe });
@@ -102,9 +102,9 @@ describe('executerRecette', () => {
 
   it('seuil sur carreaux et sur territoires : le périmètre et l’espace, la population remontée', async () => {
     reponses.zone_seuil_carreaux_min = { data: { vide: false, compte: 40, geometry: CARRE, surface_km2: 1.6, population: 5200 }, error: null };
-    const c = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER });
+    const c = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 0 });
     expect(c).toMatchObject({ ok: true, compte: 40, population: 5200, part_retenue: null });
-    // Une recette d'avant le lot (sans `min_menages`) : 0, jamais un défaut serveur (zones recalculées à l'identique).
+    // Une recette migrée (A5, sql/310 : `min_menages = 0` écrit) : sa valeur, telle quelle, jamais un défaut serveur.
     expect(appels.at(-1)).toEqual({ nom: 'zone_seuil_carreaux_min', args: {
       p_indicateur: 'part_men_pauv', p_operateur: '>=', p_seuil: 40,
       p_perimetre_type: 'departement', p_perimetre_code: '13', p_org_id: ORG, p_min_menages: 0,
@@ -121,7 +121,7 @@ describe('executerRecette', () => {
 
   it('périmètre absent, national, ou région pour un seuil sur carreaux : 422 SANS appel', async () => {
     for (const perimetre of [null, { type: 'france', code: 'FR' } as const, { type: 'region', code: '75' } as const]) {
-      const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre });
+      const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre, min_menages: 11 });
       expect(r).toMatchObject({ ok: false, statut: 422 });
     }
     expect(appels).toEqual([]);
@@ -129,7 +129,7 @@ describe('executerRecette', () => {
 
   it('refus SQL : 422 et le message français', async () => {
     reponses.zone_seuil_carreaux_min = { data: { refus: 'trop_de_carreaux', plafond: 20000 }, error: null };
-    const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER });
+    const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER, min_menages: 11 });
     expect(r).toEqual({ ok: false, statut: 422, refus: 'trop_de_carreaux', message: MESSAGES_REFUS.trop_de_carreaux });
     // `formaterNombre` sépare les milliers par une espace insécable : `\s` la reconnaît, une espace tapée non.
     expect(r.ok ? '' : r.message).toMatch(/^Plus de 20\s000 carreaux retenus : resserrez le périmètre ou relevez le seuil\.$/);
@@ -247,7 +247,7 @@ describe('executerRecette', () => {
 
   it('argument refusé par la base (22023) : 400, pas un 500', async () => {
     reponses.zone_seuil_carreaux_min = { data: null, error: { message: 'seuil invalide', code: '22023' } as { message: string } };
-    const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER });
+    const r = await exec({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 10, perimetre: PER, min_menages: 11 });
     expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'Paramètres de calcul invalides.' });
   });
 

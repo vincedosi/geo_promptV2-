@@ -22,7 +22,8 @@ const ORG = '00000000-0000-0000-0000-000000000001';
 const ZONE = 'a2a2a2a2-0000-4000-8000-000000000304';
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.sql'), 'utf8');
 /** sql/308 et sql/309 (A4) redéfinissent les fonctions de couverture : rejouées après 304, la base revient à son état courant. */
-const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql']
+// A5 : sql/310 redéfinit à son tour les trois fonctions de couverture — la chaîne rejouée va jusqu'à elle.
+const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
@@ -77,10 +78,11 @@ describe('couverture_zone_en_cache — un chiffrage CP sans membres n’est plus
   it('ligne de cache CP sans la clé : NULL ; avec la clé : servie (transaction annulée)', () => {
     // A4 (sql/308) : un chiffrage CP sans `n_inconnues` n'est plus servi non plus ; les deux écritures le portent, pour
     // que ce test ne regarde que `membres` (le refus sans `n_inconnues` est prouvé dans population-inconnue.test.ts).
+    // A5 (sql/310) : de même `min_menages` (0 pour `ind`), prouvé dans minimum-menages-conversion.test.ts.
     const ecrire = (ligne: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
       select g.id, 'ind', 'cp', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
-             jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb), 'n_inconnues', 0), now()
+             jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb), 'n_inconnues', 0, 'min_menages', 0), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
       on conflict (zone_id, cible, decoupage) do update
         set zone_maj = excluded.zone_maj, base_construite_le = excluded.base_construite_le, resultat = excluded.resultat;`;

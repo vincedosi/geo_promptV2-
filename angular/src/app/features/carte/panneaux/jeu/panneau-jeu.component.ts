@@ -12,6 +12,7 @@ import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
 import { NOM_PLATEFORME } from '../../logique/jeu/ecran';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
+import { phraseMinimumMenages } from '../../logique/analyses/couverture';
 import { ChoixCibleComponent } from '../analyse/choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from '../analyse/choix-zone-analysee.component';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
@@ -62,6 +63,10 @@ const LARGEUR_COLONNES = 900;
       <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" [revision]="outils.revisionZones()" (choisie)="jeu.choisirZone($event)" (lue)="zoneLue($event)" />
       @if (jeu.zoneId() && (population() !== null || surface() !== null)) {
         <div data-forme class="font-mono text-[11px] text-secondary">{{ formeTexte() }}</div>
+      }
+      @if (jeu.zoneId() && minimumMenages(); as m) {
+        <!-- A5 (ARB-4) : le minimum de ménages appliqué à la conversion et les carreaux qu'il écarte (avant / après). -->
+        <div data-min-menages class="text-[11px] leading-[1.5] text-tertiary">{{ m }}</div>
       }
       @if (jeu.jeuId()) {
         <p class="m-0 text-[11px] leading-[1.5] text-tertiary">La zone et la cible d’un jeu enregistré ne changent pas : choisir une autre zone ouvre un nouveau jeu.</p>
@@ -124,6 +129,11 @@ export class PanneauJeuComponent {
   private readonly lecture = computed(() => Object.values(this.jeu.couvertures())[0] ?? null);
   protected readonly population = computed(() => this.lecture()?.population ?? Object.values(this.jeu.cercles())[0]?.population ?? null);
   protected readonly surface = computed(() => this.lecture()?.surface_km2 ?? null);
+  /** A5 : la même cible pour toutes les conversions de la zone, donc le même minimum — lu dans n'importe laquelle. */
+  protected readonly minimumMenages = computed(() => {
+    const r = this.lecture() ?? Object.values(this.jeu.cercles())[0] ?? null;
+    return r ? phraseMinimumMenages(r) : null;
+  });
   protected readonly formeTexte = computed(() => [
     this.population() === null ? null : `${formaterNombre(this.population())} habitants carroyés`,
     this.surface() === null ? null : `${formaterNombre(Math.round(this.surface() ?? 0))} km²`,

@@ -84,7 +84,7 @@ describe('la recette d’une zone', () => {
   });
 
   it('les recettes lourdes exigent un périmètre et refusent la France', () => {
-    const lourde: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'france', code: 'FR' } };
+    const lourde: Recette = { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'france', code: 'FR' }, min_menages: 11 };
     expect(exigePerimetre(lourde)).toBe(true);
     expect(refusPerimetreLocal(lourde)).toBe('perimetre_national_refuse');
     expect(refusPerimetreLocal({ ...lourde, perimetre: null })).toBe('perimetre_absent');
@@ -96,7 +96,7 @@ describe('la recette d’une zone', () => {
     const METRO = { type: 'france', code: 'METRO' } as const;
     const FR = { type: 'france', code: 'FR' } as const;
     const rayon = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 20_000, perimetre });
-    const carreaux = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre });
+    const carreaux = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre, min_menages: 11 });
     const territoire = (perimetre: typeof METRO | typeof FR): Recette => ({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre });
     expect(refusPerimetreLocal(rayon(METRO))).toBeNull();
     expect(refusPerimetreLocal(carreaux(METRO))).toBe('seuil_metropole_differe');
@@ -133,8 +133,8 @@ describe('la recette d’une zone', () => {
 
   it('le seuil sur carreaux s’arrête au département ; les deux autres admettent la région', () => {
     const region = { type: 'region', code: '84' } as const;
-    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: region })).toBe('perimetre_non_admis');
-    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'commune', code: 'marseille' } })).toBeNull();
+    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: region, min_menages: 11 })).toBe('perimetre_non_admis');
+    expect(refusPerimetreLocal({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'commune', code: 'marseille' }, min_menages: 11 })).toBeNull();
     expect(refusPerimetreLocal({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: region })).toBeNull();
     expect(refusPerimetreLocal({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: region })).toBeNull();
   });
@@ -168,23 +168,22 @@ describe('la recette d’une zone', () => {
     expect(libelleRecette({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: PER })).toBe('Rayon de 5 km autour des POI « lycee »');
     expect(libelleRecette({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 1500 })).toBe('Rayon de 1,5 km autour d’un point');
     expect(libelleRecette({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 300 })).toBe('Rayon de 300 m autour d’un point');
-    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER }))
-      .toBe('Carreaux où part des ménages pauvres ≥ 40 %');
+    // A5 : la valeur TOUJOURS dite — une recette migrée (`min_menages: 0`, sql/310) affiche « minimum de ménages : 0 ».
     expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 0 }))
-      .toBe('Carreaux où part des ménages pauvres ≥ 40 %');
+      .toBe('Carreaux où part des ménages pauvres ≥ 40 % · minimum de ménages : 0');
     expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: PER, min_menages: 11 }))
-      .toBe('Carreaux où part des ménages pauvres ≥ 40 % · carreaux d’au moins 11 ménages');
+      .toBe('Carreaux où part des ménages pauvres ≥ 40 % · minimum de ménages : 11');
     expect(libelleRecette({ v: 1, type: 'combinaison', operation: 'difference', zones: ['a', 'b', 'c'] })).toBe('Différence de 3 zones');
     expect(libelleRecette({ v: 1, type: 'codes_postaux', codes: ['13001'] })).toBe('1 code postal');
     expect(libelleRecette({ v: 1, type: 'codes_postaux', codes: ['13001', '13002'] })).toBe('2 codes postaux');
   });
 
   it('le seuil est mis en forme par formaterNombre (milliers séparés, virgule décimale)', () => {
-    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 20000, perimetre: PER }))
-      .toBe(`Carreaux où densité d’habitants ≥ ${formaterNombre(20000)} hab./km²`);
+    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 20000, perimetre: PER, min_menages: 11 }))
+      .toBe(`Carreaux où densité d’habitants ≥ ${formaterNombre(20000)} hab./km² · minimum de ménages : 11`);
     expect(formaterNombre(20000)).not.toBe('20000');
-    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '<=', seuil: 12.5, perimetre: PER }))
-      .toBe('Carreaux où part des ménages pauvres ≤ 12,5 %');
+    expect(libelleRecette({ v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '<=', seuil: 12.5, perimetre: PER, min_menages: 11 }))
+      .toBe('Carreaux où part des ménages pauvres ≤ 12,5 % · minimum de ménages : 11');
   });
 
   it('seuil sur territoires : le libellé et l’unité du catalogue quand il est fourni, l’identifiant sinon', () => {

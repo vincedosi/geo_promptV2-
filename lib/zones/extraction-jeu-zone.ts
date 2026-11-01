@@ -90,18 +90,23 @@ interface ResumePlateforme {
   poids?: SortiePoids[];
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
+  /**
+   * A5 (ARB-4, sql/310) : le minimum de ménages d'un carreau compté dans ces chiffres (0 pour la population totale),
+   * figé avec le bilan — changer le réglage ensuite ne change pas ce qu'une extraction a compté.
+   */
+  min_menages?: number;
 }
 
 type Echec = { ok: false; reponse: NextResponse };
 type Issue = { ok: true; unites: Unite[]; resume: ResumePlateforme } | Echec;
 
 /** Ce que `couverture_zone` rend d'utile ici (`lignes` vide pour le découpage `forme`). */
-interface Couverture { population: number; surface_km2: number; lignes: LigneCouverture[] }
+interface Couverture { population: number; surface_km2: number; lignes: LigneCouverture[]; min_menages?: number }
 
 /** Ce que `paver_cercles` rend d'utile ici. */
 interface Pavage {
   n_candidates: number; n_cercles: number; population: number; couverte: number; manques: number; hors_zone: number;
-  achetee: number; taux_utile: number | null;
+  achetee: number; taux_utile: number | null; min_menages?: number;
   cercles: { lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }[];
 }
 
@@ -144,7 +149,7 @@ async function lireCouverture(ctx: Contexte, plateforme: string, decoupage: stri
   if (r.error || !o || o.refus !== undefined || typeof o.population !== 'number' || !Array.isArray(o.lignes)) {
     return refusDe(plateforme, repondreCouverture(r, MESSAGES_REFUS_COUVERTURE, 'zones/extractions couverture', ECHEC));
   }
-  const couverture = { population: o.population, surface_km2: o.surface_km2, lignes: o.lignes };
+  const couverture = { population: o.population, surface_km2: o.surface_km2, lignes: o.lignes, min_menages: o.min_menages };
   ctx.couvertures.set(decoupage, couverture);
   return couverture;
 }
@@ -175,14 +180,14 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
     const aVerifierPays = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
     return {
       ok: true, unites,
-      resume: { ...bilanPays, plateforme: c.plateforme, avertissements: verifierLimites(bilanPays, regle), ...aVerifierPays },
+      resume: { ...bilanPays, plateforme: c.plateforme, avertissements: verifierLimites(bilanPays, regle), ...aVerifierPays, min_menages: forme.min_menages },
     };
   } else if (c.maille === 'cp' && r?.type === 'codes_postaux') {
     // La liste de la recette, seuil ignoré ; leurs populations sont portées par le plan CP (par canonique).
     unites = [...new Set(r.codes)].map((code) => ({ plateforme: c.plateforme, maille: 'cp', code, retenu: true }));
     // Les codes de la liste (A1) ; un membre de groupe nommé seul achète son groupe (B15, M-5 de la relecture A2).
     const bilanCp = resumeExact(forme.population, forme.surface_km2, unites.length, unites.length);
-    return { ok: true, unites, resume: { ...bilanCp, plateforme: c.plateforme, avertissements: verifierLimites(bilanCp, regle) } };
+    return { ok: true, unites, resume: { ...bilanCp, plateforme: c.plateforme, avertissements: verifierLimites(bilanCp, regle), min_menages: forme.min_menages } };
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
     unites = [{ plateforme: c.plateforme, maille: 'cercle', lon: r.lon, lat: r.lat, rayon_m: r.rayon_m, ...toute }];
   } else {
@@ -191,7 +196,7 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   }
   const bilan = resumeExact(forme.population, forme.surface_km2, unites.length);
   const aVerifier = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
-  return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier } };
+  return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
 }
 
 /** Une maille territoriale calculée : la couverture du découpage, puis le seuil. */
@@ -206,7 +211,7 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
       plateforme: c.plateforme, maille: c.maille, code: l.code, nom: l.nom,
       pop_en_zone: l.pop_en_zone, pop_totale: l.pop_totale, part: l.part, retenu: estRetenue(l, c.seuil),
     })),
-    resume: { ...bilan, plateforme: c.plateforme, population: couverture.population, avertissements: verifierLimites(bilan, regle) },
+    resume: { ...bilan, plateforme: c.plateforme, population: couverture.population, avertissements: verifierLimites(bilan, regle), min_menages: couverture.min_menages },
   };
 }
 
@@ -234,7 +239,7 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
       pop_en_zone: k.pop_en_zone, pop_totale: k.pop_totale, part: k.part, retenu: true,
     })),
     resume: {
-      ...chiffres, plateforme: c.plateforme, exacte: false, n_candidates: o.n_candidates, population: o.population,
+      ...chiffres, plateforme: c.plateforme, exacte: false, n_candidates: o.n_candidates, population: o.population, min_menages: o.min_menages,
       // A3 : un disque de rayon autour d'un point qui déborde du territoire se dit, figé avec le bilan.
       avertissements: [...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille)],
     },
