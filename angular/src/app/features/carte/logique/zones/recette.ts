@@ -244,18 +244,56 @@ export function rayonNonActivable(r: Recette | null): number | null {
   return (r?.type === 'rayon_point' || r?.type === 'rayon_poi') && r.rayon_m < RAYON_POINT_MIN_M ? r.rayon_m : null;
 }
 
-/** Le refus d'activer une telle zone (⑤), avec sa valeur ; `null` si elle s'active. */
-export function refusActivation(r: Recette | null): string | null {
-  const rayon = rayonNonActivable(r);
-  return rayon === null ? null : `Rayon de ${formaterNombre(rayon)} m : trop fin pour être activé `
-    + `(minimum ${formaterNombre(RAYON_POINT_MIN_M)} m). Gardé pour l’analyse uniquement.`;
+/** Une zone de l'espace telle qu'une liste (ou le serveur) la connaît : son nom, sa recette lue. */
+export interface ZoneConnue { readonly name: string; readonly recette: Recette | null }
+
+/**
+ * Tour 3 (N-2) : ce qui empêche d'activer la recette — elle-même (`nom` null), ou, pour une COMBINAISON (union,
+ * intersection, différence : toutes), la première de ses zones sources, à toute profondeur, de rayon trop fin (son
+ * nom). Seules les sources de `zones` sont vues : l'écran passe sa liste, le serveur les lit (`activation-serveur.ts`).
+ */
+function zoneTropFine(r: Recette | null, zones: ReadonlyMap<string, ZoneConnue> = new Map()): { nom: string | null; rayon: number } | null {
+  const vues = new Set<string>();
+  const chercher = (x: Recette | null, nom: string | null): { nom: string | null; rayon: number } | null => {
+    const rayon = rayonNonActivable(x);
+    if (rayon !== null) return { nom, rayon };
+    if (x?.type !== 'combinaison') return null;
+    for (const id of x.zones) {
+      const z = zones.get(id);
+      if (!z || vues.has(id)) continue;
+      vues.add(id);
+      const t = chercher(z.recette, z.name);
+      if (t) return t;
+    }
+    return null;
+  };
+  return chercher(r, null);
+}
+
+/** Le refus d'activer une telle zone (⑤, export DSP), avec sa valeur — et la zone fautive d'une combinaison ; `null` si elle s'active. */
+export function refusActivation(r: Recette | null, zones?: ReadonlyMap<string, ZoneConnue>): string | null {
+  const t = zoneTropFine(r, zones);
+  if (!t) return null;
+  const minimum = `minimum ${formaterNombre(RAYON_POINT_MIN_M)} m`;
+  return t.nom === null
+    ? `Rayon de ${formaterNombre(t.rayon)} m : trop fin pour être activé (${minimum}). Gardé pour l’analyse uniquement.`
+    : `La zone « ${t.nom} » (rayon de ${formaterNombre(t.rayon)} m) est trop fine pour être activée (${minimum}) : `
+      + 'cette combinaison est gardée pour l’analyse uniquement.';
 }
 
 /** La mention posée à côté des chiffres d'une telle zone en analyse (③, ④, « Mes zones ») ; `null` sinon. */
-export function mentionEstimatif(r: Recette | null): string | null {
-  const rayon = rayonNonActivable(r);
-  return rayon === null ? null : `Chiffres estimatifs : un rayon de ${formaterNombre(rayon)} m est plus fin que les carreaux `
-    + `INSEE de 200 m. Zone gardée pour l’analyse, jamais activée (minimum ${formaterNombre(RAYON_POINT_MIN_M)} m).`;
+export function mentionEstimatif(r: Recette | null, zones?: ReadonlyMap<string, ZoneConnue>): string | null {
+  const t = zoneTropFine(r, zones);
+  if (!t) return null;
+  const objet = t.nom === null ? `un rayon de ${formaterNombre(t.rayon)} m est`
+    : `cette combinaison contient la zone « ${t.nom} », de rayon ${formaterNombre(t.rayon)} m,`;
+  return `Chiffres estimatifs : ${objet} plus fin que les carreaux INSEE de 200 m. `
+    + `Zone gardée pour l’analyse, jamais activée (minimum ${formaterNombre(RAYON_POINT_MIN_M)} m).`;
+}
+
+/** La liste d'un écran (id, nom, recette) en zones connues, pour `refusActivation` / `mentionEstimatif` d'une combinaison. */
+export function zonesParId(liste: readonly { readonly id: string; readonly name: string; readonly recette?: Recette | null }[]): ReadonlyMap<string, ZoneConnue> {
+  return new Map(liste.map((z) => [z.id, { name: z.name, recette: z.recette ?? null }]));
 }
 
 function km(m: number): string {

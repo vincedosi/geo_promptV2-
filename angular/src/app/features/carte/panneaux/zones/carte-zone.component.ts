@@ -4,7 +4,7 @@ import type { FormatExportZone, ZoneCustomResume } from '../../data/zones-custom
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { decrireComposition } from '../../logique/zones/composition';
 import { libelleSource } from '../../logique/zones/libelle-zone';
-import { estRecalculable, libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
+import { estRecalculable, libelleRecette, mentionEstimatif, zonesParId } from '../../logique/zones/recette';
 import { dateZone } from '../../logique/zones/zones-affichees';
 
 /** Le bouton fantôme de React (`ghostBtn`, `ZonesOverlay.tsx:615-624`) : bord 0,5 px subtil, 10 px, rayon 4. */
@@ -199,7 +199,9 @@ export class CarteZoneComponent {
     const r = this.zone().recette;
     return r ? libelleRecette(r, this.indicateurs()) : 'Forme figée';
   });
-  protected readonly estimatif = computed(() => mentionEstimatif(this.zone().recette ?? null));
+  /** Les zones de l'espace (« Mes zones ») : les sources d'une combinaison, pour la mention estimative (B8, tour 3). */
+  readonly espace = input<readonly ZoneCustomResume[]>([]);
+  protected readonly estimatif = computed(() => mentionEstimatif(this.zone().recette ?? null, zonesParId(this.espace())));
   protected readonly recalculable = computed(() => {
     const r = this.zone().recette;
     return !!r && estRecalculable(r);

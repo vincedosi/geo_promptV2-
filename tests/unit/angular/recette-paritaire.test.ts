@@ -32,6 +32,16 @@ describe('recette de zone : Angular = serveur', () => {
       { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '13' } },
       { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 200 },
     ];
+    // Tour 3 (N-2) : une combinaison dont une zone source est trop fine, sources connues par une liste.
+    const sources = new Map([['a', { name: 'Fin', recette: cas[cas.length - 2] }], ['b', { name: 'Dessin', recette: cas[5] }]]);
+    const combi: R.Recette = { v: 1, type: 'combinaison', operation: 'difference', zones: ['b', 'a'] };
+    expect(A.refusActivation(combi, sources)).toBe(R.refusActivation(combi, sources));
+    expect(A.mentionEstimatif(combi, sources)).toBe(R.mentionEstimatif(combi, sources));
+    expect(R.refusActivation(combi, sources)).not.toBeNull();
+    // La liste d'un écran en zones connues : même forme des deux côtés (le serveur lit, lui, les sources en base).
+    const liste = [{ id: 'a', name: 'Fin', recette: cas[cas.length - 2] }, { id: 'b', name: 'Sans recette' }];
+    expect(A.zonesParId(liste)).toEqual(R.zonesParId(liste));
+    expect(R.refusActivation(combi, R.zonesParId(liste))).toBe(R.refusActivation(combi, sources));
     for (const r of cas) {
       expect(A.refusActivation(r)).toBe(R.refusActivation(r));
       expect(A.mentionEstimatif(r)).toBe(R.mentionEstimatif(r));

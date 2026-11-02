@@ -120,6 +120,7 @@ const ANTI_REBOND_RECHERCHE_MS = 200;
               [enCours]="l.enCours"
               [recalculEnCours]="l.recalcul"
               [indicateurs]="indicateurs()"
+              [espace]="zones()"
               [rang]="l.rang"
               [referencee]="l.referencee"
               [duplicationEnCours]="l.duplication"

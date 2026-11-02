@@ -20,7 +20,7 @@ import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { mailleSansObjet } from '@/lib/zones/conversion';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { refusActivation } from '@/lib/zones/recette';
+import { refusActivationServeur } from '@/lib/zones/activation-serveur';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -125,13 +125,9 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): P
  * zone locale) → 400 `{ error: « <plateforme> — <phrase> », refus: 'maille_sans_objet', plateforme }`, comme le 422
  * de l'extraction (relecture 1) ; la phrase est celle de `mailleSansObjet`, la même règle que l'écran et
  * l'extraction. `recette` : brute de `custom_geo_zones` ; illisible, seule la maille pays est refusée. `null` = admis.
- * Décision du 02/11 : avant tout, une zone de rayon sous le minimum d'activation → 400 `rayon_non_activable`, avec sa
- * valeur (`refusActivation`) — gardée pour l'analyse, jamais activée.
  */
 function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextResponse | null {
   const lue = lireRecette(recette);
-  const tropFin = refusActivation(lue.ok ? lue.recette : null);
-  if (tropFin) return NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 400 });
   for (const c of choix) {
     const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille);
     if (phrase) {
@@ -139,6 +135,20 @@ function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextRespons
     }
   }
   return null;
+}
+
+/**
+ * Décision du 02/11 (+ tour 3, N-2) : une zone de rayon sous le minimum d'activation, ou une combinaison qui en contient
+ * une → 400 `rayon_non_activable`, avec la valeur et la zone fautive (`refusActivationServeur` : une lecture par niveau
+ * de combinaison, aucune sinon) — gardée pour l'analyse, jamais activée. `null` = admis.
+ */
+async function refusTropFin(supabase: ClientAdmin, orgId: string, recette: unknown, echec: string): Promise<NextResponse | null> {
+  try {
+    const tropFin = await refusActivationServeur(supabase, orgId, recette);
+    return tropFin ? NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 400 }) : null;
+  } catch (e) {
+    return panne('sources de la zone', e instanceof Error ? e.message : String(e), echec);
+  }
 }
 
 const lignesChoix = (jeuId: string, choix: ChoixPlateforme[]) => choix.map((c) => ({
@@ -169,6 +179,8 @@ export async function enregistrerJeuZone(
   if (refus) return refus;
   const sansObjet = refusSansObjet(zone.data.recette, jeu.plateformes);
   if (sansObjet) return sansObjet;
+  const tropFin = await refusTropFin(supabase, espace.orgId, zone.data.recette, ECHEC_ENREGISTREMENT);
+  if (tropFin) return tropFin;
 
   const version = await prochaineVersion(supabase, espace.orgId, corps.nom);
   if (version === null) return erreur(ECHEC_ENREGISTREMENT, 500);
@@ -246,6 +258,8 @@ export async function reglerJeuZone(
     if (zone.error || !zone.data) return panne('zone du jeu', zone.error?.message ?? 'absente', 'Modification impossible.');
     const sansObjet = refusSansObjet(zone.data.recette, corps.plateformes);
     if (sansObjet) return sansObjet;
+    const tropFin = await refusTropFin(supabase, jeu.org_id, zone.data.recette, 'Modification impossible.');
+    if (tropFin) return tropFin;
   }
 
   if (corps.plateformes) {

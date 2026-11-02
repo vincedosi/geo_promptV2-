@@ -104,6 +104,22 @@ describe('mg-panneau-jeu', () => {
     http.verify();
   });
 
+  it('tour 3 (N-2) : une combinaison dont une source a 100 m de rayon est refusée, la source nommée, sans conversion', async () => {
+    const zones = [
+      { id: Z1, name: 'Lycées − Dessin', updated_at: 'v1', recette: { v: 1, type: 'combinaison', operation: 'difference', zones: ['s1', 's2'] } },
+      { id: 's1', name: 'Lycées 100 m', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '35' } } },
+      { id: 's2', name: 'Dessin', recette: { v: 1, type: 'dessin' } },
+    ] as unknown as ZoneCustomResume[];
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones }) });
+    for (const r of http.match('/api/zones/plateformes')) r.flush({ plateformes: REGISTRE });
+    await stable();
+    http.expectNone((r) => r.url.includes('/couverture') || r.url.includes('/cercles'));
+    expect(el.querySelector('[data-refus-activation]')?.textContent?.trim()).toBe(
+      'La zone « Lycées 100 m » (rayon de 100 m) est trop fine pour être activée (minimum 250 m) : '
+      + 'cette combinaison est gardée pour l’analyse uniquement.');
+    expect(el.querySelector('mg-enregistrer-jeu')).toBeNull();
+  });
+
   it('A-13 : la zone analysée en ④ est PROPOSÉE (pas prise) ; un clic la choisit', async () => {
     const lister = () => of({ zones: [{ id: Z2, name: 'Fos', recette: null } as unknown as ZoneCustomResume] });
     const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneAnalyse=${Z2}`, { lister });

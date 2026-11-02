@@ -7,7 +7,7 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { LectureAnnulable, surChangement } from '../../etat/lecture-annulable';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { messageErreurRequete } from '../../logique/analyses/commun';
-import { libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
+import { type ZoneConnue, libelleRecette, mentionEstimatif, zonesParId } from '../../logique/zones/recette';
 import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './styles-analyse';
 
 /**
@@ -115,6 +115,8 @@ export class ChoixZoneAnalyseeComponent {
   readonly choisie = output<string | null>();
   /** La ligne de la zone choisie, dès que la liste la connaît (une fois par zone et par lecture). */
   readonly lue = output<ZoneCustomResume>();
+  /** Les zones de l'espace par id, à chaque lecture de la liste : ⑤ y lit les sources d'une combinaison (B8, tour 3). */
+  readonly sources = output<ReadonlyMap<string, ZoneConnue>>();
 
   protected readonly LIBELLE_CHAMP = LIBELLE_CHAMP;
   protected readonly LISTE_CHAMP = LISTE_CHAMP;
@@ -153,7 +155,9 @@ export class ChoixZoneAnalyseeComponent {
     const z = this.zoneChoisie();
     return z?.recette ? libelleRecette(z.recette, this.indicateurs()) : null;
   });
-  protected readonly estimatifChoisi = computed(() => mentionEstimatif(this.zoneChoisie()?.recette ?? null));
+  /** Les zones de l'espace par id : les sources d'une combinaison (B8, tour 3, N-2). */
+  private readonly connues = computed(() => zonesParId(this.zones()));
+  protected readonly estimatifChoisi = computed(() => mentionEstimatif(this.zoneChoisie()?.recette ?? null, this.connues()));
 
 
   constructor() {
@@ -165,7 +169,12 @@ export class ChoixZoneAnalyseeComponent {
     let emise: ZoneCustomResume | null = null;
     effect(() => {
       const z = this.zoneChoisie();
-      if (z && z !== emise) untracked(() => { emise = z; this.lue.emit(z); });
+      // Les sources AVANT la ligne : ⑤ connaît la recette ET ses sources quand il décide de convertir (B8, tour 3).
+      if (z && z !== emise) untracked(() => { emise = z; this.sources.emit(this.connues()); this.lue.emit(z); });
+    });
+    effect(() => {
+      const c = this.connues();
+      untracked(() => this.sources.emit(c));
     });
     // Une relecture DEMANDÉE (zone recalculée) remplace la liste, même déjà lue ; sans zone choisie, rien n'est lu.
     surChangement(() => this.relire(), () => {

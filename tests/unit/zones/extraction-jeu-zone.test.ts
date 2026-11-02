@@ -488,3 +488,29 @@ describe('décision du 02/11 : un rayon sous 250 m ne s’active jamais (gardé 
     expect((await extraire()).status).toBe(201);
   });
 });
+
+describe('tour 3 (N-2) : une combinaison dont une zone source est sous 250 m ne s’extrait pas', () => {
+  const SOURCE_FINE = '3f2504e0-4f89-11d3-9a0c-0305e82c33f1';
+  const SOURCE_LARGE = '3f2504e0-4f89-11d3-9a0c-0305e82c33f2';
+  it.each(['union', 'intersection', 'difference'])('%s : 422 qui nomme la zone et son rayon, sources lues en UNE requête, aucune RPC', async (operation) => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }],
+      { v: 1, type: 'combinaison', operation, zones: [SOURCE_LARGE, SOURCE_FINE] }, [regle('dv360', 'cp')]);
+    const recette = { v: 1, type: 'combinaison', operation, zones: [SOURCE_LARGE, SOURCE_FINE] };
+    // La zone du jeu (lecture `.eq('id')`), puis ses sources (lecture `.in('id')`).
+    etat.tables.custom_geo_zones = (filtres) => (filtres.some((f) => f[0] === 'in')
+      ? { data: [
+        { id: SOURCE_LARGE, name: 'Lycées 5 km', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 5000, perimetre: { type: 'departement', code: '69' } } },
+        { id: SOURCE_FINE, name: 'Lycées 100 m', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '69' } } },
+      ], error: null }
+      : { data: { recette }, error: null });
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect(await r.json()).toEqual({
+      error: 'La zone « Lycées 100 m » (rayon de 100 m) est trop fine pour être activée (minimum 250 m) : '
+        + 'cette combinaison est gardée pour l’analyse uniquement.',
+      refus: 'rayon_non_activable',
+    });
+    expect(etat.lectures.filter((l) => l.table === 'custom_geo_zones' && l.filtres.some((f) => f[0] === 'in'))).toHaveLength(1);
+    expect(etat.rpcs).toEqual([]);
+  });
+});

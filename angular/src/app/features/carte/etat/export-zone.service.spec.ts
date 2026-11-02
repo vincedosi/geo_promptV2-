@@ -30,3 +30,12 @@ describe('ExportZoneService (downloadZoneExport, T14)', () => {
     expect(enregistrer).not.toHaveBeenCalled();
   });
 });
+
+describe('ExportZoneService — rayon trop fin pour être activé (B8, tour 3 N-1)', () => {
+  it('422 `rayon_non_activable` de la route : son message exact est rendu, aucun fichier', async () => {
+    const corps = new Blob([JSON.stringify({ error: 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.', refus: 'rayon_non_activable' })], { type: 'application/json' });
+    const { service, enregistrer } = monter(() => throwError(() => new HttpErrorResponse({ status: 422, error: corps })));
+    await expect(service.exporter('z1', 'bidding_script')).resolves.toBe('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+    expect(enregistrer).not.toHaveBeenCalled();
+  });
+});

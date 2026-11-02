@@ -56,7 +56,8 @@ import { lireVolumesAttendus } from './part-prevue-serveur';
 import { lireGroupesCp } from './groupes';
 import { lireRecette } from './recette-schema';
 import type { PlateformeGeo, PlateformePoids } from './plateformes';
-import { refusActivation, type Recette } from './recette';
+import type { Recette } from './recette';
+import { refusActivationServeur } from './activation-serveur';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 type LigneJeu = Tables<'zone_sets'>;
@@ -420,8 +421,10 @@ export async function extraireJeuZone(
   // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
   if (zoneLue.error || !zoneLue.data) return panne('zone du jeu', zoneLue.error?.message ?? 'absente').reponse;
   const lue = lireRecette(zoneLue.data.recette);
-  // Décision du 02/11 : un rayon sous le minimum d'activation ne s'active jamais — refusé avant toute lecture, sans relèvement.
-  const tropFin = refusActivation(lue.ok ? lue.recette : null);
+  // Décision du 02/11 (+ tour 3 : sources d'une combinaison) : un rayon sous le minimum d'activation ne s'active jamais —
+  // refusé avant les règles et toute RPC, sans relèvement.
+  const tropFin = await refusActivationServeur(supabase, jeu.org_id, zoneLue.data.recette).catch((e: unknown) => panne('sources de la zone', e));
+  if (typeof tropFin === 'object' && tropFin) return tropFin.reponse;
   if (tropFin) return NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 422 });
   const choix: Choix[] = (choixLus.data ?? []).map((c) => ({ ...c, seuil: Number(c.seuil) }));
   if (choix.length === 0) return erreur('Ce jeu n’a aucune plateforme : il n’y a rien à extraire.', 409).reponse;

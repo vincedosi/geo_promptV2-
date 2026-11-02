@@ -225,4 +225,12 @@ describe('PlanMediaComponent — exports', () => {
     expect(el.querySelector('[data-erreur-export]')!.textContent!.trim()).toBe('Zone introuvable');
     expect(appels.instantane).not.toHaveBeenCalled();
   });
+
+  it('B8, tour 3 (N-1) : le refus d’activation d’une zone trop fine s’affiche tel quel', async () => {
+    const { el, exporter, stable } = await monter();
+    exporter.mockImplementationOnce(async () => 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+    el.querySelector<HTMLButtonElement>('[data-export="tiktok_geo"]')!.click();
+    await stable();
+    expect(el.querySelector('[data-erreur-export]')!.textContent!.trim()).toBe('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+  });
 });

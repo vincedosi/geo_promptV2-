@@ -130,6 +130,32 @@ describe('la recette d’une zone', () => {
     expect(mentionEstimatif(poi(5000))).toBeNull();
   });
 
+  it('N-2 (tour 3) : toute combinaison dont UNE zone source est sous 250 m — à toute profondeur — est non activable, et le dit', () => {
+    const poi = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: PER });
+    const zones = new Map<string, { name: string; recette: Recette | null }>([
+      ['fin', { name: 'Lycées 100 m', recette: poi(100) }],
+      ['large', { name: 'Lycées 5 km', recette: poi(5000) }],
+      ['dessin', { name: 'Dessin', recette: { v: 1, type: 'dessin' } }],
+      ['combi', { name: 'Sous-union', recette: { v: 1, type: 'combinaison', operation: 'union', zones: ['dessin', 'fin'] } }],
+    ]);
+    const combi = (operation: 'union' | 'intersection' | 'difference', ids: string[]): Recette => ({ v: 1, type: 'combinaison', operation, zones: ids });
+    const REFUS = 'La zone « Lycées 100 m » (rayon de 100 m) est trop fine pour être activée (minimum 250 m) : '
+      + 'cette combinaison est gardée pour l’analyse uniquement.';
+    for (const op of ['union', 'intersection', 'difference'] as const) {
+      expect(refusActivation(combi(op, ['large', 'fin']), zones)).toBe(REFUS);
+      expect(refusActivation(combi(op, ['fin', 'dessin']), zones)).toBe(REFUS);
+    }
+    expect(refusActivation(combi('union', ['large', 'combi']), zones)).toBe(REFUS);
+    expect(refusActivation(combi('union', ['large', 'dessin']), zones)).toBeNull();
+    // Sources inconnues de la liste : rien à dire côté écran (le serveur lit, lui, les sources).
+    expect(refusActivation(combi('union', ['x', 'y']), zones)).toBeNull();
+    expect(mentionEstimatif(combi('intersection', ['large', 'fin']), zones)).toBe(
+      'Chiffres estimatifs : cette combinaison contient la zone « Lycées 100 m », de rayon 100 m, plus fin que les carreaux '
+      + 'INSEE de 200 m. Zone gardée pour l’analyse, jamais activée (minimum 250 m).');
+    // Une zone de rayon trop fin elle-même : le message du tour 2, inchangé.
+    expect(refusActivation(poi(100), zones)).toBe('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+  });
+
   it('France métropolitaine (retours du 26/10) : « Autour des POI » passe, les seuils sont différés ; la France entière reste refusée', () => {
     const METRO = { type: 'france', code: 'METRO' } as const;
     const FR = { type: 'france', code: 'FR' } as const;

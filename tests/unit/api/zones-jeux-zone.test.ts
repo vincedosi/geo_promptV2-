@@ -451,3 +451,24 @@ describe('décision du 02/11 : une zone de rayon sous 250 m ne s’enregistre pa
     expect((await poster({ nom: 'Lycées', jeu: jeuZone() })).status).toBe(201);
   });
 });
+
+describe('tour 3 (N-2) : un jeu sur une combinaison qui contient une zone sous 250 m ne s’enregistre pas', () => {
+  const FINE = '3f2504e0-4f89-11d3-9a0c-0305e82c33f1';
+  const DESSIN = '3f2504e0-4f89-11d3-9a0c-0305e82c33f2';
+  it.each(['union', 'intersection', 'difference'])('POST %s → 400 qui nomme la zone et son rayon, rien écrit', async (operation) => {
+    h.donnees['custom_geo_zones:select1'] = { id: h.ZONE, name: 'Combinée', recette: { v: 1, type: 'combinaison', operation, zones: [DESSIN, FINE] } };
+    h.donnees['custom_geo_zones:select'] = [
+      { id: DESSIN, name: 'Dessin', recette: { v: 1, type: 'dessin' } },
+      { id: FINE, name: 'Lycées 100 m', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '35' } } },
+    ];
+    const r = await poster({ nom: 'Combinée', jeu: jeuZone() });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({
+      error: 'La zone « Lycées 100 m » (rayon de 100 m) est trop fine pour être activée (minimum 250 m) : '
+        + 'cette combinaison est gardée pour l’analyse uniquement.',
+      refus: 'rayon_non_activable',
+    });
+    expect(h.ecritures).toEqual([]);
+    expect(h.lectures.filter((l) => l.startsWith('custom_geo_zones:id in'))).toHaveLength(1);
+  });
+});

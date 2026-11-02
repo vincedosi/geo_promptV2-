@@ -17,8 +17,8 @@ export const etat = {
   rpcs: [] as { nom: string; args: Record<string, unknown> }[],
   /** La réponse de chaque RPC par nom (ou une fonction de ses arguments) ; absente : `{ data: null, error: null }`. */
   reponses: {} as Record<string, Reponse | ((args: Record<string, unknown>) => Reponse)>,
-  /** La réponse d'une lecture de table par nom ; une table absente d'ici LÈVE (aucune lecture attendue). */
-  tables: {} as Record<string, Reponse>,
+  /** La réponse d'une lecture de table par nom (ou une fonction de ses filtres) ; une table absente d'ici LÈVE (aucune lecture attendue). */
+  tables: {} as Record<string, Reponse | ((filtres: unknown[][]) => Reponse)>,
   /** Chaque table lue, avec ses filtres (`eq`, `in`) dans l'ordre d'appel. */
   lectures: [] as { table: string; filtres: unknown[][] }[],
 };
@@ -63,6 +63,7 @@ export const createAdminClient = () => ({
     if (!reponse) throw new Error(`aucune lecture de table attendue : ${table}`);
     const lecture = { table, filtres: [] as unknown[][] };
     etat.lectures.push(lecture);
+    const resoudre = () => (typeof reponse === 'function' ? reponse(lecture.filtres) : reponse);
     // Une requête enchaînable minimale : chaque filtre est noté, la réponse est celle de `etat.tables`.
     const requete = {
       select: () => requete,
@@ -71,8 +72,8 @@ export const createAdminClient = () => ({
       gt: (...a: unknown[]) => { lecture.filtres.push(['gt', ...a]); return requete; },
       limit: () => requete,
       order: () => requete,
-      maybeSingle: () => Promise.resolve(reponse),
-      then: (ok: (r: Reponse) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(reponse).then(ok, ko),
+      maybeSingle: () => Promise.resolve(resoudre()),
+      then: (ok: (r: Reponse) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(resoudre()).then(ok, ko),
     };
     return requete;
   },

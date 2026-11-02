@@ -1,4 +1,4 @@
-import { HttpResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Component, type Injector, computed, effect, inject, runInInjectionContext, signal } from '@angular/core';
 import type maplibregl from 'maplibre-gl';
 import { TestBed } from '@angular/core/testing';
@@ -1413,6 +1413,16 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(etat.filtre()?.code).toBe(ID);
     expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
     expect(TestBed.inject(Router).url).toBe(`/carte?customZone=${ID}&etape=zones`);
+  });
+
+  it('B8, tour 3 (N-1) : « Script bidding DV360 » d’une zone trop fine — le refus de la route est annoncé, valeur comprise', async () => {
+    const corps = new Blob([JSON.stringify({ error: 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.', refus: 'rayon_non_activable' })], { type: 'application/json' });
+    const exporter = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 422, error: corps })));
+    const { harness, hote, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE), exporter } });
+    hote.querySelector<HTMLButtonElement>('button[data-script-dv360]')!.click();
+    await stable();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(injecteurPage(harness).get(AnnonceService).annonces().map((a) => a.texte)).toContain('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
   });
 
   it('lien en échec : une annonce le dit (React : console seulement)', async () => {

@@ -7,8 +7,12 @@ import { toSlug } from '@/lib/custom-geo/slug';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
 import { refusZonePays } from '@/lib/zones/couverture';
+import { refusActivationServeur } from '@/lib/zones/activation-serveur';
 
 export const dynamic = 'force-dynamic';
+
+/** Les formats qui partent vers une plateforme (DV360, TikTok) : ils activent la zone. */
+const FORMATS_DSP = new Set(['dv360_cp', 'dv360_sdf', 'bidding_script', 'tiktok_geo']);
 
 /** Items d'une zone pour les exports pondérés (RPC get_zone_items_export). */
 interface ZoneExportItem {
@@ -61,12 +65,25 @@ export async function GET(
   // Get zone name for filename
   const { data: zone } = await supabase
     .from('custom_geo_zones')
-    .select('name, recette')
+    .select('name, recette, org_id')
     .eq('id', id)
     .single();
   // Une zone pays n'a pas de codes : un fichier vide se lirait comme une zone vide (sql/296).
   const refusPays = refusZonePays(zone?.recette);
   if (refusPays) return refusPays;
+  // B8 (décision du 02/11, tour 3 N-1/N-2) : un fichier DSP ACTIVE la zone. Un rayon sous le minimum d'activation (le
+  // sien ou celui d'une source de combinaison) serait élargi en silence aux codes postaux qu'il touche : refusé, valeur
+  // dite. Les exports d'analyse (CSV, GeoJSON) restent servis.
+  if (FORMATS_DSP.has(format) && zone) {
+    let tropFin: string | null;
+    try {
+      tropFin = await refusActivationServeur(supabase, zone.org_id, zone.recette);
+    } catch (e) {
+      console.error('[custom-geo/export] sources de la zone :', e instanceof Error ? e.message : e);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+    if (tropFin) return NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 422 });
+  }
 
   const slug = toSlug(zone?.name ?? id.slice(0, 8));
 
