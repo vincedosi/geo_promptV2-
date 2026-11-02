@@ -279,7 +279,7 @@ export class ColonnePlateformeComponent {
   protected readonly rayonDefautTexte = computed(() => {
     const c = this.choix();
     if (c?.maille !== 'cercle' || this.jeu.jeu()) return null;
-    const d = rayonDefautExplique(this.ligne(), this.jeu.recette(), this.jeu.surface());
+    const d = rayonDefautExplique(this.ligne(), this.jeu.recette(), this.jeu.surface(), this.jeu.plateformes());
     return d.rayon_m === c.rayon_m ? texteRayonDefaut(d, this.plateforme()) : null;
   });
   protected readonly unitesTexte = computed(() => nombreUnites(this.bilan()?.resume.n_unites ?? 0, this.choix()?.maille ?? 'polygone'));

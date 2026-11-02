@@ -67,10 +67,34 @@ export const PAS_RAYON_M = 500;
 
 const M2_PAR_KM2 = 1e6;
 
+type Limites = Pick<PlateformeGeo, 'limites'>;
+
+/**
+ * Les bornes de la RÉGLETTE de rayon (tour 1 de B10, I-2) : celles de la ligne ; une borne absente (ligne sans rayon
+ * relevé — TTD en cercle) prend la plus large connue du registre (plus petit minimum, plus grand maximum), à défaut
+ * rien. UNE règle pour la réglette (`bornesRayon`, `ecran.ts`) et le rayon par défaut : le défaut d'une ligne sans
+ * borne ne descend pas sous le minimum que la réglette offre (sous la borne de sécurité de `paver_cercles`, la RPC
+ * refuserait). `repli` : la borne vient du registre, pas de la ligne.
+ */
+export function bornesDeReglette(
+  ligne: Limites | undefined, registre: readonly Limites[] = [],
+): { min?: number; max?: number; repli_min?: true; repli_max?: true } {
+  const mins = registre.map((l) => l.limites.rayon_min_m).filter((v): v is number => v !== undefined);
+  const maxs = registre.map((l) => l.limites.rayon_max_m).filter((v): v is number => v !== undefined);
+  const min = ligne?.limites.rayon_min_m ?? (mins.length > 0 ? Math.min(...mins) : undefined);
+  const max = ligne?.limites.rayon_max_m ?? (maxs.length > 0 ? Math.max(...maxs) : undefined);
+  return {
+    ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}),
+    ...(min !== undefined && ligne?.limites.rayon_min_m === undefined ? { repli_min: true as const } : {}),
+    ...(max !== undefined && ligne?.limites.rayon_max_m === undefined ? { repli_max: true as const } : {}),
+  };
+}
+
 /**
  * Le rayon par défaut et sa raison (dite à l'écran, commun.md règle 5) : `calcule_m` est l'avant (rayon de la recette,
- * rayon tiré de la surface arrondi à 10 m, ou le repli), `rayon_m` l'après, `borne` la borne de la ligne qui l'a
- * ramené. Le rayon tiré de la surface se règle au pas de la réglette.
+ * rayon tiré de la surface arrondi à 10 m, ou le repli), `rayon_m` l'après, `borne` la borne qui l'a ramené —
+ * `borne_reglette` : celle de la réglette (registre), la ligne n'en posant pas. Le rayon tiré de la surface se règle au
+ * pas de la réglette.
  */
 export interface RayonDefaut {
   rayon_m: number;
@@ -78,24 +102,31 @@ export interface RayonDefaut {
   calcule_m: number;
   surface_km2?: number;
   borne?: 'rayon_min_m' | 'rayon_max_m';
+  borne_reglette?: true;
 }
 
 /**
  * Le rayon proposé à une plateforme en cercle sans choix explicite : celui de la recette (un rayon autour d'un point
- * ou de POI : la zone le dit ; son ajustement est dit par `avertissementsRayon`, B8), sinon celui tiré de la surface de
- * la zone (B10), sinon le repli — ramené dans les bornes de la ligne de `plateformes_geo` (une borne absente ne borne
- * pas). Aucune borne écrite ici.
+ * ou de POI : la zone le dit ; ramené aux bornes de la LIGNE, son ajustement est dit par `avertissementsRayon`, B8),
+ * sinon celui tiré de la surface de la zone (B10), sinon le repli — ramenés aux bornes de la réglette
+ * (`bornesDeReglette` : la ligne, à défaut le registre). Aucune borne écrite ici.
  */
 export function rayonDefautExplique(
-  ligne: Pick<PlateformeGeo, 'limites'> | undefined, recette: Recette | null, surface_km2?: number | null,
+  ligne: Limites | undefined, recette: Recette | null, surface_km2?: number | null, registre: readonly Limites[] = [],
 ): RayonDefaut {
-  const { rayon_min_m: min, rayon_max_m: max } = ligne?.limites ?? {};
-  const borner = (v: number) => Math.min(Math.max(v, min ?? v), max ?? Number.POSITIVE_INFINITY);
-  const borne = (v: number): Pick<RayonDefaut, 'borne'> =>
-    min !== undefined && v < min ? { borne: 'rayon_min_m' } : max !== undefined && v > max ? { borne: 'rayon_max_m' } : {};
+  const bornerA = (min: number | undefined, max: number | undefined) => (v: number) =>
+    Math.min(Math.max(v, min ?? v), max ?? Number.POSITIVE_INFINITY);
   if (recette?.type === 'rayon_point' || recette?.type === 'rayon_poi') {
-    return { rayon_m: borner(recette.rayon_m), source: 'recette', calcule_m: recette.rayon_m, ...borne(recette.rayon_m) };
+    const { rayon_min_m: min, rayon_max_m: max } = ligne?.limites ?? {};
+    const borne = min !== undefined && recette.rayon_m < min ? { borne: 'rayon_min_m' as const }
+      : max !== undefined && recette.rayon_m > max ? { borne: 'rayon_max_m' as const } : {};
+    return { rayon_m: bornerA(min, max)(recette.rayon_m), source: 'recette', calcule_m: recette.rayon_m, ...borne };
   }
+  const r = bornesDeReglette(ligne, registre);
+  const borner = bornerA(r.min, r.max);
+  const borne = (v: number): Pick<RayonDefaut, 'borne' | 'borne_reglette'> =>
+    r.min !== undefined && v < r.min ? { borne: 'rayon_min_m', ...(r.repli_min ? { borne_reglette: true } : {}) }
+      : r.max !== undefined && v > r.max ? { borne: 'rayon_max_m', ...(r.repli_max ? { borne_reglette: true } : {}) } : {};
   if (typeof surface_km2 !== 'number' || !(surface_km2 > 0)) {
     return { rayon_m: borner(RAYON_PAR_DEFAUT_M), source: 'repli', calcule_m: RAYON_PAR_DEFAUT_M, ...borne(RAYON_PAR_DEFAUT_M) };
   }
@@ -104,8 +135,10 @@ export function rayonDefautExplique(
   return { rayon_m: borner(auPas), source: 'surface', calcule_m: Math.round(brut / 10) * 10, surface_km2, ...borne(brut) };
 }
 
-export function rayonParDefaut(ligne: Pick<PlateformeGeo, 'limites'> | undefined, recette: Recette | null, surface_km2?: number | null): number {
-  return rayonDefautExplique(ligne, recette, surface_km2).rayon_m;
+export function rayonParDefaut(
+  ligne: Limites | undefined, recette: Recette | null, surface_km2?: number | null, registre?: readonly Limites[],
+): number {
+  return rayonDefautExplique(ligne, recette, surface_km2, registre).rayon_m;
 }
 
 /** Le choix d'UNE plateforme : `rayon_m` pour la maille cercle, et pour elle seule (CHECK `zsp_rayon_cercle`). */

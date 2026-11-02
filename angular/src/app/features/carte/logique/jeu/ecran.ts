@@ -3,7 +3,7 @@ import type { ResultatCercles } from './bilan';
 import type { Avertissement, Resume } from './conversion';
 import type { DefautExplique, Simulation } from './conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
-import { DIVISEUR_RAYON_SURFACE, PAS_RAYON_M, type RayonDefaut } from './mailles-url';
+import { DIVISEUR_RAYON_SURFACE, PAS_RAYON_M, type RayonDefaut, bornesDeReglette } from './mailles-url';
 
 /**
  * ⑤ Jeu de zones — ce que l'écran DIT d'une plateforme et d'une maille (lot 5, T10) : noms, unités, messages. PUR,
@@ -147,15 +147,30 @@ export function texteTropDeCercles(corps: unknown): string | null {
   // B10 : le plus petit rayon qui passe, proposé (avant : ce rayon refusé ; après : le rayon proposé et ses cercles).
   const p = rayonPropose(corps);
   if (p) {
+    const i = texteInterruption(corps);
+    if (i) return `${avant}. Rayon sous le plafond : ${distance(p.rayon_m)} (${nombreUnites(p.n_cercles, 'cercle')}) ; ${i.charAt(0).toLowerCase()}${i.slice(1)}`;
     return p.au_pas
       ? `${avant}. Plus petit rayon sous le plafond : ${distance(p.rayon_m)} (${nombreUnites(p.n_cercles, 'cercle')}).`
       : `${avant}. Rayon sous le plafond : ${distance(p.rayon_m)} (${nombreUnites(p.n_cercles, 'cercle')}) ; un plus petit peut passer.`;
   }
+  const i = texteInterruption(corps);
+  if (i) return `${avant}. ${i}`;
   const s = c.sans_proposition;
   if (s?.motif === 'aucun_sous_plafond' && typeof s.rayon_max_m === 'number') {
     return `${avant}, et encore trop jusqu’au rayon maximal (${distance(s.rayon_max_m)}) : relevez le seuil ou réduisez la zone.`;
   }
   return texteAvertissement({ code: 'max_unites', limite: c.plafond, valeur: c.n_cercles }, 'cercle');
+}
+
+/**
+ * Tour 1 de B10 (I-1) : la recherche du rayon proposé arrêtée par sa garde (`interrompue`) — « Recherche interrompue
+ * (quota de calculs atteint) : dernier rayon essayé 11,5 km (379 cercles). » ; `null` sans interruption.
+ */
+function texteInterruption(corps: unknown): string | null {
+  const i = (corps as { interrompue?: { cause?: unknown; dernier_rayon_m?: unknown; dernier_n_cercles?: unknown } } | null)?.interrompue;
+  if (!i || (i.cause !== 'quota' && i.cause !== 'temps') || typeof i.dernier_rayon_m !== 'number' || typeof i.dernier_n_cercles !== 'number') return null;
+  const cause = i.cause === 'quota' ? 'quota de calculs atteint, réessayez dans une minute' : 'temps de calcul épuisé';
+  return `Recherche interrompue (${cause}) : dernier rayon essayé ${distance(i.dernier_rayon_m)} (${nombreUnites(i.dernier_n_cercles, 'cercle')}).`;
 }
 
 /** B10 : le rayon proposé par le serveur avec un refus `trop_de_cercles` (`rayon_propose`), ou `null`. */
@@ -172,13 +187,22 @@ export function rayonPropose(corps: unknown): { rayon_m: number; n_cercles: numb
  * surface (√(surface / π) / 3 pour 20 km²), ramené au minimum de Meta. » Le repli (surface inconnue) se dit
  * aussi. `null` pour le rayon de la recette : son ajustement est l'avertissement `rayon_min` / `rayon_max` (B8).
  */
+/** m-2 : sous cette surface (km²), la ligne du rayon par défaut la dit au dixième. */
+const SURFACE_AU_DIXIEME_KM2 = 10;
+
 export function texteRayonDefaut(d: RayonDefaut, plateforme: Plateforme): string | null {
   if (d.source === 'recette') return null;
   if (d.source === 'repli') return `Rayon par défaut ${distance(d.rayon_m)} : surface de la zone inconnue.`;
-  const calcul = `√(surface / π) / ${DIVISEUR_RAYON_SURFACE} pour ${formaterNombre(Math.round(d.surface_km2 ?? 0))} km²`;
+  // m-2 : sous 10 km², la surface au dixième — jamais « pour 0 km² ».
+  const s = d.surface_km2 ?? 0;
+  const calcul = `√(surface / π) / ${DIVISEUR_RAYON_SURFACE} pour ${formaterNombre(s < SURFACE_AU_DIXIEME_KM2 ? Math.round(s * 10) / 10 : Math.round(s))} km²`;
   if (!d.borne) return `Rayon par défaut ${distance(d.rayon_m)} : ${calcul} (${distance(d.calcule_m)}).`;
   const extreme = d.borne === 'rayon_min_m' ? 'minimum' : 'maximum';
-  return `Rayon par défaut ${distance(d.rayon_m)} : ${distance(d.calcule_m)} tiré de la surface (${calcul}), ramené au ${extreme} de ${NOM_PLATEFORME[plateforme]}.`;
+  const qui = d.borne_reglette ? 'de la réglette (plus petit minimum du registre)' : `de ${NOM_PLATEFORME[plateforme]}`;
+  if (d.borne_reglette && d.borne === 'rayon_max_m') {
+    return `Rayon par défaut ${distance(d.rayon_m)} : ${distance(d.calcule_m)} tiré de la surface (${calcul}), ramené au maximum de la réglette (plus grand maximum du registre).`;
+  }
+  return `Rayon par défaut ${distance(d.rayon_m)} : ${distance(d.calcule_m)} tiré de la surface (${calcul}), ramené au ${extreme} ${qui}.`;
 }
 
 /**
@@ -230,11 +254,10 @@ function distance(m: number): string {
  * Le pas : `PAS_RAYON_M` (un demi-kilomètre, le pas des rayons proposés par le serveur, B10).
  */
 export function bornesRayon(ligne: PlateformeGeo | undefined, registre: readonly PlateformeGeo[], actuel: number): { min: number; max: number; pas: number } {
-  const mins = registre.map((l) => l.limites.rayon_min_m).filter((v): v is number => v !== undefined);
-  const maxs = registre.map((l) => l.limites.rayon_max_m).filter((v): v is number => v !== undefined);
-  const min = ligne?.limites.rayon_min_m ?? (mins.length > 0 ? Math.min(...mins) : actuel);
-  const max = ligne?.limites.rayon_max_m ?? (maxs.length > 0 ? Math.max(...maxs) : actuel);
-  return { min, max: Math.max(min, max), pas: PAS_RAYON_M };
+  // Tour 1 de B10 (I-2) : la règle des bornes est `bornesDeReglette`, partagée avec le rayon par défaut.
+  const b = bornesDeReglette(ligne, registre);
+  const min = b.min ?? actuel;
+  return { min, max: Math.max(min, b.max ?? actuel), pas: PAS_RAYON_M };
 }
 
 /** « 14/10/2026 » : la date d'un relevé de `plateformes_geo` (une date sans heure, lue sans fuseau). */

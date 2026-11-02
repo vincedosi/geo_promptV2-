@@ -79,8 +79,9 @@ export const SANS_RECETTE: Recette = { v: 1, type: 'dessin' };
  */
 export function choixNeuf(
   maille: Maille, seuil: number, rayon: number | undefined, ligne: PlateformeGeo | undefined, recette: Recette | null, surface_km2?: number | null,
+  registre?: readonly PlateformeGeo[],
 ): ChoixMaille {
-  return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, recette, surface_km2) } : { maille, seuil };
+  return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, recette, surface_km2, registre) } : { maille, seuil };
 }
 
 /**
@@ -100,7 +101,7 @@ export function choixDeBase(
   for (const p of PLATEFORMES) {
     const maille = defauts ? defauts[p]?.maille ?? null : mailleParDefaut(regles, p, recette ?? SANS_RECETTE);
     const ligne = regles.find((l) => l.plateforme === p && l.maille === maille);
-    if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2);
+    if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2, regles);
   }
   return choix;
 }
@@ -114,7 +115,7 @@ export function choixASimuler(
 ): { choix: ChoixMaille; ligne: PlateformeGeo }[] {
   return simulationsRequises(regles, p, recette ?? SANS_RECETTE).flatMap((m) => {
     const ligne = regles.find((l) => l.plateforme === p && l.maille === m);
-    return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2), ligne }] : [];
+    return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2, regles), ligne }] : [];
   });
 }
 

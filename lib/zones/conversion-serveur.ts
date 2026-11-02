@@ -17,7 +17,7 @@ import {
   MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PlateformeGeoSchema, PlateformePoidsSchema, type PlateformeGeo, type PlateformePoids,
 } from './plateformes';
 import { REGLAGES_DEFAUT_REPLI, type ReglagesDefaut } from './conversion-defaut';
-import { chercherRayonPropose } from './rayon-propose';
+import { type GardeRecherche, chercherRayonPropose } from './rayon-propose';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
@@ -142,16 +142,31 @@ export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, reg
 }
 
 /**
+ * Tour 1 de B10 (I-1) : le temps qu'une requête de `GET /api/zones/[id]/cercles` peut donner à la recherche du rayon
+ * proposé, compté depuis l'ARRIVÉE de la requête (pavage refusé compris). 40 s sous le `maxDuration` de 60 s : 20 s
+ * de marge pour la réponse et pour un essai plus cher que le précédent — la garde n'arrête que si le temps restant ne
+ * couvre pas le dernier essai, et le coût d'un pavage MONTE avec le rayon (mesuré : 0,16 s à 1 km sur 20 km², 4,2 s à
+ * 32,5 km sur 30 000 km², 5,6 s au pire connu, ARA à 40 km depuis A6). Un essai ne peut donc commencer après 40 s.
+ */
+export const BUDGET_RECHERCHE_RAYON_MS = 40_000;
+
+/**
  * B10 : le pavage de `paverPourPlateforme`, et, s'il est refusé `trop_de_cercles`, le plus petit rayon qui passe sous
  * le plafond (`chercherRayonPropose`, au plus `ESSAIS_RAYON_PROPOSE` pavages de plus, UN À LA FOIS) ajouté au refus :
- * `rayon_propose` (`{ rayon_m, n_cercles, au_pas, essais }`) ou `null` avec `sans_proposition` (le motif). Rien n'est
+ * `rayon_propose` (`{ rayon_m, n_cercles, au_pas, essais }`) ou `null` avec `sans_proposition` (le motif), et
+ * `interrompue` (`{ cause, dernier_rayon_m, dernier_n_cercles }`) si la garde a arrêté la recherche. Rien n'est
  * appliqué : l'écran montre le refus (avant) et la proposition (après), l'utilisateur choisit. Tout autre résultat est
  * rendu tel quel. Un essai en échec est journalisé et arrête la recherche ; le refus d'origine reste rendu.
+ *
+ * `garde` (tour 1, I-1) : `consommer` prend un jeton du quota de la route avant CHAQUE essai, `reste_ms` le temps qui
+ * reste au budget `BUDGET_RECHERCHE_RAYON_MS` — la route les fournit.
  */
-export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo) {
+export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo, garde?: GardeRecherche) {
+  const avant = garde?.reste_ms();
   const pavage = await paverPourPlateforme(supabase, d, regle);
   const o = pavage.data as { refus?: unknown; n_cercles?: unknown; plafond?: unknown } | null;
   if (pavage.error || o?.refus !== 'trop_de_cercles' || typeof o.n_cercles !== 'number' || typeof o.plafond !== 'number') return pavage;
+  const duree_ms = garde && avant !== undefined ? Math.max(0, avant - garde.reste_ms()) : 0;
   const proposition = await chercherRayonPropose(async (rayon_m) => {
     const essai = await paverPourPlateforme(supabase, { ...d, rayon_m }, regle);
     if (essai.error) {
@@ -160,6 +175,6 @@ export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePava
     }
     const e = essai.data as { refus?: unknown; n_cercles?: unknown } | null;
     return { n_cercles: typeof e?.n_cercles === 'number' ? e.n_cercles : 0, ...(typeof e?.refus === 'string' ? { refus: e.refus } : {}) };
-  }, { rayon_m: d.rayon_m, n_cercles: o.n_cercles, plafond: o.plafond }, regle.limites);
+  }, { rayon_m: d.rayon_m, n_cercles: o.n_cercles, plafond: o.plafond, duree_ms }, regle.limites, garde);
   return { ...pavage, data: { ...o, ...proposition } as unknown as typeof pavage.data };
 }

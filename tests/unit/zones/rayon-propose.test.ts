@@ -103,6 +103,43 @@ describe('chercherRayonPropose — dichotomie bornée', () => {
   });
 });
 
+describe('chercherRayonPropose — garde de quota et de temps (tour 1, I-1)', () => {
+  it('chaque essai consomme un jeton AVANT de paver ; quota refusé : arrêt, le meilleur connu et le dernier rayon essayé', async () => {
+    const z = zone(50e3);
+    let jetons = 2;
+    const consommes: number[] = [];
+    const p = await chercherRayonPropose(z.essayer, { rayon_m: 5e3, n_cercles: 2e3, plafond: 200 }, LIMITES_META, {
+      reste_ms: () => Number.POSITIVE_INFINITY,
+      consommer: async () => { consommes.push(z.essais.length); return jetons-- > 0; },
+    });
+    expect(z.essais).toEqual([17_500, 11_500]); // deux jetons, deux pavages
+    expect(consommes).toEqual([0, 1, 2]); // le 3e jeton est demandé avant tout pavage, et refusé
+    expect(p.rayon_propose).toMatchObject({ rayon_m: 17_500, au_pas: false });
+    expect(p.interrompue).toEqual({ cause: 'quota', dernier_rayon_m: 11_500, dernier_n_cercles: 379 });
+  });
+  it('quota refusé dès le premier essai : rien de proposé, le rayon de départ est le dernier essayé', async () => {
+    const z = zone(50e3);
+    const p = await chercherRayonPropose(z.essayer, { rayon_m: 5e3, n_cercles: 2e3, plafond: 200 }, LIMITES_META, {
+      reste_ms: () => Number.POSITIVE_INFINITY, consommer: async () => false,
+    });
+    expect(z.essais).toEqual([]);
+    expect(p).toMatchObject({ rayon_propose: null, sans_proposition: { motif: 'interrompue', essais: 0 } });
+    expect(p.interrompue).toEqual({ cause: 'quota', dernier_rayon_m: 5_000, dernier_n_cercles: 2_000 });
+  });
+  it('temps restant sous le coût de l’essai précédent : arrêt AVANT l’essai, sans consommer de jeton', async () => {
+    const z = zone(50e3);
+    let reste = 10_000;
+    let jetons = 0;
+    const p = await chercherRayonPropose(async (r) => { reste -= 4_000; return z.essayer(r); },
+      { rayon_m: 5e3, n_cercles: 2e3, plafond: 200, duree_ms: 1_000 }, LIMITES_META,
+      { reste_ms: () => reste, consommer: async () => { jetons += 1; return true; } });
+    // 10 s restantes ≥ 1 s (départ) : essai 1 (−4 s) ; 6 s ≥ 4 s : essai 2 ; 2 s < 4 s : arrêt.
+    expect(z.essais).toHaveLength(2);
+    expect(jetons).toBe(2);
+    expect(p.interrompue).toMatchObject({ cause: 'temps', dernier_rayon_m: z.essais[1] });
+  });
+});
+
 describe('source', () => {
   it('le pas des rayons essayés est celui de la réglette de ⑤ (parité)', () => {
     const angular = readFileSync('angular/src/app/features/carte/logique/jeu/mailles-url.ts', 'utf8').match(/export const PAS_RAYON_M = (\d+);/)?.[1];

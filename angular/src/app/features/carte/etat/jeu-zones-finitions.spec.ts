@@ -117,4 +117,32 @@ describe('JeuZonesService — B10 : rayon tiré de la surface, rayon proposé so
     expect(jeu.erreurs().meta).toBe('900 cercles pour 200 admis par la plateforme, et encore trop jusqu’au rayon maximal (80 km) : relevez le seuil ou réduisez la zone.');
     expect(jeu.rayonsProposes().meta).toBeUndefined();
   });
+  it('tour 1 (I-1) : recherche interrompue (quota) — le meilleur connu et le dernier rayon essayé, dits', async () => {
+    const { http, jeu, stable } = await monter(`/carte?zoneJeu=${Z1}`);
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(
+      { error: 'x', refus: 'trop_de_cercles', n_cercles: 481, plafond: 200,
+        rayon_propose: { rayon_m: 17500, n_cercles: 164, au_pas: false, essais: 2 },
+        interrompue: { cause: 'quota', dernier_rayon_m: 11500, dernier_n_cercles: 379 } },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await stable();
+    expect(jeu.erreurs().meta).toBe('481 cercles pour 200 admis par la plateforme. Rayon sous le plafond : 17,5 km (164 cercles) ; '
+      + 'recherche interrompue (quota de calculs atteint, réessayez dans une minute) : dernier rayon essayé 11,5 km (379 cercles).');
+    expect(jeu.rayonsProposes().meta?.rayon_m).toBe(17500);
+  });
+  it('tour 1 (I-1) : interrompue (temps) sans rayon admis : la phrase le dit, rien n’est offert', async () => {
+    const { http, jeu, stable } = await monter(`/carte?zoneJeu=${Z1}`);
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(
+      { error: 'x', refus: 'trop_de_cercles', n_cercles: 900, plafond: 200, rayon_propose: null,
+        sans_proposition: { motif: 'interrompue', rayon_max_m: 80000, essais: 3 },
+        interrompue: { cause: 'temps', dernier_rayon_m: 40000, dernier_n_cercles: 260 } },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await stable();
+    expect(jeu.erreurs().meta).toBe('900 cercles pour 200 admis par la plateforme. Recherche interrompue (temps de calcul épuisé) : '
+      + 'dernier rayon essayé 40 km (260 cercles).');
+    expect(jeu.rayonsProposes().meta).toBeUndefined();
+  });
 });

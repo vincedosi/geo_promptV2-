@@ -153,6 +153,31 @@ describe('paver_cercles', () => {
     expect(etat.rpcs.length).toBeLessThanOrEqual(7);
     expect(etat.rpcs.length).toBe(1 + corps.rayon_propose.essais);
     for (const c of etat.rpcs) expect(c.args).toMatchObject({ p_max_cercles: 200, p_seuil: 20 });
+    // Tour 1 (I-1) : UN jeton de quota par pavage, la requête comprise — le quota borne les pavages, pas les requêtes.
+    expect(etat.quotas).toHaveLength(etat.rpcs.length);
+    expect(new Set(etat.quotas)).toEqual(new Set(['geo:rl:conversion:u1']));
+  });
+  it('quota épuisé pendant la recherche : arrêt, le meilleur connu et le dernier rayon essayé, dits', async () => {
+    let appels = 0;
+    etat.reponses.paver_cercles = (args) => {
+      appels += 1;
+      if (appels === 2) etat.quotaOk = false; // le jeton du 3e pavage sera refusé
+      const n = Math.ceil(481 * (10_000 / (args.p_rayon_m as number)) ** 2);
+      return { data: n > 200 ? { refus: 'trop_de_cercles', n_cercles: n, plafond: 200 } : { ...PAVAGE, n_cercles: n }, error: null };
+    };
+    const r = await appel(ZONE);
+    expect(r.status).toBe(422);
+    const corps = await r.json();
+    expect(etat.rpcs).toHaveLength(2);
+    expect(corps).toMatchObject({ refus: 'trop_de_cercles', n_cercles: 481, rayon_propose: { au_pas: false } });
+    expect(corps.interrompue).toMatchObject({ cause: 'quota', dernier_rayon_m: corps.rayon_propose.rayon_m });
+  });
+  it('source : un budget de temps nommé sous maxDuration, passé à la recherche', async () => {
+    const { readFileSync } = await import('node:fs');
+    const s = readFileSync('app/api/zones/[id]/cercles/route.ts', 'utf8');
+    const { BUDGET_RECHERCHE_RAYON_MS } = await import('@/lib/zones/conversion-serveur');
+    expect(BUDGET_RECHERCHE_RAYON_MS).toBeLessThan(60_000);
+    expect(s).toContain('BUDGET_RECHERCHE_RAYON_MS');
   });
   it('422 trop_de_cercles sans rayon sous le plafond jusqu’au maximum de la plateforme : rien de proposé, dit', async () => {
     etat.reponses.paver_cercles = { data: { refus: 'trop_de_cercles', n_cercles: 5_000_000, plafond: 200 }, error: null };

@@ -256,7 +256,7 @@ export class JeuZonesService {
     const actuel = this.choix()[plateforme];
     const maille = r.maille ?? actuel?.maille;
     if (!maille || mailleSansObjet(this._recette(), maille)) return;
-    const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette(), this._surface());
+    const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette(), this._surface(), this.plateformes());
     if (actuel && ecrireMailles({ [plateforme]: actuel }) === ecrireMailles({ [plateforme]: suivant })) return;
     this._reglages.update((avant) => ({ ...avant, [plateforme]: suivant }));
     this.taches.oublier(`cercles|${plateforme}`); // un refus de pavage valait pour l'ancien rayon ou l'ancien seuil

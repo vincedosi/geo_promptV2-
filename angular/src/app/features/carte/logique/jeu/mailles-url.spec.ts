@@ -1,6 +1,8 @@
 import {
   DIVISEUR_RAYON_SURFACE, PAS_RAYON_M, RAYON_PAR_DEFAUT_M, rayonDefautExplique, lireModeJeu, parametresDe, SEUIL_PAR_DEFAUT, ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
+  bornesDeReglette,
 } from './mailles-url';
+import { bornesRayon, texteRayonDefaut } from './ecran';
 
 describe('?mailles= (A-10)', () => {
   it('lit le format du plan : CP, polygone, cercle avec rayon, commune', () => {
@@ -94,8 +96,22 @@ describe('B10 : rayon par défaut tiré de la surface de la zone', () => {
     expect(rayonDefautExplique(meta, dessin, null)).toEqual({ rayon_m: RAYON_PAR_DEFAUT_M, source: 'repli', calcule_m: RAYON_PAR_DEFAUT_M });
     expect(rayonDefautExplique(meta, dessin, 0).source).toBe('repli');
   });
-  it('une ligne sans borne : jamais sous un pas de réglette', () => {
+  it('une ligne sans borne et un registre sans borne : jamais sous un pas de réglette', () => {
     expect(rayonDefautExplique({ limites: {} }, dessin, 0.01).rayon_m).toBe(PAS_RAYON_M);
+  });
+  it('tour 1 (I-2) : TTD en cercle (ligne sans borne), zone de 5 km² — le minimum de la RÉGLETTE (plus petit du registre), pas 500 m', () => {
+    const ttd = { limites: {} };
+    const registre = [meta, { limites: { rayon_min_m: 2000 } }, ttd];
+    const d = rayonDefautExplique(ttd, dessin, 5, registre);
+    expect(d).toEqual({ rayon_m: 1000, source: 'surface', calcule_m: 420, surface_km2: 5, borne: 'rayon_min_m', borne_reglette: true });
+    // Une seule règle avec la réglette : son minimum est ce même rayon.
+    expect(bornesDeReglette(ttd, registre)).toEqual({ min: 1000, max: 80000, repli_min: true, repli_max: true });
+    expect(bornesRayon(ttd as never, registre as never, d.rayon_m).min).toBe(d.rayon_m);
+    expect(texteRayonDefaut(d, 'ttd')).toBe(
+      'Rayon par défaut 1 km : 420 m tiré de la surface (√(surface / π) / 3 pour 5 km²), ramené au minimum de la réglette (plus petit minimum du registre).');
+  });
+  it('tour 1 (m-2) : une zone sous 10 km² dit sa surface au dixième, jamais « 0 km² »', () => {
+    expect(texteRayonDefaut(rayonDefautExplique(meta, dessin, 0.3), 'meta')).toContain('pour 0,3 km²');
   });
 });
 

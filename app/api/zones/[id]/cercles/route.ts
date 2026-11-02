@@ -16,10 +16,15 @@
  *
  * B10 : un refus `trop_de_cercles` porte aussi le plus petit rayon qui passe sous le plafond (`rayon_propose`, ou
  * `null` et `sans_proposition`) — `paverAvecProposition`, au plus six pavages de plus, UN À LA FOIS, dans la même
- * requête (≈ 40 s au pire mesuré depuis A6, sous `maxDuration`). Rien n'est appliqué : l'écran propose, l'utilisateur choisit.
+ * requête. Rien n'est appliqué : l'écran propose, l'utilisateur choisit. Tour 1 (I-1) : chaque essai prend un jeton
+ * du MÊME quota, et aucun essai ne commence si le temps restant au budget `BUDGET_RECHERCHE_RAYON_MS` (40 s depuis
+ * l'arrivée de la requête) ne couvre pas le coût du précédent ; tout arrêt est rendu (`interrompue` : cause, dernier
+ * rayon essayé et ses cercles) et dit à l'écran.
  *
- * Quota : 6 / min / compte, à lui seul (un pavage n'est ni une couverture ni une zone). Au pire mesuré (ARA à 40 km,
- * 1,76 s / 119 500 accès, sql/276), ≈ 720 000 accès / min / compte.
+ * Quota : 6 PAVAGES / min / compte, essais de la recherche compris (un pavage n'est ni une couverture ni une zone).
+ * Au pire connu d'un pavage (ARA à 40 km depuis A6, sql/311 : 5,6 s, ≈ 120 000 accès), ≈ 720 000 accès / min / compte,
+ * quelle que soit la recherche. Durée d'une requête : au plus 40 s + le coût d'un essai (le dernier lancé) — un essai
+ * plus cher que son prédécesseur peut déborder du budget, pas du `maxDuration` de 60 s tant qu'il reste sous 20 s.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -29,7 +34,7 @@ import { createQuota } from '@/lib/api/rate-limit';
 import { espaceDeZone, idDeZone } from '@/lib/zones/session-zones';
 import { RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 import { MESSAGES_CONVERSION } from '@/lib/zones/conversion';
-import { lireRegles, paverAvecProposition, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { BUDGET_RECHERCHE_RAYON_MS, lireRegles, paverAvecProposition, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { PLATEFORMES } from '@/lib/zones/plateformes';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +55,7 @@ const RequeteCerclesSchema = z.object({
 });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const arrivee = Date.now();
   const s = espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
 
@@ -81,6 +87,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const refus = refusDuChoix({ plateforme, maille: 'cercle', rayon_m: rayon }, regle);
   if (refus || !regle) return NextResponse.json({ error: refus }, { status: 400 });
 
-  const pavage = await paverAvecProposition(supabase, { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil }, regle);
+  // Tour 1 (I-1) : chaque essai de la recherche du rayon proposé paie un jeton, dans le budget de temps de la requête.
+  const garde = {
+    reste_ms: () => BUDGET_RECHERCHE_RAYON_MS - (Date.now() - arrivee),
+    consommer: async () => (await quotaConversion(s.espace.userId)) === null,
+  };
+  const pavage = await paverAvecProposition(supabase, { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil }, regle, garde);
   return repondreCouverture(pavage, MESSAGES_CONVERSION, 'zones/cercles', ECHEC, 'Rayon ou seuil hors des bornes du calcul.');
 }
