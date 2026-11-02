@@ -76,13 +76,33 @@ describe('B15 — exactitude par composition', () => {
     expect(bilan.exacte).toBe(false);
     expect(bilan.n_unites).toBe(25);
     expect(bilan.n_codes).toBe(27);
-    expect(avertissementsComposition(r, 'cp', bilan)).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 27, n: 1 }]);
+    expect(avertissementsComposition(r, 'cp', lignes, 50)).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 27, n: 1 }]);
   });
 
-  it('aucun avertissement de composition hors du CP, sans groupe partiel, ou pour une maille exacte', () => {
-    const bilan = appliquerSeuil([], 0, 50);
-    expect(avertissementsComposition(capture(CODES_PARTIEL, 1), 'commune', bilan)).toEqual([]);
-    expect(avertissementsComposition(capture(CODES_25, 0), 'cp', bilan)).toEqual([]);
-    expect(avertissementsComposition(capture(CODES_PARTIEL, 1), 'cp', resumeExact(1, 1, 25, 25))).toEqual([]);
+  it('round 1 (M-1) : seuls les membres ajoutés par les groupes partiels comptent, pas les CP voisins retenus', () => {
+    const r = capture(CODES_PARTIEL, 1);
+    const lignes: LigneSeuil[] = [
+      { pop_en_zone: 90_000, pop_totale: 90_000, part: 100, part_brute: 100, incluse: true, membres: ['35000', '35200', '35700'] },
+      // Deux voisins effleurés, retenus au seuil de 20 % : achetés, mais pas à cause d'un groupe.
+      { pop_en_zone: 3_000, pop_totale: 10_000, part: 30, part_brute: 30, incluse: true, membres: ['35510'] },
+      { pop_en_zone: 2_500, pop_totale: 10_000, part: 25, part_brute: 25, incluse: true, membres: ['35760'] },
+      // Un groupe voisin ENTIER retenu, dont aucun code n'est dans la liste : un voisin aussi.
+      { pop_en_zone: 2_500, pop_totale: 10_000, part: 25, part_brute: 25, incluse: true, membres: ['37000', '37100'] },
+    ];
+    expect(appliquerSeuil(lignes, 98_000, 20).n_codes).toBe(7);
+    expect(avertissementsComposition(r, 'cp', lignes, 20)).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 27, n: 1 }]);
+  });
+
+  it('round 1 (M-6) : une LISTE de CP qui ne nomme qu’un membre d’un groupe n’est pas exacte', () => {
+    const liste: Recette = {
+      v: 1, type: 'codes_postaux', codes: CODES_PARTIEL, unites_constitutives: { maille: 'cp', codes: CODES_PARTIEL, groupes_partiels: 1 },
+    };
+    expect(exactitude(liste, 'cp')).toBe('calculee');
+  });
+
+  it('aucun avertissement de composition hors du CP ou sans groupe partiel', () => {
+    const groupe: LigneSeuil[] = [{ pop_en_zone: 1, pop_totale: 1, part: 100, part_brute: 100, incluse: true, membres: ['35000', '35200', '35700'] }];
+    expect(avertissementsComposition(capture(CODES_PARTIEL, 1), 'commune', groupe, 50)).toEqual([]);
+    expect(avertissementsComposition(capture(CODES_25, 0), 'cp', groupe, 50)).toEqual([]);
   });
 });

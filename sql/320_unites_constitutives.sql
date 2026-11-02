@@ -30,6 +30,8 @@
 -- 0 liste de CP (93 isochrones, 1 rayon POI).
 --
 -- Rejouable (`create or replace`, rattrapage filtré), aucun DROP. Appliquer par `psql -1`.
+-- ⚠ ROUND 1 (I-2) : le trigger et `remplacer_geometrie_zone_unites` sont REDÉFINIS par sql/321 (les unités vont dans
+-- une colonne, plus dans le JSON recette). Rejouer cette migration SANS rejouer sql/321 après remettrait l'ancien trigger.
 -- ============================================================================
 
 create or replace function public.zone_seuil_territoire(

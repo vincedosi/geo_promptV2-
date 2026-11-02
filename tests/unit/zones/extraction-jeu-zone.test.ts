@@ -40,10 +40,11 @@ const POIDS_SEED = [
   poids('ttd', 'budget_ligne'), poids('meta', 'aucun'), poids('tiktok', 'aucun'),
 ];
 
-function jeuAvec(choix: object[], recette: object, regles: object[]) {
+/** B15 round 1 (I-2, sql/321) : `unites` est la COLONNE `custom_geo_zones.unites_constitutives`, hors du JSON recette. */
+function jeuAvec(choix: object[], recette: object, regles: object[], unites: object | null = null) {
   etat.tables.plateformes_poids = { data: POIDS_SEED, error: null };
   etat.tables.zone_set_plateformes = { data: choix, error: null };
-  etat.tables.custom_geo_zones = { data: { recette }, error: null };
+  etat.tables.custom_geo_zones = { data: { recette, unites_constitutives: unites }, error: null };
   etat.tables.plateformes_geo = { data: regles, error: null };
   etat.tables.cp_groupe = { data: [], error: null };
   etat.reponses.couverture_zone = { data: COUVERTURE, error: null };
@@ -63,11 +64,9 @@ const argsCreation = () => etat.rpcs.find((r) => r.nom === 'creer_extraction_jeu
 // `part_retenue` : posée par la base (sql/307) ; 1 = disque entier en France, seul cas où le cercle est exact (A3).
 const POINT = { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 };
 const STRASBOURG = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 20_000, part_retenue: 0.6586 };
-// B15 : telle que la base l'écrit (sql/320 : unités posées depuis `codes`, aucun groupe partiel).
-const LISTE = {
-  v: 1, type: 'codes_postaux', codes: ['69001', '69002', '69002'],
-  unites_constitutives: { maille: 'cp', codes: ['69001', '69002', '69002'], groupes_partiels: 0 },
-};
+const LISTE = { v: 1, type: 'codes_postaux', codes: ['69001', '69002', '69002'] };
+// B15 : la colonne telle que la base la dérive (sql/321 : unités posées depuis `codes`, aucun groupe partiel).
+const UNITES_LISTE = { maille: 'cp', codes: ['69001', '69002', '69002'], groupes_partiels: 0 };
 const DESSIN = { v: 1, type: 'dessin' };
 
 beforeEach(() => {
@@ -213,7 +212,7 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
   });
 
   it('codes_postaux au CP : la liste de la recette (dédoublonnée), seuil ignoré ; plan CP sur la liste', async () => {
-    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 95, rayon_m: null }], LISTE, [regle('dv360', 'cp')]);
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 95, rayon_m: null }], LISTE, [regle('dv360', 'cp')], UNITES_LISTE);
     expect((await extraire()).status).toBe(201);
     expect(argsCreation().p_unites).toEqual([
       { plateforme: 'dv360', maille: 'cp', code: '69001', retenu: true },
@@ -713,8 +712,8 @@ describe('B15 : exactitude par composition — la recette garde ses unités cons
   const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 60 };
 
   it('capture de score au CP, sans groupe partiel : exacte, les codes de la capture, seuil ignoré, aucune couverture CP calculée', async () => {
-    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 0 } };
-    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 95, rayon_m: null }], capture, [regle('meta', 'cp')]);
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE };
+    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 95, rayon_m: null }], capture, [regle('meta', 'cp')], { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 0 });
     expect((await extraire()).status).toBe(201);
     expect(argsCreation().p_unites).toEqual([
       { plateforme: 'meta', maille: 'cp', code: '69001', retenu: true },
@@ -726,9 +725,8 @@ describe('B15 : exactitude par composition — la recette garde ses unités cons
   it('seuil sur territoires à l’IRIS en maille IRIS : exact, une unité par IRIS, aucune mesure de polygone', async () => {
     const seuil = {
       v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '69' },
-      unites_constitutives: { maille: 'iris', codes: ['693830101', '693830102'] },
     };
-    jeuAvec([{ plateforme: 'tiktok', maille: 'iris', seuil: 50, rayon_m: null }], seuil, [regle('tiktok', 'iris')]);
+    jeuAvec([{ plateforme: 'tiktok', maille: 'iris', seuil: 50, rayon_m: null }], seuil, [regle('tiktok', 'iris')], { maille: 'iris', codes: ['693830101', '693830102'] });
     expect((await extraire()).status).toBe(201);
     expect(etat.rpcs.map((r) => r.nom)).not.toContain('simplification_polygone_plateforme');
     expect(argsCreation().p_unites).toEqual([
@@ -740,8 +738,8 @@ describe('B15 : exactitude par composition — la recette garde ses unités cons
 
   it('un groupe de CP présent en partie : non exacte, perte calculée par la couverture, ajustement figé avant/après', async () => {
     // 69001 seul d'un groupe { 69001, 69009 } : la couverture rend l'unité du groupe, achetée entière (deux codes).
-    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 1 } };
-    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 20, rayon_m: null }], capture, [regle('meta', 'cp')]);
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE };
+    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 20, rayon_m: null }], capture, [regle('meta', 'cp')], { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 1 });
     etat.reponses.couverture_zone = {
       data: { ...COUVERTURE, lignes: COUVERTURE.lignes.map((l) => (l.code === '69001' ? { ...l, membres: ['69001', '69009'] } : l)) }, error: null,
     };

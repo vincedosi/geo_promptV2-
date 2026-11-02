@@ -148,7 +148,10 @@ export const INDICATEURS_SEUIL_CARREAUX: readonly { readonly id: string; readonl
  * B15 : les unités ENTIÈRES dont la zone est l'union — IRIS ou CP d'un seuil sur territoires (posées par le serveur,
  * `zone_seuil_territoire`), CP d'une capture de score, codes d'une liste de CP (posés par la base depuis `codes`). La
  * zone est exacte dans CETTE maille (`exactitude`). `groupes_partiels` : les groupes de CP indiscernables présents en
- * partie dans `codes`, posé par la BASE à chaque écriture (trigger, sql/320) ; absent = inconnu, donc non exacte.
+ * partie dans `codes`, posé par la BASE à chaque écriture (trigger) ; absent = inconnu, donc non exacte.
+ * Round 1 (I-2, sql/321) : STOCKÉES dans la colonne `custom_geo_zones.unites_constitutives`, JAMAIS dans le JSON
+ * `recette` (d'autres branches le relisent en `.strict()`) ; le serveur les joint à la recette EN MÉMOIRE à la lecture
+ * (`recetteVue`) — c'est cette vue que lisent ⑤ et l'extraction.
  */
 export interface UnitesConstitutives {
   readonly maille: 'cp' | 'iris';

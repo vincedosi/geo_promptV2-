@@ -58,7 +58,7 @@ import {
 } from './plan-jeu-zone';
 import { lireVolumesAttendus } from './part-prevue-serveur';
 import { lireGroupesCp } from './groupes';
-import { lireRecette } from './recette-schema';
+import { lireRecette, recetteVue } from './recette-schema';
 import type { PlateformeGeo, PlateformePoids } from './plateformes';
 import type { Recette } from './recette';
 import { refusActivationServeur } from './activation-serveur';
@@ -333,7 +333,7 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
     unites: d ? dansLOrdreDesBlocs(unites, d.blocs) : unites,
     resume: {
       ...bilan, plateforme: c.plateforme, population: couverture.population,
-      avertissements: [...verifierLimites(bilan, regle), ...avertissementsComposition(ctx.recette, regle.maille, bilan)],
+      avertissements: [...verifierLimites(bilan, regle), ...avertissementsComposition(ctx.recette, regle.maille, couverture.lignes, c.seuil)],
       min_menages: couverture.min_menages, ...(d ? { decoupage: d.decoupage } : {}),
     },
   };
@@ -483,12 +483,12 @@ export async function extraireJeuZone(
   // Deux lectures légères en parallèle (≤ 3, CLAUDE.md) : les choix, la recette de la zone.
   const [choixLus, zoneLue] = await Promise.all([
     supabase.from('zone_set_plateformes').select('plateforme, maille, seuil, rayon_m').eq('zone_set_id', jeu.id).order('plateforme'),
-    supabase.from('custom_geo_zones').select('recette').eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
+    supabase.from('custom_geo_zones').select('recette, unites_constitutives').eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
   ]);
   if (choixLus.error) return panne('choix', choixLus.error.message).reponse;
   // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
   if (zoneLue.error || !zoneLue.data) return panne('zone du jeu', zoneLue.error?.message ?? 'absente').reponse;
-  const lue = lireRecette(zoneLue.data.recette);
+  const lue = lireRecette(recetteVue(zoneLue.data.recette, zoneLue.data.unites_constitutives)); // B15 : la colonne (sql/321).
   // Décision du 02/11 (+ tour 3 : sources d'une combinaison) : un rayon sous le minimum d'activation ne s'active jamais —
   // refusé avant les règles et toute RPC, sans relèvement.
   const tropFin = await refusActivationServeur(supabase, jeu.org_id, zoneLue.data.recette).catch((e: unknown) => panne('sources de la zone', e));

@@ -16,6 +16,9 @@ const appels: string[] = [];
 const miseAJour: { valeur: unknown; id: unknown }[] = [];
 let echecUpdate = false;
 let echecResolution = false;
+/** B15 round 1 (I-1) : les codes inconnus du référentiel, et la forme des CP calculée par la base. */
+let inconnus: string[] = [];
+const FORME_CP = { type: 'MultiPolygon', coordinates: [[[[2.3, 48.8], [2.4, 48.8], [2.4, 48.9], [2.3, 48.9], [2.3, 48.8]]]] };
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
     rpc(nom: string, args: Record<string, unknown> = {}) {
@@ -27,6 +30,7 @@ vi.mock('@/lib/auth', () => ({
         transform_geometries_for_save: CARRE, create_custom_geo_zone: 'z1', create_custom_geo_zone_with_subzones: 'z1',
         resolve_custom_geo_zone_codes: { count_cp: 2, count_iris: 5 }, compute_zone_audience_stats: {},
         resolve_custom_geo_zone_codes_with_subzones: { count_cp: 2, count_iris: 5 },
+        codes_postaux_inconnus: inconnus, get_admin_filter_geometry: { geometry: FORME_CP, metadata: {} },
       } as Record<string, unknown>)[nom] ?? null;
       return Promise.resolve({ data, error: null });
     },
@@ -54,7 +58,7 @@ const corps = (extra: Record<string, unknown> = {}) => new Request('http://local
 const ISO = { v: 1, type: 'isochrone', parametres: { mode: 'drive', minutes: 15, version: 'v2' } };
 
 beforeEach(() => {
-  rpcs.length = 0; argsRpc.length = 0; appels.length = 0; miseAJour.length = 0; echecUpdate = false; echecResolution = false;
+  rpcs.length = 0; argsRpc.length = 0; appels.length = 0; miseAJour.length = 0; echecUpdate = false; echecResolution = false; inconnus = [];
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -144,6 +148,40 @@ describe('POST /api/custom-geo/capture — sous-zones d’une bataille (③ fini
   it('une sous-zone sans géométrie : 400, rien n’est créé', async () => {
     const r = await POST(corps({ subzones: [{ name: 'A' }] }));
     expect(r.status).toBe(400);
+    expect(rpcs).toEqual([]);
+  });
+});
+
+describe('POST /api/custom-geo/capture — B15 round 1 (I-1) : une capture faite de CP ne croit pas le client', () => {
+  const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 60 };
+  const capture = (codes: string[], extra: Record<string, unknown> = {}) => ({
+    v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes, ...extra },
+  });
+
+  it('forme forgée sans rapport avec ses codes : ignorée — la zone est l’union des CP, recalculée par le serveur', async () => {
+    const res = await POST(corps({ source_type: 'score', recette: capture(['75001'], { groupes_partiels: 0 }) }));
+    expect(res.status).toBe(200);
+    expect(rpcs).not.toContain('transform_geometries_for_save');
+    expect(argsRpc.find((a) => a.nom === 'codes_postaux_inconnus')?.args).toEqual({ p_codes: ['75001'] });
+    expect(argsRpc.find((a) => a.nom === 'get_admin_filter_geometry')?.args).toEqual({ p_scale: 'cp', p_codes: ['75001'] });
+    expect(argsRpc.find((a) => a.nom === 'create_custom_geo_zone')?.args.p_geometry_geojson).toBe(JSON.stringify(FORME_CP));
+    // Les unités écrites sont celles du serveur (sans le `groupes_partiels` du client : la base le compte).
+    expect(miseAJour[0].valeur).toEqual({ recette: capture(['75001']) });
+  });
+
+  it('un code inconnu : 400 qui le nomme, rien n’est créé', async () => {
+    inconnus = ['99998'];
+    const res = await POST(corps({ source_type: 'score', recette: capture(['75001', '99998']) }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Code postal inconnu : 99998.');
+    expect(rpcs).not.toContain('create_custom_geo_zone');
+  });
+
+  it('des sous-zones avec des unités : 400, la forme ne peut être à la fois celle des CP et celle des sous-zones', async () => {
+    const res = await POST(corps({
+      source_type: 'score', recette: capture(['75001']), subzones: [{ name: 'A', geometry: CARRE }],
+    }));
+    expect(res.status).toBe(400);
     expect(rpcs).toEqual([]);
   });
 });

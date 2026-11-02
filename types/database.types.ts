@@ -2670,6 +2670,7 @@ export type Database = {
           name: string
           org_id: string
           recette: Json | null
+          unites_constitutives: Json | null
           resolved_at: string | null
           surface_km2: number | null
           source_metadata: Json
@@ -2692,6 +2693,7 @@ export type Database = {
           name: string
           org_id: string
           recette?: Json | null
+          unites_constitutives?: Json | null
           resolved_at?: string | null
           surface_km2?: never
           source_metadata?: Json
@@ -2714,6 +2716,7 @@ export type Database = {
           name?: string
           org_id?: string
           recette?: Json | null
+          unites_constitutives?: Json | null
           resolved_at?: string | null
           surface_km2?: never
           source_metadata?: Json
@@ -8459,6 +8462,10 @@ export type Database = {
           p_org_id: string
           p_zone_id: string
         }
+        Returns: Json
+      }
+      codes_postaux_inconnus: {
+        Args: { p_codes: string[] }
         Returns: Json
       }
       remplacer_geometrie_zone_unites: {

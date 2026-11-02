@@ -87,6 +87,17 @@ export const RecetteSchema = RecetteUnionSchema.superRefine((r, ctx) => {
   }
 });
 
+/**
+ * B15 round 1 (I-2, sql/321) : la recette telle que ⑤ et l'extraction la lisent — le JSON `recette` STOCKÉ, plus la
+ * colonne `custom_geo_zones.unites_constitutives`, jointe ICI, en mémoire. La clé n'est jamais écrite dans le JSON :
+ * d'autres branches le relisent en `.strict()` (une clé ajoutée par la base rendrait leurs recettes illisibles). Sans
+ * colonne (NULL, zone d'avant B15), la recette telle quelle. À passer ensuite par `lireRecette`.
+ */
+export function recetteVue(recette: unknown, unites: unknown): unknown {
+  if (unites === null || unites === undefined || recette === null || typeof recette !== 'object' || Array.isArray(recette)) return recette;
+  return { ...recette, unites_constitutives: unites };
+}
+
 export function lireRecette(v: unknown): { ok: true; recette: Recette } | { ok: false; message: string } {
   const r = RecetteSchema.safeParse(v);
   if (r.success) return { ok: true, recette: r.data };

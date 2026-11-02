@@ -12,6 +12,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
 import { toJson, nullableArg } from '@/lib/supabase/rpc-json';
+import { formeDesCodesCp } from '@/lib/zones/executer-recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
 import type { Recette } from '@/lib/zones/recette';
 
@@ -99,14 +100,33 @@ export async function POST(request: NextRequest) {
     }
     recette = lue.recette;
   }
+  // B15 round 1 (I-1) : une capture faite de CP (`unites_constitutives`) se lit EXACTE au CP — sa forme ne peut donc
+  // venir du client. Le serveur ignore les géométries envoyées et refait la forme depuis les seuls codes (codes
+  // inconnus : 400 nommé) ; des sous-zones auraient leur propre forme, cliente : refusées.
+  const parCodes = recette?.type === 'capture' ? recette.unites_constitutives : undefined;
+  if (parCodes && (parsed.data.subzones?.length ?? 0) > 0) {
+    return NextResponse.json({ error: 'Une capture faite de codes postaux n’a pas de sous-zones.' }, { status: 400 });
+  }
 
   const supabase = createAdminClient();
 
-  // 1. Transformer les N géométries en UNE seule via RPC
-  const { data: geomJson, error: transformError } = await supabase.rpc('transform_geometries_for_save', {
-    p_geometries: toJson(parsed.data.geometries),
-    p_method: parsed.data.transformation,
-  });
+  // 1. Transformer les N géométries en UNE seule via RPC — ou, pour une capture faite de CP, l'union de ses codes.
+  let geomJson: unknown;
+  let transformError: { message: string } | null = null;
+  if (parCodes && recette?.type === 'capture') {
+    const forme = await formeDesCodesCp(supabase, parCodes.codes);
+    if (!forme.ok) return NextResponse.json({ error: forme.message }, { status: forme.statut });
+    geomJson = forme.geometry;
+    // Les unités du serveur seules (`groupes_partiels` est compté par la base, sql/321).
+    recette = { ...recette, unites_constitutives: { maille: 'cp', codes: [...parCodes.codes] } };
+  } else {
+    const t = await supabase.rpc('transform_geometries_for_save', {
+      p_geometries: toJson(parsed.data.geometries),
+      p_method: parsed.data.transformation,
+    });
+    geomJson = t.data;
+    transformError = t.error;
+  }
 
   if (transformError || !geomJson) {
     console.error('[custom-geo/capture] transform', transformError?.message);

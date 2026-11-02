@@ -329,12 +329,25 @@ describe('B15 — les unités constitutives, posées par le serveur', () => {
 
   it('capture de score avec ses CP : la forme est l’union de CES codes (get_admin_filter_geometry), jamais celle du client', async () => {
     reponses.get_admin_filter_geometry = { data: { geometry: CARRE, metadata: {} }, error: null };
+    reponses.codes_postaux_inconnus = { data: [], error: null };
     const recette: Recette = {
       v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] },
     };
     const r = await exec(recette, { geometrie: { type: 'Polygon', coordinates: [[[0, 0], [9, 0], [0, 9], [0, 0]]] } });
-    expect(appels).toEqual([{ nom: 'get_admin_filter_geometry', args: { p_scale: 'cp', p_codes: ['13001', '13002'] } }]);
+    expect(appels).toEqual([
+      { nom: 'codes_postaux_inconnus', args: { p_codes: ['13001', '13002'] } },
+      { nom: 'get_admin_filter_geometry', args: { p_scale: 'cp', p_codes: ['13001', '13002'] } },
+    ]);
     expect(r).toMatchObject({ ok: true, geometry: CARRE, unites: { maille: 'cp', codes: ['13001', '13002'] } });
+  });
+
+  it('round 1 (M-5) : un code inconnu du référentiel → 400 qui le nomme, aucune forme calculée', async () => {
+    reponses.codes_postaux_inconnus = { data: ['99998'], error: null };
+    const recette: Recette = {
+      v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['13001', '99998'] },
+    };
+    expect(await exec(recette, { geometrie: CARRE })).toEqual({ ok: false, statut: 400, refus: null, message: 'Code postal inconnu : 99998.' });
+    expect(appels.map((a) => a.nom)).toEqual(['codes_postaux_inconnus']);
   });
 
   it('capture sans unités, dessin : aucune unité ; une clé envoyée sans calcul serveur est retirée', async () => {

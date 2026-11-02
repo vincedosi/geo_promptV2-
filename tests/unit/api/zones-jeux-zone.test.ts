@@ -291,6 +291,13 @@ describe('GET /api/zones/jeux/[id] — jeu de zone', () => {
     expect(h.lectures.some((l) => l.startsWith('zone_set_cp'))).toBe(false);
     expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
   });
+  it('B15 round 1 (I-2) : la recette rendue porte la COLONNE des unités constitutives (sql/321), jointe à la lecture', async () => {
+    const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 60 };
+    const unites = { maille: 'cp', codes: ['35000'], groupes_partiels: 1 };
+    h.donnees['custom_geo_zones:select1'] = { id: h.ZONE, name: 'Score', recette: { v: 1, type: 'capture', source_type: 'score', parametres: SCORE }, unites_constitutives: unites };
+    const json = await (await R.GET(new NextRequest(URL_JEU), params)).json();
+    expect(json.zone.recette).toEqual({ v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: unites });
+  });
 });
 
 describe('PATCH /api/zones/jeux/[id] — jeu de zone', () => {

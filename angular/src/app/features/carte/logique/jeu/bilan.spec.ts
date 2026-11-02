@@ -307,9 +307,10 @@ describe('B15 — exactitude par composition à l’écran', () => {
     } as unknown as ResultatCouverture;
     const b = bilanDe({ maille: 'cp', seuil: 20 }, cp, capture, lu);
     expect(b?.resume).toMatchObject({ exacte: false, n_codes: 3 });
-    expect(b?.avertissements).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 3, n: 1 }]);
+    // Round 1 (M-1) : la liste (25) plus les seuls membres que le groupe ajoute (35200, 35700).
+    expect(b?.avertissements).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 27, n: 1 }]);
     expect(texteAvertissement(b!.avertissements[0], 'cp')).toBe(
-      '1 groupe de codes postaux indiscernables présent en partie dans la liste, acheté entier : 25 codes de la liste → 3 codes achetés. '
+      '1 groupe de codes postaux indiscernables présent en partie dans la liste, acheté entier : 25 codes de la liste → 27 avec le groupe entier. '
       + 'Maille non exacte : la perte est calculée.');
   });
 });

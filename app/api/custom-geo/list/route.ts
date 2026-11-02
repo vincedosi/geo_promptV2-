@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { resolveOrgWriteAccess } from '@/lib/campaigns/access';
+import { recetteVue } from '@/lib/zones/recette-schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('custom_geo_zones')
-    .select('id, name, description, source_type, source_metadata, recette, feature_count_iris, feature_count_cp, created_at, updated_at, created_by, bbox, surface_km2')
+    .select('id, name, description, source_type, source_metadata, recette, unites_constitutives, feature_count_iris, feature_count_cp, created_at, updated_at, created_by, bbox, surface_km2')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(500);
@@ -83,10 +84,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const enriched = (data ?? []).map(z => {
+  const enriched = (data ?? []).map(({ unites_constitutives, ...z }) => {
     const codes = codesByZone.get(z.id) ?? { dept: [], region: [] };
     return {
       ...z,
+      // B15 round 1 (I-2) : la recette jointe à la colonne de ses unités constitutives (sql/321), que ⑤ lit.
+      recette: recetteVue(z.recette, unites_constitutives),
       dept_codes: codes.dept.sort(),
       region_codes: codes.region.sort(),
     };

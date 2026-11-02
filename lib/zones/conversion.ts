@@ -102,7 +102,8 @@ export type Resume = ResumeMaille | ResumeExact;
  * Depuis B13, `pop_min_unite` / `pop_min_groupe` (`conversion-population.ts`) : `n` unités sous le minimum (`valeur` la
  * moins peuplée), ou la diffusion achetée (`valeur`) sous le minimum du groupe ; `refus` si le registre refuse,
  * `ecartes` pour les cercles écartés au pavage (`valeur` le plus peuplé des écartés).
- * B15, `groupes_cp_partiels` (`avertissementsComposition`) : `limite` codes de la liste, `valeur` codes achetés, `n` groupes.
+ * B15, `groupes_cp_partiels` (`avertissementsComposition`) : `limite` codes de la liste, `valeur` ces codes plus les membres
+ * ajoutés par les groupes partiels (pas les CP voisins, round 1), `n` groupes.
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {

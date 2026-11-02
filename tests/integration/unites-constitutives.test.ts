@@ -2,6 +2,8 @@
  * B15 (sql/320) contre la vraie base locale : l'exactitude PAR COMPOSITION.
  *
  * - `zone_seuil_territoire` rend les codes retenus (triés), autant que `compte` ;
+ * - round 1 (I-2, sql/321) : les unités vivent dans la COLONNE `custom_geo_zones.unites_constitutives`, jamais dans le
+ *   JSON `recette` (que d'autres branches relisent en `.strict()`) ; le trigger y déplace une clé reçue dans la recette ;
  * - le trigger d'écriture dérive les unités d'une liste de CP, compte les groupes de CP indiscernables présents EN
  *   PARTIE (Rennes : 35000, 35200, 35700 — sql/228), écrase la valeur du client, retire la clé d'une recette qui n'en
  *   porte pas ;
@@ -13,7 +15,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { creerClientTest } from './_client';
 import { exactitude } from '@/lib/zones/conversion';
-import { lireRecette } from '@/lib/zones/recette-schema';
+import { lireRecette, recetteVue } from '@/lib/zones/recette-schema';
+import { psql } from './_psql';
 import type { Recette } from '@/lib/zones/recette';
 
 const sb = creerClientTest();
@@ -35,14 +38,22 @@ async function creer(nom: string, recette: Record<string, unknown>, codes: strin
   return (data as { id: string }).id;
 }
 
-async function brute(id: string): Promise<Record<string, unknown>> {
-  const { data, error } = await sb.from('custom_geo_zones').select('recette').eq('id', id).single();
+async function ligne(id: string): Promise<{ recette: Record<string, unknown>; unites: unknown }> {
+  const { data, error } = await sb.from('custom_geo_zones').select('recette, unites_constitutives').eq('id', id).single();
   if (error || !data) throw new Error(error?.message);
-  return data.recette as Record<string, unknown>;
+  return { recette: data.recette as Record<string, unknown>, unites: data.unites_constitutives };
+}
+
+/** La colonne ; et le JSON recette n'en porte JAMAIS la clé (I-2). */
+async function brute(id: string): Promise<{ unites_constitutives: unknown }> {
+  const l = await ligne(id);
+  expect(l.recette).not.toHaveProperty('unites_constitutives');
+  return { unites_constitutives: l.unites };
 }
 
 async function recetteDe(id: string): Promise<Recette> {
-  const lue = lireRecette(await brute(id));
+  const l = await ligne(id);
+  const lue = lireRecette(recetteVue(l.recette, l.unites));
   if (!lue.ok) throw new Error(lue.message);
   return lue.recette;
 }
@@ -104,7 +115,7 @@ describe('B15 — le trigger pose les unités constitutives', () => {
     }, ['35000']);
     expect((await brute(seuil)).unites_constitutives).toEqual({ maille: 'iris', codes: ['352380101'] });
     const dessin = await creer('Dessin', { v: 1, type: 'dessin', unites_constitutives: { maille: 'cp', codes: ['35000'] } }, ['35000']);
-    expect(await brute(dessin)).toEqual({ v: 1, type: 'dessin' });
+    expect(await ligne(dessin)).toEqual({ recette: { v: 1, type: 'dessin' }, unites: null });
   }, LONG);
 
   it('remplacer_geometrie_zone_unites : forme et unités remplacées ensemble, groupes recomptés', async () => {
@@ -118,5 +129,46 @@ describe('B15 — le trigger pose les unités constitutives', () => {
     expect(error).toBeNull();
     expect(data).toEqual({ remplace: true });
     expect((await brute(id)).unites_constitutives).toEqual({ maille: 'cp', codes: ['35000'], groupes_partiels: 1 });
+  }, LONG);
+});
+
+describe('B15 round 1 (I-2) — la colonne, sans toucher le JSON recette', () => {
+  it('une liste de CP écrite par une branche sans B15 garde une recette lisible en .strict() ; la colonne est dérivée', async () => {
+    const id = await creer('Liste stricte', { v: 1, type: 'codes_postaux', codes: ['75001'] }, ['75001']);
+    expect((await ligne(id)).recette).toEqual({ v: 1, type: 'codes_postaux', codes: ['75001'] });
+    expect((await ligne(id)).unites).toEqual({ maille: 'cp', codes: ['75001'], groupes_partiels: 0 });
+  }, LONG);
+
+  it('une forme réécrite SANS unités (recalcul d’une branche sans B15) efface celles d’un seuil : jamais périmées', async () => {
+    const id = await creer('Seuil réécrit', {
+      v: 1, type: 'seuil_territoire', indicateur: 'abstention_pres_2022', operateur: '>=', seuil: 25, perimetre: { type: 'departement', code: '35' },
+      unites_constitutives: { maille: 'cp', codes: ['75001'] },
+    }, ['75001']);
+    expect((await ligne(id)).unites).toEqual({ maille: 'cp', codes: ['75001'], groupes_partiels: 0 });
+    const { error } = await sb.rpc('remplacer_geometrie_zone', { p_zone_id: id, p_org_id: org, p_geometry_geojson: await formeDe(['35000']) });
+    expect(error).toBeNull();
+    expect((await ligne(id)).unites).toBeNull();
+    // Un nom changé, la forme intacte : les unités restent.
+    const autre = await creer('Seuil renommé', {
+      v: 1, type: 'seuil_territoire', indicateur: 'abstention_pres_2022', operateur: '>=', seuil: 25, perimetre: { type: 'departement', code: '35' },
+      unites_constitutives: { maille: 'cp', codes: ['75001'] },
+    }, ['75001']);
+    psql(`update public.custom_geo_zones set name = 'Renommé' where id = '${autre}';`);
+    expect((await ligne(autre)).unites).toEqual({ maille: 'cp', codes: ['75001'], groupes_partiels: 0 });
+  }, LONG);
+
+  it('dupliquer_zone copie la colonne d’une capture', async () => {
+    const id = await creer('Capture à copier', {
+      v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['75001'] },
+    }, ['75001']);
+    const { data, error } = await sb.rpc('dupliquer_zone', { p_zone_id: id, p_org_id: org, p_nom: 'Copie', p_cree_par: null });
+    expect(error).toBeNull();
+    expect((await ligne((data as { id: string }).id)).unites).toEqual({ maille: 'cp', codes: ['75001'], groupes_partiels: 0 });
+  }, LONG);
+
+  it('codes_postaux_inconnus nomme les codes absents du référentiel, triés, sans doublon', async () => {
+    const { data, error } = await sb.rpc('codes_postaux_inconnus', { p_codes: ['99998', '75001', '00000', '99998'] });
+    expect(error).toBeNull();
+    expect(data).toEqual(['00000', '99998']);
   }, LONG);
 });

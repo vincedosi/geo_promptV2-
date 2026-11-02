@@ -79,7 +79,9 @@ describe('mg-colonne-plateforme', () => {
       return [...el.querySelectorAll('[data-avertissement]')].map((a) => a.textContent?.replace(/\s+/g, ' ').trim());
     };
     expect(await avec(1)).toEqual([
-      '2 départements pour 1 admis par la plateforme.',
+      // B14 (ARB-6 = A) : le département est une maille découpée — le dépassement annonce les blocs (spec restée rouge
+      // depuis B14, corrigée au round 1 de B15).
+      '2 départements pour 1 admis par la plateforme : découpage automatique en 2 blocs, triés par part décroissante (1 + 1).',
       'Palier sous 5 000 personnes : 2 000 achetées, la plateforme peut refuser la diffusion.',
     ]);
     TestBed.resetTestingModule();

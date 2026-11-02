@@ -19,7 +19,7 @@ import { zoneIntrouvable } from '@/lib/zones/session-zones';
 import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { mailleSansObjet } from '@/lib/zones/conversion';
-import { lireRecette } from '@/lib/zones/recette-schema';
+import { lireRecette, recetteVue } from '@/lib/zones/recette-schema';
 import { refusActivationServeur } from '@/lib/zones/activation-serveur';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
 
@@ -211,7 +211,7 @@ export async function enregistrerJeuZone(
  */
 export async function lireJeuZone(supabase: ClientAdmin, jeu: LigneJeu): Promise<NextResponse> {
   const [zone, choix] = await Promise.all([
-    supabase.from('custom_geo_zones').select('id, name, recette, surface_km2')
+    supabase.from('custom_geo_zones').select('id, name, recette, unites_constitutives, surface_km2')
       .eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
     supabase.from('zone_set_plateformes').select(COLONNES_CHOIX).eq('zone_set_id', jeu.id).order('plateforme'),
   ]);
@@ -222,7 +222,8 @@ export async function lireJeuZone(supabase: ClientAdmin, jeu: LigneJeu): Promise
   return NextResponse.json(
     {
       jeu: Object.fromEntries(CHAMPS_JEU_ZONE.map((k) => [k, jeu[k]])),
-      zone: { id: zone.data.id, nom: zone.data.name, recette: zone.data.recette, surface_km2: zone.data.surface_km2 },
+      // B15 round 1 (I-2) : la recette jointe à la colonne de ses unités constitutives (sql/321), que ⑤ lit (`exactitude`).
+      zone: { id: zone.data.id, nom: zone.data.name, recette: recetteVue(zone.data.recette, zone.data.unites_constitutives), surface_km2: zone.data.surface_km2 },
       plateformes: choix.data ?? [],
     },
     { headers: { 'Cache-Control': 'no-store' } },

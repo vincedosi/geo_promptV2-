@@ -90,6 +90,12 @@ describe('garde des trois routes', () => {
     const select = readFileSync('app/api/custom-geo/list/route.ts', 'utf8').match(/\.select\('([^']+)'\)/);
     expect(select?.[1].split(',').map((c) => c.trim())).toContain('recette');
   });
+  it('B15 round 1 (I-2) : GET /api/custom-geo/list lit la colonne des unités et la joint à la recette (`recetteVue`)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('app/api/custom-geo/list/route.ts', 'utf8');
+    expect(source.match(/\.select\('([^']+)'\)/)?.[1].split(',').map((c) => c.trim())).toContain('unites_constitutives');
+    expect(source).toMatch(/recetteVue\(/);
+  });
   it('UN limiteur partagé : 12 / 60 s / compte, préfixe geo:rl:zones', async () => {
     const { readFileSync } = await import('node:fs');
     const s = readFileSync('lib/zones/session-zones.ts', 'utf8');

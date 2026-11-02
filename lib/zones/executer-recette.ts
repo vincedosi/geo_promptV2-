@@ -198,9 +198,7 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
       // B15 : une capture de score garde ses CP — sa forme est leur union, recalculée ICI (la forme du client n'est pas
       // lue) : la zone est exactement ces CP, comme une liste de CP.
       const u = recette.unites_constitutives;
-      if (!u) return figer(supabase, ctx.geometrie);
-      const i = await lire('get_admin_filter_geometry', supabase.rpc('get_admin_filter_geometry', { p_scale: 'cp', p_codes: [...u.codes] }));
-      return i.ok ? { ...i, unites: { maille: u.maille, codes: u.codes } } : i;
+      return u ? formeDesCodesCp(supabase, u.codes) : figer(supabase, ctx.geometrie);
     }
     case 'dessin':
     case 'import':
@@ -208,6 +206,24 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
       // Figées : la forme vient du client et n'est jamais recalculée — validée, réparée, découpée sur la France.
       return figer(supabase, ctx.geometrie);
   }
+}
+
+/**
+ * B15 (round 1, I-1 et M-5) : la forme d'une capture faite de CP — l'union de CES codes, calculée par le serveur, et
+ * les unités de la zone. Un code absent de `ref_codes_postaux` (`codes_postaux_inconnus`, sql/321) est un 400 qui le
+ * nomme : `get_admin_filter_geometry` l'ignorerait en silence, et l'unité serait achetée sans forme. Partagée par
+ * `POST /api/zones` (ici) et `POST /api/custom-geo/capture`, qui ne lisent ni la forme ni les unités du client.
+ */
+export async function formeDesCodesCp(supabase: ClientAdmin, codes: readonly string[]): Promise<IssueRecette> {
+  const inconnus = await supabase.rpc('codes_postaux_inconnus', { p_codes: [...codes] });
+  if (inconnus.error || !Array.isArray(inconnus.data)) {
+    console.error('[zones/recette] codes_postaux_inconnus :', inconnus.error?.message ?? 'réponse illisible');
+    return ECHEC;
+  }
+  const liste = inconnus.data.filter((c): c is string => typeof c === 'string');
+  if (liste.length > 0) return invalide(`${liste.length > 1 ? 'Codes postaux inconnus' : 'Code postal inconnu'} : ${liste.join(', ')}.`);
+  const i = await lire('get_admin_filter_geometry', supabase.rpc('get_admin_filter_geometry', { p_scale: 'cp', p_codes: [...codes] }));
+  return i.ok ? { ...i, unites: { maille: 'cp', codes: [...codes] } } : i;
 }
 
 function estPosition(p: unknown): p is [number, number] {

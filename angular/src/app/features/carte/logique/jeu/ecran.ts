@@ -120,11 +120,11 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
   }
   if (a.code === 'groupes_cp_partiels') {
     // B15 : un groupe de CP indiscernables présent en partie dans la liste, acheté entier — avant (codes de la liste),
-    // après (codes achetés), exacte → calculée.
+    // après (la liste plus les seuls membres ajoutés par ces groupes, round 1 M-1 : pas les CP voisins), exacte → calculée.
     const n = a.n ?? 1;
     return `${formaterNombre(n)} ${n > 1 ? 'groupes' : 'groupe'} de codes postaux indiscernables présent${n > 1 ? 's' : ''} en partie dans la liste, `
-      + `acheté${n > 1 ? 's' : ''} ${n > 1 ? 'entiers' : 'entier'} : ${formaterNombre(a.limite)} codes de la liste → ${formaterNombre(a.valeur)} codes achetés. `
-      + 'Maille non exacte : la perte est calculée.';
+      + `acheté${n > 1 ? 's' : ''} ${n > 1 ? 'entiers' : 'entier'} : ${formaterNombre(a.limite)} codes de la liste → ${formaterNombre(a.valeur)} `
+      + `avec ${n > 1 ? 'les groupes entiers' : 'le groupe entier'}. Maille non exacte : la perte est calculée.`;
   }
   if (a.code === 'max_unites') {
     const avant = `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme`;

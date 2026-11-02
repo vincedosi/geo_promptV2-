@@ -283,7 +283,8 @@ export function bilanDe(
     resume,
     avertissements: [
       ...(p.refus ? [p.refus] : []), ...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille),
-      ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m), ...avertissementsComposition(recette, c.maille, resume),
+      ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m),
+      ...(resume.exacte || !('lignes' in lu) ? [] : avertissementsComposition(recette, c.maille, lu.lignes, c.seuil)),
       ...ecartes, ...p.avertissements,
     ],
   };
