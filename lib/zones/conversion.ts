@@ -12,6 +12,7 @@
  */
 import type { LigneCouverture } from './couverture';
 import type { PlateformeGeo } from './plateformes';
+import { exacteParComposition } from './exactitude-composition';
 import type { Recette } from './recette';
 
 type Maille = PlateformeGeo['maille'];
@@ -101,11 +102,12 @@ export type Resume = ResumeMaille | ResumeExact;
  * Depuis B13, `pop_min_unite` / `pop_min_groupe` (`conversion-population.ts`) : `n` unités sous le minimum (`valeur` la
  * moins peuplée), ou la diffusion achetée (`valeur`) sous le minimum du groupe ; `refus` si le registre refuse,
  * `ecartes` pour les cercles écartés au pavage (`valeur` le plus peuplé des écartés).
+ * B15, `groupes_cp_partiels` (`avertissementsComposition`) : `limite` codes de la liste, `valeur` codes achetés, `n` groupes.
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {
   code: 'max_unites' | 'pop_min_unite' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees'
-    | 'disque_hors_france' | 'perte_simplification' | 'rayon_min' | 'rayon_max';
+    | 'disque_hors_france' | 'perte_simplification' | 'rayon_min' | 'rayon_max' | 'groupes_cp_partiels';
   limite: number;
   valeur: number;
   n?: number;
@@ -208,7 +210,8 @@ export function rayonAdmis(rayon_m: number, ligne?: PlateformeGeo): boolean {
 }
 
 /**
- * La maille rend-elle la zone EXACTEMENT (A-6) ? Le polygone, toujours ; le CP pour une zone faite de codes postaux ;
+ * La maille rend-elle la zone EXACTEMENT (A-6) ? Le polygone, toujours ; la maille de ses unités pour une zone qui en
+ * est l'union (B15, `exacteParComposition`) ;
  * le pays pour une zone pays (⑤ finitions) ; le cercle pour un rayon autour d'un point, si la plateforme admet ce rayon ET si le rayon choisi pour la plateforme
  * (`rayonChoisi`) est absent ou égal à celui de la recette — l'unité achetée est alors LE cercle de la recette ; un
  * autre rayon pave la zone, et la perte se calcule. A3 : et seulement si le disque est ENTIER en France
@@ -221,7 +224,8 @@ export function exactitude(recette: Recette, maille: Maille, ligne?: PlateformeG
   if (maille === 'polygone') return 'exacte';
   // Le ciblage pays d'une zone nationale : la zone telle quelle (⑤ finitions, A-4).
   if (maille === 'pays' && recette.type === 'pays') return 'exacte';
-  if (maille === 'cp' && recette.type === 'codes_postaux') return 'exacte';
+  // B15 : une zone faite d'unités entières (`unites_constitutives`), exacte dans leur maille — sans groupe CP partiel.
+  if (exacteParComposition(recette, maille)) return 'exacte';
   if (maille === 'cercle' && recette.type === 'rayon_point' && recette.part_retenue === 1 && rayonAdmis(recette.rayon_m, ligne)
       && (rayonChoisi === undefined || rayonChoisi === recette.rayon_m)) return 'exacte';
   return 'calculee';

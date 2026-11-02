@@ -83,7 +83,7 @@ describe('mg-panneau-jeu', () => {
   });
 
   it('la recette donnée par la liste change l’exactitude : une liste de CP se lit « forme », exacte au CP', async () => {
-    const zone = { id: Z1, name: 'CP', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] }, updated_at: 'v1' } as unknown as ZoneCustomResume;
+    const zone = { id: Z1, name: 'CP', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'], unites_constitutives: { maille: 'cp', codes: ['13001', '13002'], groupes_partiels: 0 } }, updated_at: 'v1' } as unknown as ZoneCustomResume;
     const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();

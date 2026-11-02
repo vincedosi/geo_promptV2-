@@ -273,10 +273,10 @@ describe('POST /api/zones/[id]/recalculer', () => {
     expect(r.status).toBe(409);
     expect((await r.json()).error).not.toMatch(/composite/i);
   });
-  it('citée PENDANT le calcul (course) : le refus sous verrou de remplacer_geometrie_zone passe aussi en 409', async () => {
+  it('citée PENDANT le calcul (course) : le refus sous verrou de remplacer_geometrie_zone_unites passe aussi en 409', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
     reponsesRpc.zone_referencee = { data: null, error: null };
-    reponsesRpc.remplacer_geometrie_zone = { data: { refus: 'zone_referencee', par: 'jeu_de_zones' }, error: null };
+    reponsesRpc.remplacer_geometrie_zone_unites = { data: { refus: 'zone_referencee', par: 'jeu_de_zones' }, error: null };
     const r = await appel();
     expect(r.status).toBe(409);
     expect((await r.json()).par).toBe('jeu_de_zones');
@@ -284,26 +284,27 @@ describe('POST /api/zones/[id]/recalculer', () => {
   it('zone libre : remplacée dans l’espace actif, recalculée SANS géométrie cliente, puis résolue', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
     reponsesRpc.zone_referencee = { data: null, error: null };
-    reponsesRpc.remplacer_geometrie_zone = { data: { remplace: true }, error: null };
+    reponsesRpc.remplacer_geometrie_zone_unites = { data: { remplace: true }, error: null };
     reponsesRpc.resolve_custom_geo_zone_codes = { data: { count_cp: 3, count_iris: 9 }, error: null };
     const r = await appel();
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ zone_id: ZONE, count_cp: 3, count_iris: 9, surface_km2: 3 });
     expect(executions[0].ctx).toStrictEqual({ orgId: ORG, sources: ['s1'] });
-    expect(rpcs.map((c) => c.nom)).toEqual(['zone_referencee', 'remplacer_geometrie_zone', 'resolve_custom_geo_zone_codes']);
-    expect(rpcs[1].args).toEqual({ p_zone_id: ZONE, p_org_id: ORG, p_geometry_geojson: JSON.stringify(CARRE) });
+    expect(rpcs.map((c) => c.nom)).toEqual(['zone_referencee', 'remplacer_geometrie_zone_unites', 'resolve_custom_geo_zone_codes']);
+    // B15 : la forme ET les unités constitutives (aucune pour un rayon autour des POI) dans la même transaction.
+    expect(rpcs[1].args).toEqual({ p_zone_id: ZONE, p_org_id: ORG, p_geometry_geojson: JSON.stringify(CARRE), p_unites: null });
   });
   it('résolution en échec après un recalcul : 207 dont le message dit « recalculée », pas « créée »', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
-    reponsesRpc.remplacer_geometrie_zone = { data: { remplace: true }, error: null };
+    reponsesRpc.remplacer_geometrie_zone_unites = { data: { remplace: true }, error: null };
     reponsesRpc.resolve_custom_geo_zone_codes = { data: null, error: { message: 'canceling statement due to statement timeout' } };
     const r = await appel();
     expect(r.status).toBe(207);
     expect(await r.json()).toEqual({ zone_id: ZONE, warning: 'codes_non_resolus', message: 'Zone recalculée, mais ses codes postaux n’ont pas pu être résolus.' });
   });
-  it('remplacer_geometrie_zone rend une réponse hors contrat : 500', async () => {
+  it('remplacer_geometrie_zone_unites rend une réponse hors contrat : 500', async () => {
     zoneLue = { id: ZONE, recette: RAYON };
-    reponsesRpc.remplacer_geometrie_zone = { data: 'n’importe quoi', error: null };
+    reponsesRpc.remplacer_geometrie_zone_unites = { data: 'n’importe quoi', error: null };
     expect((await appel()).status).toBe(500);
   });
   it('identifiant non UUID : 404 sans lecture ni quota', async () => {
@@ -315,5 +316,27 @@ describe('POST /api/zones/[id]/recalculer', () => {
     quotaOk = false;
     expect((await appel()).status).toBe(429);
     expect(lectures).toEqual([]);
+  });
+});
+
+describe('B15 — les unités constitutives écrites avec la zone', () => {
+  const SEUIL = {
+    v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '13' },
+  };
+  const UNITES = { maille: 'cp', codes: ['13001', '13002'] };
+
+  it('création : la recette écrite porte les unités du SERVEUR, jamais celles du client', async () => {
+    issue = { ok: true, geometry: CARRE, surface_km2: 3, compte: 2, part_retenue: null, population: null, unites: UNITES };
+    reponsesRpc.creer_zone_recette = { data: { id: ZONE }, error: null };
+    await ecrire(req({ nom: 'Seuil', recette: { ...SEUIL, unites_constitutives: { maille: 'cp', codes: ['99999'], groupes_partiels: 0 } } }));
+    expect(rpcs[0].args.p_recette).toEqual({ ...SEUIL, unites_constitutives: UNITES });
+  });
+
+  it('recalcul d’un seuil sur territoires : les nouveaux codes partent avec la nouvelle forme', async () => {
+    zoneLue = { id: ZONE, recette: { ...SEUIL, unites_constitutives: { maille: 'cp', codes: ['13003'], groupes_partiels: 0 } } };
+    issue = { ok: true, geometry: CARRE, surface_km2: 3, compte: 2, part_retenue: null, population: null, unites: UNITES };
+    reponsesRpc.remplacer_geometrie_zone_unites = { data: { remplace: true }, error: null };
+    expect((await recalculer(new Request(`http://localhost/api/zones/${ZONE}/recalculer`, { method: 'POST' }) as never, { params: Promise.resolve({ id: ZONE }) })).status).toBe(200);
+    expect(rpcs.find((c) => c.nom === 'remplacer_geometrie_zone_unites')?.args.p_unites).toEqual(UNITES);
   });
 });

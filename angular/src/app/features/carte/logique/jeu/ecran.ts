@@ -118,6 +118,14 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     return `Polygone simplifié avant l’envoi : ${formaterNombre(a.n ?? 0)} habitants de la zone (${formaterNombre(a.valeur)} %) `
       + `sont hors de la forme envoyée (perte dite au-delà de ${formaterNombre(a.limite)} %).`;
   }
+  if (a.code === 'groupes_cp_partiels') {
+    // B15 : un groupe de CP indiscernables présent en partie dans la liste, acheté entier — avant (codes de la liste),
+    // après (codes achetés), exacte → calculée.
+    const n = a.n ?? 1;
+    return `${formaterNombre(n)} ${n > 1 ? 'groupes' : 'groupe'} de codes postaux indiscernables présent${n > 1 ? 's' : ''} en partie dans la liste, `
+      + `acheté${n > 1 ? 's' : ''} ${n > 1 ? 'entiers' : 'entier'} : ${formaterNombre(a.limite)} codes de la liste → ${formaterNombre(a.valeur)} codes achetés. `
+      + 'Maille non exacte : la perte est calculée.';
+  }
   if (a.code === 'max_unites') {
     const avant = `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme`;
     // B14 (ARB-6) : une maille découpée (`n` blocs) — annoncé, avec la taille de chaque bloc (avant : un seul envoi).

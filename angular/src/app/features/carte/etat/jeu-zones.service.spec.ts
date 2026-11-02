@@ -366,7 +366,7 @@ describe('JeuZonesService — la conversion', () => {
 describe('JeuZonesService — un jeu enregistré', () => {
   const detail = {
     jeu: { id: J1, type: 'zone', nom: 'Lycées', description: null, version: 1, created_at: '2026-10-24', custom_geo_zone_id: Z1, cible: 'ind_18_24', mode_plan: 'pondere' },
-    zone: { id: Z1, nom: 'Lycées BdR', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] } },
+    zone: { id: Z1, nom: 'Lycées BdR', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'], unites_constitutives: { maille: 'cp', codes: ['13001', '13002'], groupes_partiels: 0 } } },
     plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 25, rayon_m: null }],
   };
   it('ouvert par l’URL (« Mes zones », bibliothèque) : ?zoneJeu= et ?mailles= retirés ; zone, cible, recette et choix du jeu', async () => {

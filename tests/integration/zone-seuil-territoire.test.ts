@@ -61,7 +61,8 @@ describe('zone_seuil_territoire', () => {
   });
 
   it('aucun territoire au-dessus du seuil : vide, sans géométrie', async () => {
-    expect((await appeler({ p_seuil: 1000 })).data).toEqual({ vide: true, compte: 0, maille: 'iris', geometry: null, surface_km2: 0 });
+    // B15 (sql/320) : `codes`, les unités constitutives — vide ici.
+    expect((await appeler({ p_seuil: 1000 })).data).toEqual({ vide: true, compte: 0, maille: 'iris', codes: [], geometry: null, surface_km2: 0 });
   });
 
   it.each([

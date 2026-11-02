@@ -144,6 +144,18 @@ export const INDICATEURS_SEUIL_CARREAUX: readonly { readonly id: string; readonl
   { id: 'densite_ind', libelle: 'Densité d’habitants', unite: 'hab./km²' },
 ];
 
+/**
+ * B15 : les unités ENTIÈRES dont la zone est l'union — IRIS ou CP d'un seuil sur territoires (posées par le serveur,
+ * `zone_seuil_territoire`), CP d'une capture de score, codes d'une liste de CP (posés par la base depuis `codes`). La
+ * zone est exacte dans CETTE maille (`exactitude`). `groupes_partiels` : les groupes de CP indiscernables présents en
+ * partie dans `codes`, posé par la BASE à chaque écriture (trigger, sql/320) ; absent = inconnu, donc non exacte.
+ */
+export interface UnitesConstitutives {
+  readonly maille: 'cp' | 'iris';
+  readonly codes: readonly string[];
+  readonly groupes_partiels?: number;
+}
+
 export type Recette =
   // `part_retenue` (0 à 1) : la part du disque retenue sur le territoire français, posée par la BASE à chaque écriture
   // de la zone (trigger, sql/307) — une valeur du client est écrasée. 1 = disque entier, seul cas où le cercle est
@@ -151,13 +163,13 @@ export type Recette =
   | { readonly v: 1; readonly type: 'rayon_point'; readonly lon: number; readonly lat: number; readonly rayon_m: number; readonly part_retenue?: number }
   | { readonly v: 1; readonly type: 'rayon_poi'; readonly categorie: string; readonly rayon_m: number; readonly perimetre: PerimetreRecette | null }
   | { readonly v: 1; readonly type: 'seuil_carreaux'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null; readonly min_menages: number }
-  | { readonly v: 1; readonly type: 'seuil_territoire'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null }
-  | { readonly v: 1; readonly type: 'codes_postaux'; readonly codes: readonly string[] }
+  | { readonly v: 1; readonly type: 'seuil_territoire'; readonly indicateur: string; readonly operateur: OperateurSeuil; readonly seuil: number; readonly perimetre: PerimetreRecette | null; readonly unites_constitutives?: UnitesConstitutives }
+  | { readonly v: 1; readonly type: 'codes_postaux'; readonly codes: readonly string[]; readonly unites_constitutives?: UnitesConstitutives }
   | { readonly v: 1; readonly type: 'dessin' }
   | { readonly v: 1; readonly type: 'import'; readonly format: 'geojson' | 'kml'; readonly fichier: string }
   | { readonly v: 1; readonly type: 'isochrone'; readonly parametres: Readonly<Record<string, string | number | boolean>> }
   | { readonly v: 1; readonly type: 'combinaison'; readonly operation: 'union' | 'intersection' | 'difference'; readonly zones: readonly string[] }
-  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string; readonly parametres?: ParametresScore }
+  | { readonly v: 1; readonly type: 'capture'; readonly source_type: string; readonly parametres?: ParametresScore; readonly unites_constitutives?: UnitesConstitutives }
   | { readonly v: 1; readonly type: 'pays'; readonly code: CodePays };
 
 /** Les refus que rend une RPC de recette (`{ refus }`) ou que l'écran pose avant d'appeler. */

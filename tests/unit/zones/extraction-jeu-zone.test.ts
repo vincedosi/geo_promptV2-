@@ -63,7 +63,11 @@ const argsCreation = () => etat.rpcs.find((r) => r.nom === 'creer_extraction_jeu
 // `part_retenue` : posée par la base (sql/307) ; 1 = disque entier en France, seul cas où le cercle est exact (A3).
 const POINT = { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 };
 const STRASBOURG = { v: 1, type: 'rayon_point', lon: 7.7521, lat: 48.5734, rayon_m: 20_000, part_retenue: 0.6586 };
-const LISTE = { v: 1, type: 'codes_postaux', codes: ['69001', '69002', '69002'] };
+// B15 : telle que la base l'écrit (sql/320 : unités posées depuis `codes`, aucun groupe partiel).
+const LISTE = {
+  v: 1, type: 'codes_postaux', codes: ['69001', '69002', '69002'],
+  unites_constitutives: { maille: 'cp', codes: ['69001', '69002', '69002'], groupes_partiels: 0 },
+};
 const DESSIN = { v: 1, type: 'dessin' };
 
 beforeEach(() => {
@@ -702,5 +706,49 @@ describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, découpage en blo
     expect((await extraire()).status).toBe(201);
     expect(argsCreation().p_unites.some((u) => 'bloc' in u)).toBe(false);
     expect(argsCreation().p_resume.plateformes[0]).not.toHaveProperty('decoupage');
+  });
+});
+
+describe('B15 : exactitude par composition — la recette garde ses unités constitutives', () => {
+  const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' }], maille: 'cp', seuil_score: 60 };
+
+  it('capture de score au CP, sans groupe partiel : exacte, les codes de la capture, seuil ignoré, aucune couverture CP calculée', async () => {
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 0 } };
+    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 95, rayon_m: null }], capture, [regle('meta', 'cp')]);
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_unites).toEqual([
+      { plateforme: 'meta', maille: 'cp', code: '69001', retenu: true },
+      { plateforme: 'meta', maille: 'cp', code: '69002', retenu: true },
+    ]);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 2, n_codes: 2, manques: 0, hors_zone: 0, taux_utile: 100 });
+  });
+
+  it('seuil sur territoires à l’IRIS en maille IRIS : exact, une unité par IRIS, aucune mesure de polygone', async () => {
+    const seuil = {
+      v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '69' },
+      unites_constitutives: { maille: 'iris', codes: ['693830101', '693830102'] },
+    };
+    jeuAvec([{ plateforme: 'tiktok', maille: 'iris', seuil: 50, rayon_m: null }], seuil, [regle('tiktok', 'iris')]);
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.map((r) => r.nom)).not.toContain('simplification_polygone_plateforme');
+    expect(argsCreation().p_unites).toEqual([
+      { plateforme: 'tiktok', maille: 'iris', code: '693830101', retenu: true },
+      { plateforme: 'tiktok', maille: 'iris', code: '693830102', retenu: true },
+    ]);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 2, taux_utile: 100 });
+  });
+
+  it('un groupe de CP présent en partie : non exacte, perte calculée par la couverture, ajustement figé avant/après', async () => {
+    // 69001 seul d'un groupe { 69001, 69009 } : la couverture rend l'unité du groupe, achetée entière (deux codes).
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['69001', '69002'], groupes_partiels: 1 } };
+    jeuAvec([{ plateforme: 'meta', maille: 'cp', seuil: 20, rayon_m: null }], capture, [regle('meta', 'cp')]);
+    etat.reponses.couverture_zone = {
+      data: { ...COUVERTURE, lignes: COUVERTURE.lignes.map((l) => (l.code === '69001' ? { ...l, membres: ['69001', '69009'] } : l)) }, error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.map((r) => r.nom)).toContain('couverture_zone');
+    const resume = argsCreation().p_resume.plateformes[0];
+    expect(resume).toMatchObject({ exacte: false, n_unites: 2, n_codes: 3 });
+    expect(resume.avertissements).toEqual([{ code: 'groupes_cp_partiels', limite: 2, valeur: 3, n: 1 }]);
   });
 });

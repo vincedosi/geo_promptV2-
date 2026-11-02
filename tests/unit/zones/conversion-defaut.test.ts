@@ -37,7 +37,9 @@ const REGLES: PlateformeGeo[] = [
 
 const ANNEAU: Recette = { v: 1, type: 'combinaison', operation: 'difference', zones: ['disque-2km', 'disque-1km'] };
 const DESSIN: Recette = { v: 1, type: 'dessin' };
-const LISTE_40_CP: Recette = { v: 1, type: 'codes_postaux', codes: Array.from({ length: 40 }, (_, i) => String(13_001 + i)) };
+const CODES_40 = Array.from({ length: 40 }, (_, i) => String(13_001 + i));
+// B15 : telle que la base l'écrit (sql/320 : unités posées depuis `codes`, aucun groupe partiel).
+const LISTE_40_CP: Recette = { v: 1, type: 'codes_postaux', codes: CODES_40, unites_constitutives: { maille: 'cp', codes: CODES_40, groupes_partiels: 0 } };
 const R = REGLAGES_DEFAUT_REPLI;
 
 describe('B9 — les trois cas du ticket', () => {

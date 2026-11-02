@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  CODES_FRANCE, CODES_PAYS, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, CODES_PAYS, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MAX_TERRITOIRES_SEUIL, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type ParametresScore as ParametresScoreRecette,
   type PerimetreRecette, type Recette,
 } from './recette';
@@ -47,6 +47,19 @@ const ParametresScore = z.object({
   maille: z.literal('cp'),
   seuil_score: z.number().finite().min(0).max(100),
 }).strict() satisfies z.ZodType<ParametresScoreRecette>;
+/**
+ * B15 : les unités constitutives (`UnitesConstitutives`). `groupes_partiels` est posé par la BASE (sql/320) à chaque
+ * écriture, et les codes d'un seuil sur territoires par le SERVEUR (`zone_seuil_territoire`) : ce que le client envoie
+ * est écrasé. Une capture n'a que des CP (le score se calcule au CP), au plafond d'une liste de CP.
+ */
+const CodeCp = z.string().regex(/^\d{5}$/);
+const CodeIris = z.string().regex(/^\d[\dAB]\d{7}$/);
+const GroupesPartiels = z.number().int().min(0).optional();
+const unitesCp = (max: number) => z.object({ maille: z.literal('cp'), codes: z.array(CodeCp).min(1).max(max), groupes_partiels: GroupesPartiels }).strict();
+const UnitesTerritoire = z.discriminatedUnion('maille', [
+  unitesCp(MAX_TERRITOIRES_SEUIL),
+  z.object({ maille: z.literal('iris'), codes: z.array(CodeIris).min(1).max(MAX_TERRITOIRES_SEUIL), groupes_partiels: GroupesPartiels }).strict(),
+]);
 const Zones = z.array(Uuid).min(2).max(20)
   .refine((zs) => new Set(zs).size === zs.length, { message: 'Une zone ne peut figurer qu’une fois.' });
 
@@ -57,13 +70,13 @@ export const RecetteUnionSchema = z.discriminatedUnion('type', [
   z.object({ v: V, type: z.literal('rayon_point'), lon: z.number().min(-180).max(180), lat: z.number().min(-90).max(90), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POINT_MAX_M), part_retenue: z.number().min(0).max(1).optional() }).strict(),
   z.object({ v: V, type: z.literal('rayon_poi'), categorie: z.string().regex(/^[a-z0-9_-]{1,64}$/), rayon_m: z.number().int().min(RAYON_POI_MIN_M).max(RAYON_POI_MAX_M), perimetre: Perimetre }).strict(),
   z.object({ v: V, type: z.literal('seuil_carreaux'), indicateur: z.enum(IDS_CARREAUX), operateur: Operateur, seuil: z.number().finite().min(0).max(SEUIL_CARREAUX_MAX), perimetre: Perimetre, min_menages: z.number().int().min(0).max(MIN_MENAGES_CARREAUX_MAX) }).strict(),
-  z.object({ v: V, type: z.literal('seuil_territoire'), indicateur: z.string().regex(/^[a-z0-9_]{1,64}$/), operateur: Operateur, seuil: z.number().finite().min(-SEUIL_TERRITOIRE_MAX_ABS).max(SEUIL_TERRITOIRE_MAX_ABS), perimetre: Perimetre }).strict(),
-  z.object({ v: V, type: z.literal('codes_postaux'), codes: z.array(z.string().regex(/^\d{5}$/)).min(1).max(MAX_CODES_POSTAUX) }).strict(),
+  z.object({ v: V, type: z.literal('seuil_territoire'), indicateur: z.string().regex(/^[a-z0-9_]{1,64}$/), operateur: Operateur, seuil: z.number().finite().min(-SEUIL_TERRITOIRE_MAX_ABS).max(SEUIL_TERRITOIRE_MAX_ABS), perimetre: Perimetre, unites_constitutives: UnitesTerritoire.optional() }).strict(),
+  z.object({ v: V, type: z.literal('codes_postaux'), codes: z.array(CodeCp).min(1).max(MAX_CODES_POSTAUX), unites_constitutives: unitesCp(MAX_CODES_POSTAUX).optional() }).strict(),
   z.object({ v: V, type: z.literal('dessin') }).strict(),
   z.object({ v: V, type: z.literal('import'), format: z.enum(['geojson', 'kml']), fichier: z.string().min(1).max(200) }).strict(),
   z.object({ v: V, type: z.literal('isochrone'), parametres: z.record(z.union([z.string().max(200), z.number(), z.boolean()])).refine((o) => Object.keys(o).length <= 20, { message: 'au plus 20 paramètres' }) }).strict(),
   z.object({ v: V, type: z.literal('combinaison'), operation: z.enum(['union', 'intersection', 'difference']), zones: Zones }).strict(),
-  z.object({ v: V, type: z.literal('capture'), source_type: z.string().min(1).max(100), parametres: ParametresScore.optional() }).strict(),
+  z.object({ v: V, type: z.literal('capture'), source_type: z.string().min(1).max(100), parametres: ParametresScore.optional(), unites_constitutives: unitesCp(MAX_CODES_POSTAUX).optional() }).strict(),
   z.object({ v: V, type: z.literal('pays'), code: z.enum(CODES_PAYS) }).strict(),
 ]);
 

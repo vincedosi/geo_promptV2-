@@ -8461,6 +8461,15 @@ export type Database = {
         }
         Returns: Json
       }
+      remplacer_geometrie_zone_unites: {
+        Args: {
+          p_geometry_geojson: string
+          p_org_id: string
+          p_unites: Json
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       remplacer_jeux_recommandes: {
         Args: { p_cles: string[]; p_organization_id: string }
         Returns: Json

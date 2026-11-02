@@ -4,8 +4,8 @@
  *
  * Ordre (I3) : lecture de la zone (bornée à l'espace actif) → forme figée ? (409 `forme_figee`) → `zone_referencee`
  * (sql/253 ; 409 `zone_referencee` + `par` : strategie · jeu_de_zones · composite · combinaison · perimetre) →
- * SEULEMENT ALORS les sources et le calcul → `remplacer_geometrie_zone` (sql/253), qui revérifie les références sous
- * verrou → `resolve_custom_geo_zone_codes` (200, ou 207 si la résolution échoue). Une zone citée ne paie donc jamais
+ * SEULEMENT ALORS les sources et le calcul → `remplacer_geometrie_zone_unites` (sql/320 : `remplacer_geometrie_zone`,
+ * sql/253, puis les unités constitutives de la recette, B15), qui revérifie les références sous verrou → `resolve_custom_geo_zone_codes` (200, ou 207 si la résolution échoue). Une zone citée ne paie donc jamais
  * un calcul lourd pour un 409, et sa forme ne change jamais sous une campagne.
  *
  * Le message du 409 est le même quel que soit `par` (« utilisée par un plan, un jeu de zones ou une autre zone ») :
@@ -22,7 +22,8 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { MESSAGES_REFUS, estRecalculable } from '@/lib/zones/recette';
 import { lireRecette } from '@/lib/zones/recette-schema';
-import { espaceDeZone, executerDansEspace, idDeZone, quotaZones, repondreResolue, reponseRefus, zoneIntrouvable } from '@/lib/zones/session-zones';
+import { toJson } from '@/lib/supabase/rpc-json';
+import { espaceDeZone, executerDansEspace, idDeZone, quotaZones, recetteAEcrire, repondreResolue, reponseRefus, zoneIntrouvable } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -38,7 +39,7 @@ function lireReference(data: unknown): string | null {
   return typeof data === 'string' && data !== '' ? data : null;
 }
 
-/** Rétrécit le `Json` de `remplacer_geometrie_zone` (sql/253) ; `null` = hors contrat. */
+/** Rétrécit le `Json` de `remplacer_geometrie_zone_unites` (sql/320, réponse de sql/253) ; `null` = hors contrat. */
 function lireRemplacement(data: unknown): { remplace: true } | { refus: 'zone_introuvable' } | { refus: 'zone_referencee'; par: string } | null {
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return null;
   const o = data as Record<string, unknown>;
@@ -84,8 +85,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const r = await executerDansEspace(supabase, s.espace, lue.recette);
   if (!r.ok) return reponseRefus(r);
 
-  const rem = await supabase.rpc('remplacer_geometrie_zone', {
-    p_zone_id: id, p_org_id: s.espace.orgId, p_geometry_geojson: JSON.stringify(r.geometry),
+  // B15 (sql/320) : la forme ET les unités constitutives (les codes d'un seuil sur territoires changent avec les
+  // données), dans la même transaction — `null` les retire, la base redérive celles d'une liste de CP.
+  const ecrite = recetteAEcrire(lue.recette, r);
+  const unites = 'unites_constitutives' in ecrite && ecrite.unites_constitutives ? toJson(ecrite.unites_constitutives) : null;
+  const rem = await supabase.rpc('remplacer_geometrie_zone_unites', {
+    p_zone_id: id, p_org_id: s.espace.orgId, p_geometry_geojson: JSON.stringify(r.geometry), p_unites: unites,
   });
   const sortie = rem.error ? null : lireRemplacement(rem.data);
   if (!sortie) {

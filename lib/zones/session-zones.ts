@@ -106,6 +106,17 @@ export async function executerDansEspace(
   return executerRecette(supabase, recette, ctx);
 }
 
+/**
+ * B15 : la recette à ÉCRIRE après un calcul (création, duplication, recalcul) — un seuil sur territoires ou une capture
+ * porte les unités que le SERVEUR a établies (`issue.unites`), jamais celles du client ; sans unités, la clé est
+ * retirée. Les autres recettes sont écrites telles quelles (une liste de CP : la base dérive ses unités, sql/320).
+ */
+export function recetteAEcrire(recette: Recette, issue: Extract<IssueRecette, { ok: true }>): Recette {
+  if (recette.type !== 'seuil_territoire' && recette.type !== 'capture') return recette;
+  const { unites_constitutives: _client, ...reste } = recette;
+  return issue.unites ? { ...reste, unites_constitutives: issue.unites } : reste;
+}
+
 /** Les refus que `creer_zone_recette` (sql/253) peut rendre à la place de `{ id }`. */
 const REFUS_CREATION = ['zone_introuvable', 'perimetre_inconnu'] as const;
 type RefusCreation = (typeof REFUS_CREATION)[number];

@@ -206,6 +206,8 @@ describe('Outil « Score composite » (ScoreCompositeTool.tsx, T18)', () => {
           indicateurs: [{ code: 'rev_median', poids: 1, sens: 'croissant' }, { code: 'part_15_29', poids: 1, sens: 'croissant' }],
           maille: 'cp', seuil_score: 70,
         },
+        // B15 : les CP retenus par la route source — la zone est leur union, exacte au CP.
+        unites_constitutives: { maille: 'cp', codes: ['13001', '13003'] },
       },
       geometrie,
     });

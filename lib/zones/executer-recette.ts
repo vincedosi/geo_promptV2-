@@ -16,6 +16,7 @@ import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { estRecettePays } from './couverture';
 import {
   CAPACITE_SYNCHRONE_POI_RAYON, MAX_SOMMETS_FORME, MESSAGES_REFUS, refusPerimetreLocal, type Recette, type RefusRecette,
+  type UnitesConstitutives,
 } from './recette';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -35,14 +36,29 @@ export interface ContexteRecette {
   geometrie?: unknown;
 }
 
+/**
+ * `unites` (B15) : les unités entières dont la forme est l'union, quand le SERVEUR les connaît — codes d'un seuil sur
+ * territoires (`zone_seuil_territoire`, sql/320), CP d'une capture de score (la forme en est recalculée). Absente sinon.
+ */
 export type IssueRecette =
-  | { ok: true; geometry: FormeZone; surface_km2: number | null; compte: number | null; part_retenue: number | null; population: number | null }
+  | {
+    ok: true; geometry: FormeZone; surface_km2: number | null; compte: number | null; part_retenue: number | null; population: number | null;
+    unites?: UnitesConstitutives;
+  }
   | { ok: false; statut: 400 | 404 | 409 | 422 | 500; refus: RefusRecette | null; message: string };
 
 /** La forme commune des réponses `jsonb` des RPC de zone (sql/151, 155, 156, 252, 254-256, 292). */
 interface ReponseRpc {
   vide?: boolean; geometry?: unknown; surface_km2?: number | null; compte?: number | null;
   part_retenue?: number | null; population?: number | null; refus?: string;
+  /** B15 : `zone_seuil_territoire` (sql/320) — la maille et les codes retenus. */
+  maille?: unknown; codes?: unknown;
+}
+
+/** B15 : les unités d'une réponse qui les porte (maille CP ou IRIS, codes non vides) ; `null` sinon. */
+function unitesDe(r: ReponseRpc): UnitesConstitutives | null {
+  if ((r.maille !== 'cp' && r.maille !== 'iris') || !Array.isArray(r.codes) || r.codes.length === 0) return null;
+  return r.codes.every((c) => typeof c === 'string') ? { maille: r.maille, codes: r.codes as string[] } : null;
 }
 
 /** Ce que rend un appel `supabase.rpc(…)` une fois attendu — seuls `data`, `error.message` et `error.code` sont lus. */
@@ -103,9 +119,10 @@ function issue(nom: string, r: ReponseRpc | null): IssueRecette {
     return ECHEC;
   }
   if (r.vide || !estForme(r.geometry)) return refuser('forme_vide', 409);
+  const unites = unitesDe(r);
   return {
     ok: true, geometry: r.geometry, surface_km2: nombreOuNull(r.surface_km2), compte: nombreOuNull(r.compte),
-    part_retenue: nombreOuNull(r.part_retenue), population: nombreOuNull(r.population),
+    part_retenue: nombreOuNull(r.part_retenue), population: nombreOuNull(r.population), ...(unites ? { unites } : {}),
   };
 }
 
@@ -177,10 +194,17 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
     case 'pays':
       // Figée, calculée par le serveur (sql/296) : l'union des régions, aucune géométrie cliente.
       return lire('zone_pays_geometrie', supabase.rpc('zone_pays_geometrie', { p_code: recette.code }));
+    case 'capture': {
+      // B15 : une capture de score garde ses CP — sa forme est leur union, recalculée ICI (la forme du client n'est pas
+      // lue) : la zone est exactement ces CP, comme une liste de CP.
+      const u = recette.unites_constitutives;
+      if (!u) return figer(supabase, ctx.geometrie);
+      const i = await lire('get_admin_filter_geometry', supabase.rpc('get_admin_filter_geometry', { p_scale: 'cp', p_codes: [...u.codes] }));
+      return i.ok ? { ...i, unites: { maille: u.maille, codes: u.codes } } : i;
+    }
     case 'dessin':
     case 'import':
     case 'isochrone':
-    case 'capture':
       // Figées : la forme vient du client et n'est jamais recalculée — validée, réparée, découpée sur la France.
       return figer(supabase, ctx.geometrie);
   }

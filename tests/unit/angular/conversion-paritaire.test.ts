@@ -62,6 +62,8 @@ describe('conversion d’une zone : Angular = serveur', () => {
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion-defaut.ts')).toBe(corps('lib/zones/conversion-defaut.ts'));
     // B13 : les minimums de population et leur comportement, sortis pour la même raison.
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion-population.ts')).toBe(corps('lib/zones/conversion-population.ts'));
+    // B15 : l'exactitude par composition (unités constitutives de la recette).
+    expect(corps('angular/src/app/features/carte/logique/jeu/exactitude-composition.ts')).toBe(corps('lib/zones/exactitude-composition.ts'));
   });
   it('mêmes plateformes, mêmes mailles, dans le même ordre', () => {
     expect([...AP.PLATEFORMES]).toEqual([...SP.PLATEFORMES]);

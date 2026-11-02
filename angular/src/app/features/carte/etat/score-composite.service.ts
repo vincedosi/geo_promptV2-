@@ -3,7 +3,8 @@ import { injecterTiroirsAnalyse } from './tiroirs-analyse';
 import { catchError, tap, throwError } from 'rxjs';
 import { formaterNombre } from '../../../core/format/nombre';
 import { ScoreService } from '../couches/score.service';
-import { AnalysesApi } from '../data/analyses.api';
+import { AnalysesApi, type ReponseZoneScore } from '../data/analyses.api';
+import type { Recette } from '../logique/zones/recette';
 import { messageErreurRequete } from '../logique/analyses/commun';
 import {
   type IndicateurChoisi, type IndicateurRegistre, type ResultatScore, ajouterIndicateur, compteAuDessus, corpsScore, libelleScore,
@@ -147,7 +148,11 @@ export class ScoreCompositeService {
     );
     // La recette d'une forme figée (lot 3, `capture` de source `score`) : sa géométrie part avec elle.
     const parametres = { indicateurs, maille: 'cp', seuil_score: seuil } as const;
-    this.creation.creer(source, () => nomZoneScore(seuil, choisis), () => ({ v: 1, type: 'capture', source_type: 'score', parametres })).subscribe((issue) => {
+    // B15 : les CP retenus par la route (`codes`) — la zone est leur union, exacte au CP ; le serveur en refait la forme.
+    const recette = (geo: ReponseZoneScore): Recette => ({
+      v: 1, type: 'capture', source_type: 'score', parametres, unites_constitutives: { maille: 'cp', codes: geo.codes },
+    });
+    this.creation.creer(source, () => nomZoneScore(seuil, choisis), recette).subscribe((issue) => {
       this.messageZone.set('erreur' in issue ? issue.erreur : `Zone créée — ${formaterNombre(issue.geo.count)} codes postaux.`);
       this.creationZone.set(false);
     });

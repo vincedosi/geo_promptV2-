@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { compterSommets, executerRecette } from '@/lib/zones/executer-recette';
+import { recetteAEcrire } from '@/lib/zones/session-zones';
 import { MESSAGES_REFUS, type Recette } from '@/lib/zones/recette';
 
 const CARRE = { type: 'MultiPolygon', coordinates: [[[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.1], [5, 43]]]] };
@@ -308,5 +309,41 @@ describe('compterSommets', () => {
     expect(compterSommets({ type: 'Polygon', coordinates: [[[0, 0], [1, 0], [0, 1], [0, 0]], [[0.1, 0.1], [0.2, 0.1], [0.1, 0.2], [0.1, 0.1]]] })).toBe(8);
     expect(compterSommets({ type: 'Point', coordinates: [0, 0] })).toBe(0);
     expect(compterSommets(null)).toBe(0);
+  });
+});
+
+describe('B15 — les unités constitutives, posées par le serveur', () => {
+  const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' as const }], maille: 'cp' as const, seuil_score: 60 };
+
+  it('seuil sur territoires : les codes rendus par la RPC deviennent les unités de la zone (et ceux du client sont écrasés)', async () => {
+    reponses.zone_seuil_territoire = { data: { vide: false, compte: 2, maille: 'cp', codes: ['13001', '13002'], geometry: CARRE, surface_km2: 9 }, error: null };
+    const recette: Recette = {
+      v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: PER,
+      unites_constitutives: { maille: 'cp', codes: ['99999'], groupes_partiels: 0 },
+    };
+    const r = await exec(recette);
+    expect(r).toMatchObject({ ok: true, unites: { maille: 'cp', codes: ['13001', '13002'] } });
+    if (!r.ok) throw new Error('attendu ok');
+    expect(recetteAEcrire(recette, r)).toEqual({ ...recette, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] } });
+  });
+
+  it('capture de score avec ses CP : la forme est l’union de CES codes (get_admin_filter_geometry), jamais celle du client', async () => {
+    reponses.get_admin_filter_geometry = { data: { geometry: CARRE, metadata: {} }, error: null };
+    const recette: Recette = {
+      v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] },
+    };
+    const r = await exec(recette, { geometrie: { type: 'Polygon', coordinates: [[[0, 0], [9, 0], [0, 9], [0, 0]]] } });
+    expect(appels).toEqual([{ nom: 'get_admin_filter_geometry', args: { p_scale: 'cp', p_codes: ['13001', '13002'] } }]);
+    expect(r).toMatchObject({ ok: true, geometry: CARRE, unites: { maille: 'cp', codes: ['13001', '13002'] } });
+  });
+
+  it('capture sans unités, dessin : aucune unité ; une clé envoyée sans calcul serveur est retirée', async () => {
+    reponses.zone_dessin = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
+    const r = await exec({ v: 1, type: 'capture', source_type: 'composite' }, { geometrie: CARRE });
+    expect(r.ok && 'unites' in r).toBe(false);
+    if (!r.ok) throw new Error('attendu ok');
+    const forgee = { v: 1, type: 'seuil_territoire', indicateur: 'x', operateur: '>=', seuil: 1, perimetre: PER, unites_constitutives: { maille: 'iris', codes: ['130010101'] } } as const;
+    expect(recetteAEcrire(forgee, r)).toEqual({ v: 1, type: 'seuil_territoire', indicateur: 'x', operateur: '>=', seuil: 1, perimetre: PER });
+    expect(recetteAEcrire({ v: 1, type: 'codes_postaux', codes: ['13001'] }, r)).toEqual({ v: 1, type: 'codes_postaux', codes: ['13001'] });
   });
 });

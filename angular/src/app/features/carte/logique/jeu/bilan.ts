@@ -10,6 +10,7 @@ import {
   simulationsRequises,
 } from './conversion-defaut';
 import { avertissementsRayon } from './conversion-rayon';
+import { avertissementsComposition, unitesConstitutives } from './exactitude-composition';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
@@ -252,7 +253,7 @@ export function bilanDe(
     ecartes = avertissementsEcartes(k.ecartes_pop_min, ligne).map((a) => (k.n_cercles === 0 ? { ...a, refus: true as const } : a));
   } else {
     const cv = lu as ResultatCouverture;
-    // Une liste de codes postaux achetée au CP : une unité par code (comme l'extraction, `convertirExacte`).
+    // B15 : des unités constitutives achetées dans leur maille — une unité par code (comme l'extraction, `convertirExacte`).
     // Une zone pays au pays : une unité par code ciblé (A-5).
     const codes = codesPays(c, ligne, recette);
     if (codes.length > 0) {
@@ -262,15 +263,16 @@ export function bilanDe(
       const p = controlerPopulation(resume, pays.map((u) => u.population), ligne);
       return { resume, avertissements: [...(p.refus ? [p.refus] : []), ...verifierLimites(resume, ligne), ...p.avertissements], pays };
     }
-    const liste = c.maille === 'cp' && recette?.type === 'codes_postaux';
-    const nCodes = liste ? new Set(recette.codes).size : 1;
     const exacte = estExacte(c, ligne, recette);
+    const u = unitesConstitutives(recette);
+    const liste = exacte && u?.maille === c.maille;
+    const nCodes = liste ? new Set(u.codes).size : 1;
     // Relecture B13 (I-1) : le cercle exact en territoire non carroyé — population INCONNUE (ARB-3), comme à l'extraction.
     const popCercle = exacte && c.maille === 'cercle' ? populationDeForme(cv) : cv.population;
     resume = exacte
       ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popCercle === null ? { n_inconnues: 1 } : {}) }
       : appliquerSeuil(cv.lignes, cv.population, c.seuil);
-    // Une liste de CP exacte ne dit pas la population de chaque code : aucune unité à comparer (le groupe, si).
+    // Des unités constitutives exactes ne disent pas la population de chaque code : aucune unité à comparer (le groupe, si).
     populations = exacte ? (liste ? [] : [popCercle]) : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale);
   }
   const p = controlerPopulation(resume, populations, ligne);
@@ -281,7 +283,8 @@ export function bilanDe(
     resume,
     avertissements: [
       ...(p.refus ? [p.refus] : []), ...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille),
-      ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m), ...ecartes, ...p.avertissements,
+      ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m), ...avertissementsComposition(recette, c.maille, resume),
+      ...ecartes, ...p.avertissements,
     ],
   };
 }

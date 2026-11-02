@@ -14,6 +14,8 @@ const couverture = (decoupage: string, zone_maj: string, population = 1000) => (
   decoupage, zone_maj, population, surface_km2: 10,
   lignes: [{ code: 'a', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 600, pop_totale: 1000, part: 60, part_brute: 60 }],
 } as unknown as ResultatCouverture);
+/** B15 : une liste de CP telle que la base l'écrit (sql/320 : unités dérivées des codes, aucun groupe partiel). */
+const liste = (codes: string[]) => ({ v: 1, type: 'codes_postaux', codes, unites_constitutives: { maille: 'cp', codes, groupes_partiels: 0 } }) as const;
 const pavage = { rayon_m: 5000, seuil: 20, n_cercles: 3, n_candidates: 9, couverte: 900, achetee: 1200, manques: 100, hors_zone: 300, taux_utile: 75 } as ResultatCercles;
 
 describe('bilan d’un choix (logique pure de ⑤)', () => {
@@ -25,14 +27,14 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
   it('la lecture requise : découpage, forme pour une maille exacte, pavage pour un cercle calculé', () => {
     expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, null)).toBe('cp');
     expect(lectureRequise({ maille: 'polygone', seuil: 20 }, ligne({ plateforme: 'ttd', maille: 'polygone' }), null)).toBe('forme');
-    expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, { v: 1, type: 'codes_postaux', codes: ['13001'] })).toBe('forme');
+    expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, liste(['13001']))).toBe('forme');
     expect(lectureRequise({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, cercle, point)).toBe('forme');
     expect(lectureRequise({ maille: 'cercle', seuil: 20, rayon_m: 8000 }, cercle, point)).toBe('cercles');
   });
   it('maille territoriale : le seuil se rejoue sur la couverture ; exacte : aucune perte ; rien de lu : null', () => {
     expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, null, couverture('cp', 'v1'))?.resume).toMatchObject({ n_unites: 1, couverte: 600, manques: 400 });
     expect(bilanDe({ maille: 'cp', seuil: 70 }, cp, null, couverture('cp', 'v1'))?.resume).toMatchObject({ n_unites: 0, manques: 1000 });
-    expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, { v: 1, type: 'codes_postaux', codes: ['1', '2', '2'] }, couverture('forme', 'v1'))?.resume)
+    expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, liste(['1', '2', '2']), couverture('forme', 'v1'))?.resume)
       .toMatchObject({ exacte: true, n_unites: 2, manques: 0 });
     expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, null, undefined)).toBeNull();
   });
@@ -280,5 +282,34 @@ describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, le découpage en 
   it('un cercle n’est pas découpé : il garde sa consigne', () => {
     expect(texteAvertissement({ code: 'max_unites', limite: 200, valeur: 481 }, 'cercle').replace(/\s/g, ' '))
       .toBe('481 cercles pour 200 admis par la plateforme : augmentez le rayon ou le seuil.');
+  });
+});
+
+describe('B15 — exactitude par composition à l’écran', () => {
+  const cp = ligne({ plateforme: 'meta', maille: 'cp' });
+  const SCORE = { indicateurs: [{ code: 'taux_pauvrete', poids: 1, sens: 'croissant' as const }], maille: 'cp' as const, seuil_score: 60 };
+  const CODES_25 = Array.from({ length: 25 }, (_, i) => `750${String(i + 1).padStart(2, '0')}`);
+
+  it('capture de score au CP de 25 codes : la forme se lit, maille exacte, 25 codes, taux utile 100 %', () => {
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes: CODES_25, groupes_partiels: 0 } } as const;
+    expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, capture)).toBe('forme');
+    expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, capture, couverture('forme', 'v1'))?.resume)
+      .toMatchObject({ exacte: true, n_unites: 25, taux_utile: 100, manques: 0, hors_zone: 0 });
+  });
+
+  it('un seul membre d’un groupe de 3 : la couverture CP se lit, la perte se calcule, l’ajustement est dit avant/après', () => {
+    const codes = [...CODES_25.slice(0, 24), '35000'];
+    const capture = { v: 1, type: 'capture', source_type: 'score', parametres: SCORE, unites_constitutives: { maille: 'cp', codes, groupes_partiels: 1 } } as const;
+    expect(lectureRequise({ maille: 'cp', seuil: 20 }, cp, capture)).toBe('cp');
+    const lu = {
+      decoupage: 'cp', zone_maj: 'v1', population: 90_000, surface_km2: 10,
+      lignes: [{ code: '35000', nom: null, commune: null, n_carreaux: 9, pop_en_zone: 90_000, pop_totale: 90_000, part: 100, part_brute: 100, membres: ['35000', '35200', '35700'] }],
+    } as unknown as ResultatCouverture;
+    const b = bilanDe({ maille: 'cp', seuil: 20 }, cp, capture, lu);
+    expect(b?.resume).toMatchObject({ exacte: false, n_codes: 3 });
+    expect(b?.avertissements).toEqual([{ code: 'groupes_cp_partiels', limite: 25, valeur: 3, n: 1 }]);
+    expect(texteAvertissement(b!.avertissements[0], 'cp')).toBe(
+      '1 groupe de codes postaux indiscernables présent en partie dans la liste, acheté entier : 25 codes de la liste → 3 codes achetés. '
+      + 'Maille non exacte : la perte est calculée.');
   });
 });

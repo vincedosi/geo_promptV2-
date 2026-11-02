@@ -168,3 +168,16 @@ describe('POST /api/zones/[id]/dupliquer', () => {
     expect((await appel({ nom: 'Copie' })).status).toBe(500);
   });
 });
+
+describe('B15 — dupliquer un seuil sur territoires', () => {
+  it('la copie porte les unités du NOUVEAU calcul (les données ont pu changer), pas celles de l’original', async () => {
+    const SEUIL = {
+      v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'departement', code: '13' },
+    };
+    zoneLue = { id: ZONE, recette: { ...SEUIL, unites_constitutives: { maille: 'cp', codes: ['13003'], groupes_partiels: 0 } } };
+    issue = { ok: true, geometry: CARRE, surface_km2: 3, compte: 2, part_retenue: null, population: null, unites: { maille: 'cp', codes: ['13001', '13002'] } };
+    reponsesRpc.creer_zone_recette = { data: { id: NOUVELLE }, error: null };
+    expect((await appel({ nom: 'Seuil (copie)' })).status).toBe(200);
+    expect(rpcs[0].args.p_recette).toEqual({ ...SEUIL, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] } });
+  });
+});

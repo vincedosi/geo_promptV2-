@@ -249,7 +249,8 @@ const RECETTES: Record<Recette['type'], Recette> = {
   rayon_poi: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 2_000, perimetre: PERIM },
   seuil_carreaux: { v: 1, type: 'seuil_carreaux', indicateur: 'densite_ind', operateur: '>=', seuil: 5, perimetre: PERIM, min_menages: 11 },
   seuil_territoire: { v: 1, type: 'seuil_territoire', indicateur: 'revenu', operateur: '>=', seuil: 5, perimetre: PERIM },
-  codes_postaux: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] },
+  // B15 : telle que la base l'écrit (sql/320 : unités posées depuis `codes`, aucun groupe partiel).
+  codes_postaux: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'], unites_constitutives: { maille: 'cp', codes: ['13001', '13002'], groupes_partiels: 0 } },
   dessin: { v: 1, type: 'dessin' },
   import: { v: 1, type: 'import', format: 'geojson', fichier: 'a.geojson' },
   isochrone: { v: 1, type: 'isochrone', parametres: { minutes: 15 } },

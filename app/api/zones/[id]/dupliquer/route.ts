@@ -26,7 +26,7 @@ import { lireCopie, modeDuplication } from '@/lib/zones/dupliquer';
 import { MESSAGES_REFUS } from '@/lib/zones/recette';
 import { estRecettePays } from '@/lib/zones/couverture';
 import {
-  espaceDeZone, executerDansEspace, idDeZone, lireCreation, quotaZones, repondreResolue, reponseRefus, zoneIntrouvable,
+  espaceDeZone, executerDansEspace, idDeZone, lireCreation, quotaZones, recetteAEcrire, repondreResolue, reponseRefus, zoneIntrouvable,
 } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';
@@ -70,11 +70,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return repondreResolue(supabase, issue.id, userId, issue.surface_km2, 'creation', estRecettePays(zone.recette));
   }
 
-  // Recalcul À NEUF : aucune géométrie cliente (la recette est recalculable, `executerDansEspace` n'en lirait pas).
+  // Recalcul À NEUF : aucune géométrie cliente (la recette est recalculable, `executerDansEspace` n'en lirait pas) ;
+  // B15 : les unités constitutives du NOUVEAU calcul (`recetteAEcrire`).
   const r = await executerDansEspace(supabase, s.espace, mode.recette);
   if (!r.ok) return reponseRefus(r);
   const cree = await supabase.rpc('creer_zone_recette', {
-    p_nom: nom, p_org_id: orgId, p_cree_par: userId, p_recette: toJson(mode.recette), p_geometry_geojson: JSON.stringify(r.geometry),
+    p_nom: nom, p_org_id: orgId, p_cree_par: userId, p_recette: toJson(recetteAEcrire(mode.recette, r)),
+    p_geometry_geojson: JSON.stringify(r.geometry),
   });
   const issue = cree.error ? null : lireCreation(cree.data);
   if (issue && 'refus' in issue) return reponseRefus({ statut: 422, refus: issue.refus, message: MESSAGES_REFUS[issue.refus] });

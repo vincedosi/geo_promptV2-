@@ -7,8 +7,8 @@
  * - maille EXACTE pour la recette (`exactitude`, A-6 ; ruling du contrôleur, relecture T8) : la géométrie de la
  *   RECETTE est figée, sans calcul ni seuil — le polygone (la forme est copiée par la RPC), LE cercle d'un
  *   `rayon_point` (si le rayon choisi est absent ou égal à celui de la recette, et le disque entier en France — A3,
- *   sinon il se pave et l'avertissement `disque_hors_france` est figé), la LISTE d'une recette
- *   `codes_postaux` au CP ; résumé à zéro perte (`resumeExact`), chiffré par la population de la zone (`forme`) ;
+ *   sinon il se pave et l'avertissement `disque_hors_france` est figé), les UNITÉS CONSTITUTIVES dans leur maille (B15) ;
+ *   résumé à zéro perte (`resumeExact`), chiffré par la population de la zone (`forme`) ;
  * - maille territoriale calculée (`cp`, `commune`, `departement`, `iris`) : `couverture_zone` (servie du cache tant
  *   que la zone et la base n'ont pas changé) puis `appliquerSeuil` — la MÊME fonction que l'écran (A-5) ; toutes les
  *   unités touchées partent, marquées `retenu` par `estRetenue` ;
@@ -26,8 +26,7 @@
  * LES PLANS CP. B12 : chaque plateforme au CP a SON plan, à SON seuil et à la plage de SES mécanismes
  * (`plansParPlateforme`), figé dans `zone_set_extraction_cp_plateforme` (sql/317, unités retenues seulement) et son
  * bilan dans le résumé de la plateforme (`plan_cp`). Le plan COMMUN de `zone_set_extraction_cp` reste calculé au seuil
- * le PLUS BAS des plateformes au CP (décision du contrôleur, sql/278) : ⑥/⑦ le lisent encore (rétrocompatibilité). Avec
- * une recette `codes_postaux` exacte, la liste fait chaque plan, seuil ignoré.
+ * le PLUS BAS des plateformes au CP (décision du contrôleur, sql/278) : ⑥/⑦ le lisent encore. Exacte au CP (B15), la liste fait chaque plan.
  *
  * Une plateforme calculée qui ne retient AUCUNE unité refuse l'extraction (422) : un plan figé qui n'achète rien pour
  * une plateforme choisie se lirait comme un plan valable.
@@ -44,6 +43,7 @@ import {
   type Avertissement, type Resume,
 } from './conversion';
 import { avertissementsRayon } from './conversion-rayon';
+import { avertissementsComposition, unitesConstitutives } from './exactitude-composition';
 import { dansLOrdreDesBlocs, decouperEnBlocs, type Decoupage } from './decoupage-blocs';
 import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
@@ -226,11 +226,10 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
       ok: true, unites,
       resume: { ...bilanPays, plateforme: c.plateforme, avertissements: verifierLimites(bilanPays, regle), ...aVerifierPays, min_menages: forme.min_menages },
     };
-  } else if (c.maille === 'cp' && r?.type === 'codes_postaux') {
-    // La liste de la recette, seuil ignoré ; leurs populations sont portées par le plan CP (par canonique).
-    unites = [...new Set(r.codes)].map((code) => ({ plateforme: c.plateforme, maille: 'cp', code, retenu: true }));
-    // Les codes de la liste (A1) ; un membre de groupe nommé seul achète son groupe (B15, M-5 de la relecture A2).
-    const bilanCp = resumeExact(forme.population, forme.surface_km2, unites.length, unites.length);
+  } else if (unitesConstitutives(r)?.maille === c.maille) {
+    // B15 : unités constitutives, seuil ignoré ; exacte au CP = sans groupe partiel, les codes de la liste sont achetés (A1).
+    unites = [...new Set(unitesConstitutives(r)?.codes)].map((code) => ({ plateforme: c.plateforme, maille: c.maille, code, retenu: true }));
+    const bilanCp = resumeExact(forme.population, forme.surface_km2, unites.length, c.maille === 'cp' ? unites.length : undefined);
     return { ok: true, unites, resume: { ...bilanCp, plateforme: c.plateforme, avertissements: verifierLimites(bilanCp, regle), min_menages: forme.min_menages } };
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
     unites = [{ plateforme: c.plateforme, maille: 'cercle', lon: r.lon, lat: r.lat, rayon_m: r.rayon_m, ...toute }];
@@ -333,7 +332,8 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
     // Dans l'ordre des blocs (`ordinal` : bloc puis part décroissante), les non retenues ensuite.
     unites: d ? dansLOrdreDesBlocs(unites, d.blocs) : unites,
     resume: {
-      ...bilan, plateforme: c.plateforme, population: couverture.population, avertissements: verifierLimites(bilan, regle),
+      ...bilan, plateforme: c.plateforme, population: couverture.population,
+      avertissements: [...verifierLimites(bilan, regle), ...avertissementsComposition(ctx.recette, regle.maille, bilan)],
       min_menages: couverture.min_menages, ...(d ? { decoupage: d.decoupage } : {}),
     },
   };
@@ -458,7 +458,7 @@ async function planCp(
   const cp = await lireCouverture(ctx, auCp[0].plateforme, 'cp');
   if (estEchec(cp)) return cp;
   const r = ctx.recette;
-  const liste = r?.type === 'codes_postaux' && exactitude(r, 'cp') === 'exacte' ? r.codes : undefined;
+  const liste = r && exactitude(r, 'cp') === 'exacte' ? unitesConstitutives(r)?.codes : undefined;
   // A8 : les volumes attendus (population totale, Q9 = A) des unités et du référentiel, pour la part prévue E5.
   let volumes: VolumesAttendus;
   try {
