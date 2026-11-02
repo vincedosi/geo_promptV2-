@@ -185,20 +185,20 @@ export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePava
 /**
  * B13 : le refus d'un minimum de population (`controlerPopulation`), en français, préfixé de la plateforme — un 422
  * de l'extraction. Les nombres viennent du bilan et du registre ; « à vérifier » à côté de la valeur (E9).
- * Cercle exact unique : « dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 par cercle de la plateforme
- * (à vérifier) : élargissez le rayon, ou choisissez une autre maille. »
+ * Cercle exact unique : « dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 (à vérifier) par cercle de
+ * la plateforme : élargissez le rayon, ou choisissez une autre maille. » (« à vérifier » à côté de la valeur, comme l'écran).
  */
 export function messageRefusPopulation(a: Avertissement, plateforme: string, maille: string): string {
   const verifier = a.a_verifier ? ' (à vérifier)' : '';
   if (a.code === 'pop_min_groupe') {
     return `${plateforme} — La diffusion achetée compte ${formaterNombre(a.valeur)} personnes, sous le minimum de `
-      + `${formaterNombre(a.limite)} par groupe de la plateforme${verifier} : élargissez la zone, ou choisissez une autre maille.`;
+      + `${formaterNombre(a.limite)}${verifier} par groupe de la plateforme : élargissez la zone, ou choisissez une autre maille.`;
   }
   const cercle = maille === 'cercle';
   const n = a.n ?? 1;
   const qui = n === 1
     ? `${cercle ? 'Le cercle compte' : 'Une unité compte'} ${formaterNombre(a.valeur)} habitants`
     : `${formaterNombre(n)} ${cercle ? 'cercles' : 'unités'} comptent moins de ${formaterNombre(a.limite)} habitants (${a.ecartes ? 'le plus peuplé' : 'le moins peuplé'} : ${formaterNombre(a.valeur)})`;
-  return `${plateforme} — ${qui}, sous le minimum de ${formaterNombre(a.limite)} par ${cercle ? 'cercle' : 'unité'} de la plateforme${verifier} : `
+  return `${plateforme} — ${qui}, sous le minimum de ${formaterNombre(a.limite)}${verifier} par ${cercle ? 'cercle' : 'unité'} de la plateforme : `
     + `${cercle ? 'élargissez le rayon' : 'relevez le seuil'}, ou choisissez une autre maille.`;
 }

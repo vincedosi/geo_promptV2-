@@ -97,9 +97,24 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     const corps = await r.json() as { error: string; refus: string; plateforme: string; limite: number; valeur: number };
     expect(corps).toMatchObject({ refus: 'pop_min_unite', plateforme: 'dv360', limite: 1000, valeur: 300 });
     // `formaterNombre` sépare les milliers par une espace fine insécable (U+202F).
-    expect(corps.error).toBe('dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 par cercle de la plateforme '
-      + '(à vérifier) : élargissez le rayon, ou choisissez une autre maille.');
+    expect(corps.error).toBe('dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 (à vérifier) par cercle de la '
+      + 'plateforme : élargissez le rayon, ou choisissez une autre maille.');
     expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('B13 (relecture I-1) : cercle exact non carroyé (Mayotte) sur DV360 — acheté, population inconnue, minimum non vérifiable', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cercle', seuil: 30, rayon_m: 1000 }], { ...POINT, lon: 45.1662, lat: -12.7806, rayon_m: 1000 }, [{
+      ...regle('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }), pop_min_unite_comportement: 'refus',
+    }]);
+    etat.reponses.couverture_zone = {
+      data: { population: 0, surface_km2: 3.14, lignes: [], motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '976', nom: 'Mayotte' }] },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_unites[0]).toMatchObject({ maille: 'cercle', pop_en_zone: null, pop_totale: null, part: null });
+    const resume = argsCreation().p_resume.plateformes[0];
+    expect(resume).toMatchObject({ exacte: true, n_inconnues: 1 });
+    expect(resume.avertissements).toEqual([{ code: 'pop_min_unite', limite: 1000, valeur: 0, n: 1, non_verifiable: true, plateforme: 'dv360' }]);
   });
 
   it('B13 : TikTok au département, groupe de 800 personnes — avertissement figé (registre), extraction faite', async () => {

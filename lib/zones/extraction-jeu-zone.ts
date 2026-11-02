@@ -44,7 +44,7 @@ import {
   type Avertissement, type Resume,
 } from './conversion';
 import { avertissementsRayon } from './conversion-rayon';
-import { avertissementsEcartes, controlerPopulation } from './conversion-population';
+import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type DepassementPolygone, type MesureSimplification,
 } from './polygone-extraction';
@@ -126,7 +126,11 @@ type Echec = { ok: false; reponse: NextResponse };
 type Issue = { ok: true; unites: Unite[]; resume: ResumePlateforme } | Echec;
 
 /** Ce que `couverture_zone` rend d'utile ici (`lignes` vide pour le découpage `forme`). */
-interface Couverture { population: number; surface_km2: number; lignes: LigneCouverture[]; min_menages?: number }
+interface Couverture {
+  population: number; surface_km2: number; lignes: LigneCouverture[]; min_menages?: number;
+  /** B13 (relecture, I-1) : lus pour `populationDeForme` — un territoire non carroyé rend la population inconnue. */
+  motif_vide?: string | null; territoires_non_carroyes?: unknown[] | null;
+}
 
 /** Ce que `paver_cercles` rend d'utile ici. */
 interface Pavage {
@@ -179,7 +183,10 @@ async function lireCouverture(ctx: Contexte, plateforme: string, decoupage: stri
   if (r.error || !o || o.refus !== undefined || typeof o.population !== 'number' || !Array.isArray(o.lignes)) {
     return refusDe(plateforme, repondreCouverture(r, MESSAGES_REFUS_COUVERTURE, 'zones/extractions couverture', ECHEC));
   }
-  const couverture = { population: o.population, surface_km2: o.surface_km2, lignes: o.lignes, min_menages: o.min_menages };
+  const couverture = {
+    population: o.population, surface_km2: o.surface_km2, lignes: o.lignes, min_menages: o.min_menages,
+    motif_vide: o.motif_vide ?? null, territoires_non_carroyes: o.territoires_non_carroyes ?? null,
+  };
   ctx.couvertures.set(decoupage, couverture);
   return couverture;
 }
@@ -192,7 +199,9 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   const forme = await lireCouverture(ctx, c.plateforme, 'forme');
   if (estEchec(forme)) return forme;
   const r = ctx.recette;
-  const toute = { pop_en_zone: forme.population, pop_totale: forme.population, part: 100, retenu: true };
+  // B13 (relecture, I-1) : un cercle exact en territoire non carroyé a une population INCONNUE (ARB-3), jamais 0.
+  const popForme = populationDeForme(forme);
+  const toute = { pop_en_zone: popForme, pop_totale: popForme, part: popForme === null ? null : 100, retenu: true };
   let unites: Unite[];
   if (c.maille === 'pays' && r?.type === 'pays') {
     // Les codes FIGÉS depuis la table (A-6) ; la couverture par département seulement si un DROM est ciblé.
@@ -249,7 +258,7 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
       },
     };
   }
-  const bilan = resumeExact(forme.population, forme.surface_km2, unites.length);
+  const bilan = { ...resumeExact(forme.population, forme.surface_km2, unites.length), ...(popForme === null ? { n_inconnues: unites.length } : {}) };
   const aVerifier = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
   return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
 }

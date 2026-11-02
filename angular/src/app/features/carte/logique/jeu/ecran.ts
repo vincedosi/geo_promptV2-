@@ -122,6 +122,11 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }
   if (a.code === 'pop_min_unite') return textePopMinUnite(a, maille, limite);
+  if (a.non_verifiable) {
+    // Relecture B13 (I-2) : une part inconnue — jamais un refus ; la part connue est dite.
+    return `Minimum de ${limite} personnes par groupe non vérifiable (${nombreUnites(a.n ?? 1, maille)} à population inconnue) : `
+      + `${formaterNombre(a.valeur)} personnes connues.`;
+  }
   // B13 : le minimum du groupe — refus ou avertissement, selon le registre.
   return a.refus
     ? `Refusé : ${formaterNombre(a.valeur)} personnes achetées, sous le minimum de ${limite} par groupe de la plateforme : élargissez la zone ou choisissez une autre maille.`
@@ -136,6 +141,8 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
 function textePopMinUnite(a: Avertissement, maille: Maille, limite: string): string {
   const n = a.n ?? 1;
   const par = maille === 'cercle' ? 'cercle' : UNITE_MAILLE[maille].un;
+  // Relecture B13 (I-1) : population inconnue (territoire non carroyé), jamais « 0 habitant ».
+  if (a.non_verifiable) return `Population inconnue, minimum non vérifiable : ${nombreUnites(n, maille)} à population inconnue (minimum de ${limite} habitants par ${par}).`;
   if (a.ecartes) {
     return `${nombreUnites(n, maille)} au seuil ${n > 1 ? 'écartés' : 'écarté'} : moins de ${limite} habitants, le minimum par ${par} de la plateforme `
       + `(${n > 1 ? 'le plus peuplé' : 'il'} : ${formaterNombre(a.valeur)}).${a.refus ? ' Aucun cercle ne reste : élargissez le rayon ou baissez le seuil.' : ''}`;

@@ -117,6 +117,8 @@ export interface Avertissement {
   refus?: true;
   /** B13 : des cercles écartés au pavage par le minimum par cercle (règle 5). */
   ecartes?: true;
+  /** B13 (relecture, I-1 / I-2) : minimum non vérifiable, `n` unités à population inconnue — jamais un refus. */
+  non_verifiable?: true;
 }
 
 /**

@@ -133,7 +133,12 @@ describe('conversion d’une zone : Angular = serveur', () => {
         expect(APop.controlerPopulation(bilan, pops, l)).toEqual(SPop.controlerPopulation(bilan, pops, l));
       }
       expect(APop.popMinPavage(l)).toBe(SPop.popMinPavage(l));
+      expect(APop.controlerPopulation({ achetee: 500, n_inconnues: 1 }, [500, null], l)).toEqual(SPop.controlerPopulation({ achetee: 500, n_inconnues: 1 }, [500, null], l));
       expect(APop.avertissementsEcartes({ n_cercles: 2, population_max: 900 }, l)).toEqual(SPop.avertissementsEcartes({ n_cercles: 2, population_max: 900 }, l));
+    }
+    // Relecture B13 (I-1) : la population d'une forme, inconnue en territoire non carroyé.
+    for (const f of [{ population: 0, motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{}] }, { population: 9, territoires_non_carroyes: [] }]) {
+      expect(APop.populationDeForme(f)).toBe(SPop.populationDeForme(f));
     }
     for (const part_brute of [20, 19.96, 0.02, 0, null]) {
       for (const seuil of [0, 20]) expect(A.estRetenue({ part_brute }, seuil)).toBe(S.estRetenue({ part_brute }, seuil));

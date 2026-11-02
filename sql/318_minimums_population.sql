@@ -28,7 +28,9 @@
 --      sont écartées QUE par `p_pop_min`, et la population du plus peuplé de leurs disques. Lignes marquées « B13 ».
 --
 -- Rejouable (`add column if not exists`, contrainte posée si absente, `create or replace`, aucun DROP). Appliquer par
--- `psql -1`.
+-- `psql -1`. Note de la relecture (M-1) : la première application locale avait posé une version STRICTE de
+-- `plateformes_geo_pop_min_comportements` (limite ⇔ comportement), retirée à la main (`alter table … drop constraint`)
+-- avant de poser celle-ci ; une base neuve ne voit que cette version.
 -- ============================================================================
 
 -- ── 1. Les colonnes ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -313,7 +315,8 @@ begin
          (select count(*) from tot
             where tot.pop_totale > 0 and tot.pop_totale < p_pop_min and tot.pop_en_zone > 0
               and 100 * tot.pop_en_zone / tot.pop_totale >= p_seuil),
-         (select max(round(tot.pop_totale)) from tot
+         -- `floor` (relecture M-4) : un disque de 999,6 écarté ne s'affiche pas « 1 000, sous le minimum de 1 000 ».
+         (select max(floor(tot.pop_totale)) from tot
             where tot.pop_totale > 0 and tot.pop_totale < p_pop_min and tot.pop_en_zone > 0
               and 100 * tot.pop_en_zone / tot.pop_totale >= p_seuil)
     into v_n_carreaux, v_n_cand, v_n_cercles, v_cercles, v_grilles, v_part_max,

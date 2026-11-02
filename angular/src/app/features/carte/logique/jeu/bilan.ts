@@ -4,7 +4,7 @@ import {
   type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, resumeExact, resumePays, unitesPays,
   verifierLimites,
 } from './conversion';
-import { avertissementsEcartes, controlerPopulation } from './conversion-population';
+import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
   type DefautExplique, REGLAGES_DEFAUT_REPLI, type ReglagesDefaut, type Simulations, choisirDefaut, mailleParDefaut, simulationDe,
   simulationsRequises,
@@ -265,9 +265,13 @@ export function bilanDe(
     const liste = c.maille === 'cp' && recette?.type === 'codes_postaux';
     const nCodes = liste ? new Set(recette.codes).size : 1;
     const exacte = estExacte(c, ligne, recette);
-    resume = exacte ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
+    // Relecture B13 (I-1) : le cercle exact en territoire non carroyé — population INCONNUE (ARB-3), comme à l'extraction.
+    const popCercle = exacte && c.maille === 'cercle' ? populationDeForme(cv) : cv.population;
+    resume = exacte
+      ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popCercle === null ? { n_inconnues: 1 } : {}) }
+      : appliquerSeuil(cv.lignes, cv.population, c.seuil);
     // Une liste de CP exacte ne dit pas la population de chaque code : aucune unité à comparer (le groupe, si).
-    populations = exacte ? (liste ? [] : [cv.population]) : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale);
+    populations = exacte ? (liste ? [] : [popCercle]) : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale);
   }
   const p = controlerPopulation(resume, populations, ligne);
   // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.

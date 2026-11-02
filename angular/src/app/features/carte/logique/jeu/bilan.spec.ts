@@ -106,6 +106,24 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     // À 1 000 habitants, le cercle passe.
     expect(bilanDe(c, dv360, recette, couverture('forme', 'v1', 1000))?.avertissements).toEqual([]);
   });
+  it('B13 (relecture I-1) : cercle exact non carroyé (Mayotte) sur DV360 — population inconnue, minimum non vérifiable, aucun refus', () => {
+    const dv360 = ligne({
+      plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1000, pop_min_unite: 1000 }, pop_min_unite_comportement: 'refus',
+    });
+    const recette = { v: 1, type: 'rayon_point', lon: 45.1662, lat: -12.7806, rayon_m: 1000, part_retenue: 1 } as const;
+    const forme = {
+      ...couverture('forme', 'v1', 0), lignes: [], motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '976', nom: 'Mayotte' }],
+    } as unknown as ResultatCouverture;
+    const b = bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 1000 }, dv360, recette, forme);
+    expect(b?.resume).toMatchObject({ exacte: true, n_inconnues: 1 });
+    expect(b?.avertissements).toEqual([{ code: 'pop_min_unite', limite: 1000, valeur: 0, n: 1, non_verifiable: true, plateforme: 'dv360' }]);
+    expect(texteAvertissement(b!.avertissements[0], 'cercle').replace(/\s/g, ' '))
+      .toBe('Population inconnue, minimum non vérifiable : 1 cercle à population inconnue (minimum de 1 000 habitants par cercle).');
+  });
+  it('B13 (relecture I-2) : groupe à part inconnue — « non vérifiable », la part connue dite', () => {
+    expect(texteAvertissement({ code: 'pop_min_groupe', limite: 1000, valeur: 500, n: 1, non_verifiable: true }, 'commune').replace(/\s/g, ' '))
+      .toBe('Minimum de 1 000 personnes par groupe non vérifiable (1 commune à population inconnue) : 500 personnes connues.');
+  });
   it('B13 : TikTok — le groupe sous le minimum avertit (registre) ; Meta — aucun minimum', () => {
     const tiktok = ligne({
       plateforme: 'tiktok', maille: 'departement', limites: { pop_min_groupe: 1000 }, pop_min_groupe_comportement: 'avertissement',

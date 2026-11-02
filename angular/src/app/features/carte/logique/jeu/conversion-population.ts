@@ -45,12 +45,15 @@ export interface ControlePopulation { refus: Avertissement | null; avertissement
 /**
  * LE contrôle des minimums, le même pour toutes les mailles, cercle exact unique compris (B13) :
  * - par unité : `populations` sont celles des unités RETENUES (une par cercle, une pour le cercle exact ou le
- *   polygone, une par territoire) ; une population inconnue (`null`, A4) ou absente ne se compare à rien. Les unités
- *   sous le minimum sont dites en une fois : `n` unités, `valeur` la moins peuplée, `limite` le minimum ;
- * - par groupe : `achetee`, la diffusion achetée entière. Une diffusion qui compte des unités à population inconnue
- *   (`n_inconnues`, A4) n'a pas de population connue : aucune comparaison (relecture A4, M-1 — sinon « 0 personne
- *   achetée » sur une sélection entièrement non carroyée).
- * Le comportement du registre décide : `refus` (marqué `refus: true`, l'extraction est refusée) ou `avertissement`.
+ *   polygone, une par territoire) ; absente (`undefined` : liste de CP) = rien à comparer. Les unités sous le minimum
+ *   sont dites en une fois : `n` unités, `valeur` la moins peuplée, `limite` le minimum. Une population INCONNUE
+ *   (`null`, ARB-3 / A4 — territoire non carroyé) ne se compare pas : `non_verifiable`, `n` unités, toujours un
+ *   avertissement (jamais un refus, ni un « 0 habitant », sur une donnée absente — relecture B13, I-1) ;
+ * - par groupe : `achetee`, la diffusion achetée CONNUE. Avec des unités à population inconnue (`n_inconnues`), la
+ *   part connue qui atteint déjà le minimum le valide ; sinon `non_verifiable` (`valeur` la part connue, `n` les
+ *   unités inconnues), toujours un avertissement (relecture B13, I-2 ; ruling du contrôleur).
+ * Le comportement du registre décide du reste : `refus` (marqué `refus: true`, l'extraction est refusée) ou
+ * `avertissement`.
  */
 export function controlerPopulation(
   bilan: { achetee: number; n_inconnues?: number }, populations: readonly (number | null | undefined)[], ligne: PlateformeGeo,
@@ -61,16 +64,35 @@ export function controlerPopulation(
     if (m.comportement === 'avertissement') sortie.avertissements.push(complet);
     else sortie.refus ??= { ...complet, refus: true };
   };
+  // Une population inconnue : toujours un avertissement, quel que soit le comportement du registre.
+  const nonVerifiable = (a: Avertissement, m: Minimum) => sortie.avertissements.push({
+    ...a, non_verifiable: true, plateforme: ligne.plateforme, ...(m.a_verifier ? { a_verifier: true as const } : {}),
+  });
   const unite = minimumPopulation(ligne, 'unite');
   if (unite) {
     const sous = populations.filter((p): p is number => typeof p === 'number' && p < unite.limite);
     if (sous.length > 0) dire({ code: 'pop_min_unite', limite: unite.limite, valeur: Math.min(...sous), n: sous.length }, unite);
+    const inconnues = populations.filter((p) => p === null).length;
+    if (inconnues > 0) nonVerifiable({ code: 'pop_min_unite', limite: unite.limite, valeur: 0, n: inconnues }, unite);
   }
   const groupe = minimumPopulation(ligne, 'groupe');
-  if (groupe && !bilan.n_inconnues && bilan.achetee < groupe.limite) {
-    dire({ code: 'pop_min_groupe', limite: groupe.limite, valeur: bilan.achetee }, groupe);
+  if (groupe && bilan.achetee < groupe.limite) {
+    const a: Avertissement = { code: 'pop_min_groupe', limite: groupe.limite, valeur: bilan.achetee };
+    if (bilan.n_inconnues) nonVerifiable({ ...a, n: bilan.n_inconnues }, groupe);
+    else dire(a, groupe);
   }
   return sortie;
+}
+
+/**
+ * La population d'une forme achetée telle quelle (cercle exact, polygone) : `null` — INCONNUE, jamais 0 (ARB-3) — dès
+ * que la forme touche un territoire non carroyé (`motif_vide`, `territoires_non_carroyes` de `couverture_zone`) : sa
+ * population carroyée n'en compte alors qu'une partie, ou rien (relecture B13, I-1).
+ */
+export function populationDeForme(
+  f: { population: number; motif_vide?: string | null; territoires_non_carroyes?: readonly unknown[] | null },
+): number | null {
+  return f.motif_vide === 'territoire_non_carroye' || (f.territoires_non_carroyes?.length ?? 0) > 0 ? null : f.population;
 }
 
 /**
