@@ -56,7 +56,7 @@ import { lireVolumesAttendus } from './part-prevue-serveur';
 import { lireGroupesCp } from './groupes';
 import { lireRecette } from './recette-schema';
 import type { PlateformeGeo, PlateformePoids } from './plateformes';
-import type { Recette } from './recette';
+import { refusActivation, type Recette } from './recette';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 type LigneJeu = Tables<'zone_sets'>;
@@ -420,6 +420,9 @@ export async function extraireJeuZone(
   // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
   if (zoneLue.error || !zoneLue.data) return panne('zone du jeu', zoneLue.error?.message ?? 'absente').reponse;
   const lue = lireRecette(zoneLue.data.recette);
+  // Décision du 02/11 : un rayon sous le minimum d'activation ne s'active jamais — refusé avant toute lecture, sans relèvement.
+  const tropFin = refusActivation(lue.ok ? lue.recette : null);
+  if (tropFin) return NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 422 });
   const choix: Choix[] = (choixLus.data ?? []).map((c) => ({ ...c, seuil: Number(c.seuil) }));
   if (choix.length === 0) return erreur('Ce jeu n’a aucune plateforme : il n’y a rien à extraire.', 409).reponse;
 

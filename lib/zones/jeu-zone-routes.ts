@@ -20,6 +20,7 @@ import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { mailleSansObjet } from '@/lib/zones/conversion';
 import { lireRecette } from '@/lib/zones/recette-schema';
+import { refusActivation } from '@/lib/zones/recette';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
@@ -124,9 +125,13 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): P
  * zone locale) → 400 `{ error: « <plateforme> — <phrase> », refus: 'maille_sans_objet', plateforme }`, comme le 422
  * de l'extraction (relecture 1) ; la phrase est celle de `mailleSansObjet`, la même règle que l'écran et
  * l'extraction. `recette` : brute de `custom_geo_zones` ; illisible, seule la maille pays est refusée. `null` = admis.
+ * Décision du 02/11 : avant tout, une zone de rayon sous le minimum d'activation → 400 `rayon_non_activable`, avec sa
+ * valeur (`refusActivation`) — gardée pour l'analyse, jamais activée.
  */
 function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextResponse | null {
   const lue = lireRecette(recette);
+  const tropFin = refusActivation(lue.ok ? lue.recette : null);
+  if (tropFin) return NextResponse.json({ error: tropFin, refus: 'rayon_non_activable' }, { status: 400 });
   for (const c of choix) {
     const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille);
     if (phrase) {

@@ -7,7 +7,7 @@ import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.se
 import { LectureAnnulable, surChangement } from '../../etat/lecture-annulable';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { messageErreurRequete } from '../../logique/analyses/commun';
-import { libelleRecette } from '../../logique/zones/recette';
+import { libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
 import { LIBELLE_CHAMP, LISTE_CHAMP, PASTILLE, PASTILLE_INACTIVE } from './styles-analyse';
 
 /**
@@ -44,6 +44,8 @@ const SANS_ESPACE = 'Aucun espace actif : impossible de lister les zones.';
         <div class="flex flex-col gap-1 rounded-[6px] border-fin border-subtle bg-elevated px-[10px] py-2" data-zone-choisie>
           <span class="text-[12px] text-primary">{{ zoneChoisie()?.name ?? (chargement() ? 'Chargement…' : 'Zone enregistrée') }}</span>
           @if (recetteChoisie(); as r) { <span class="text-[11px] text-tertiary">{{ r }}</span> }
+          <!-- Décision du 02/11 : rayon trop fin pour être activé, chiffres estimatifs (④ et ⑤). -->
+          @if (estimatifChoisi(); as m) { <span data-estimatif class="text-[11px] text-secondary">{{ m }}</span> }
           <!-- La liste n'a pas pu être lue : le nom manque, et on le DIT sans attendre qu'on ouvre la liste (relecture T7). -->
           @if (erreur(); as e) { <span class="text-[11px] text-danger" role="alert" data-erreur-liste>Nom indisponible : {{ e }}</span> }
           <div class="mt-1 flex gap-1.5">
@@ -151,6 +153,7 @@ export class ChoixZoneAnalyseeComponent {
     const z = this.zoneChoisie();
     return z?.recette ? libelleRecette(z.recette, this.indicateurs()) : null;
   });
+  protected readonly estimatifChoisi = computed(() => mentionEstimatif(this.zoneChoisie()?.recette ?? null));
 
 
   constructor() {

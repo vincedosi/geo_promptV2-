@@ -457,3 +457,34 @@ describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans 
     expect(JSON.stringify(await r.json())).not.toContain('zone_pays');
   });
 });
+
+describe('décision du 02/11 : un rayon sous 250 m ne s’active jamais (gardé pour l’analyse)', () => {
+  const POI = (rayon_m: number) => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: { type: 'departement', code: '69' } });
+
+  it('rayon_poi 100 m : 422 avec la valeur, avant toute règle, couverture ou écriture — aucune remontée au minimum', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], POI(100), [regle('dv360', 'cp')]);
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect(await r.json()).toEqual({
+      error: 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.',
+      refus: 'rayon_non_activable',
+    });
+    expect(etat.rpcs).toEqual([]);
+    expect(etat.lectures.map((l) => l.table)).not.toContain('plateformes_geo');
+  });
+
+  it('rayon_point 200 m en cercle : refusé de même, jamais relevé au minimum de la plateforme', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 1000 }],
+      { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 200, part_retenue: 1 },
+      [regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000 })]);
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect((await r.json()).error).toBe('Rayon de 200 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('paver_cercles');
+  });
+
+  it('rayon_poi 250 m : s’active (comportement B8 inchangé)', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], POI(250), [regle('dv360', 'cp')]);
+    expect((await extraire()).status).toBe(201);
+  });
+});

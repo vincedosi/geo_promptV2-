@@ -6,7 +6,7 @@ import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { PART_SIGNALEE } from '../../logique/zones/creation-zone';
-import { type Recette, libelleRecette } from '../../logique/zones/recette';
+import { type Recette, libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { STYLES_RECETTE } from './styles-recette';
 
@@ -66,6 +66,8 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
     @if (chiffres(); as c) {
       <p data-chiffres class="m-0 font-mono text-[11px] text-secondary">{{ c.ligne }}</p>
       @if (c.part) { <p data-part class="m-0 font-mono text-[11px] text-tertiary">{{ c.part }}</p> }
+      <!-- Décision du 02/11 : un rayon sous le minimum d'activation se calcule, mais ses chiffres sont estimatifs. -->
+      @if (estimatif(); as m) { <p data-estimatif class="garde">{{ m }}</p> }
     }
     @if (perime()) {
       <p data-perime class="garde">L’aperçu ne correspond plus aux réglages affichés : relancez-le avant d’enregistrer.</p>
@@ -118,6 +120,8 @@ export class PiedRecetteComponent {
     const a = this.atelier.apercu();
     return a ? chiffresApercu(a, this.atelier.recette()) : null;
   });
+  /** La mention « estimatif » de la recette prévisualisée (rayon trop fin pour être activé), `null` sinon. */
+  protected readonly estimatif = computed(() => mentionEstimatif(this.atelier.recette()));
   /** La forme passée au dernier aperçu (import) : un autre fichier, même de même nom, est une autre lecture. */
   private readonly geometrieVue = signal<GeoJSON.Geometry | undefined>(undefined);
   /**

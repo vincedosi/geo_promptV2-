@@ -421,3 +421,33 @@ describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant tout
     expect(h.ecritures.map((e) => `${e.table}:${e.op}`)).toEqual(['zone_sets:update']);
   });
 });
+
+describe('décision du 02/11 : une zone de rayon sous 250 m ne s’enregistre pas en jeu (jamais activée)', () => {
+  const TROP_FIN = 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.';
+  const zonePoi = (rayon_m: number) => {
+    h.donnees['custom_geo_zones:select1'] = {
+      id: h.ZONE, name: 'Lycées 100 m', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: { type: 'departement', code: '35' } },
+    };
+  };
+
+  it('POST : rayon_poi 100 m → 400 avec la valeur, rien écrit', async () => {
+    zonePoi(100);
+    const r = await poster({ nom: 'Lycées', jeu: jeuZone() });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: TROP_FIN, refus: 'rayon_non_activable' });
+    expect(h.ecritures).toEqual([]);
+  });
+
+  it('PATCH des plateformes : refusé de même, rien écrit', async () => {
+    zonePoi(100);
+    const r = await patcher({ plateformes: [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }] });
+    expect(r.status).toBe(400);
+    expect((await r.json()).refus).toBe('rayon_non_activable');
+    expect(h.ecritures).toEqual([]);
+  });
+
+  it('POST : rayon_poi 250 m → 201', async () => {
+    zonePoi(250);
+    expect((await poster({ nom: 'Lycées', jeu: jeuZone() })).status).toBe(201);
+  });
+});

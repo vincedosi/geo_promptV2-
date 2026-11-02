@@ -4,7 +4,7 @@ import {
   CAPACITE_SYNCHRONE_POI_RAYON, INDICATEURS_SEUIL_CARREAUX, MAX_CARREAUX_SEUIL, MIN_MENAGES_CARREAUX_DEFAUT, MIN_MENAGES_CARREAUX_MAX, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, PERIMETRES_ADMIS,
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, RAYON_POINT_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
-  exigePerimetre, libelleRecette, refusPerimetreLocal, CODES_PAYS, type Recette,
+  exigePerimetre, libelleRecette, mentionEstimatif, rayonNonActivable, refusActivation, refusPerimetreLocal, CODES_PAYS, type Recette,
 } from '@/lib/zones/recette';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lireRecette } from '@/lib/zones/recette-schema';
@@ -109,6 +109,25 @@ describe('la recette d’une zone', () => {
       + 'cette zone, enregistrée avec un rayon plus petit, n’est pas modifiée et ne se recalcule plus ; recréez-la avec un rayon d’au moins 250 m.');
     expect(libelleRecette(point(100))).toBe('Rayon de 100 m autour d’un point — sous le minimum de 250 m, ne se recalcule plus');
     expect(libelleRecette(point(250))).toBe('Rayon de 250 m autour d’un point');
+  });
+
+  it('décision du 02/11 : un rayon (point ou POI) sous 250 m se garde en analyse, estimatif, et ne s’active jamais', () => {
+    const poi = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: PER });
+    const point = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m });
+    expect(rayonNonActivable(poi(100))).toBe(100);
+    expect(rayonNonActivable(point(249))).toBe(249);
+    expect(rayonNonActivable(poi(RAYON_POINT_MIN_M))).toBeNull();
+    expect(rayonNonActivable({ v: 1, type: 'dessin' })).toBeNull();
+    expect(rayonNonActivable(null)).toBeNull();
+    // L'analyse calcule toujours un rayon POI de 100 m (aucun refus de calcul).
+    expect(refusPerimetreLocal(poi(100))).toBeNull();
+    expect(refusActivation(poi(100))).toBe(
+      'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+    expect(refusActivation(poi(250))).toBeNull();
+    expect(mentionEstimatif(poi(100))).toBe(
+      'Chiffres estimatifs : un rayon de 100 m est plus fin que les carreaux INSEE de 200 m. '
+      + 'Zone gardée pour l’analyse, jamais activée (minimum 250 m).');
+    expect(mentionEstimatif(poi(5000))).toBeNull();
   });
 
   it('France métropolitaine (retours du 26/10) : « Autour des POI » passe, les seuils sont différés ; la France entière reste refusée', () => {

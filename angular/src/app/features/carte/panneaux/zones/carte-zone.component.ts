@@ -4,7 +4,7 @@ import type { FormatExportZone, ZoneCustomResume } from '../../data/zones-custom
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { decrireComposition } from '../../logique/zones/composition';
 import { libelleSource } from '../../logique/zones/libelle-zone';
-import { estRecalculable, libelleRecette } from '../../logique/zones/recette';
+import { estRecalculable, libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
 import { dateZone } from '../../logique/zones/zones-affichees';
 
 /** Le bouton fantôme de React (`ghostBtn`, `ZonesOverlay.tsx:615-624`) : bord 0,5 px subtil, 10 px, rayon 4. */
@@ -85,6 +85,8 @@ const GESTE = 'shrink-0 cursor-pointer rounded-[6px] border-fin border-default b
         >Recalculer</button>
       }
     </div>
+    <!-- Décision du 02/11 : un rayon sous le minimum d'activation — chiffres estimatifs, jamais activée. -->
+    @if (estimatif(); as m) { <div data-estimatif class="text-[11px] leading-[1.5] text-secondary">{{ m }}</div> }
 
     <div class="flex justify-end">
       <button
@@ -197,6 +199,7 @@ export class CarteZoneComponent {
     const r = this.zone().recette;
     return r ? libelleRecette(r, this.indicateurs()) : 'Forme figée';
   });
+  protected readonly estimatif = computed(() => mentionEstimatif(this.zone().recette ?? null));
   protected readonly recalculable = computed(() => {
     const r = this.zone().recette;
     return !!r && estRecalculable(r);

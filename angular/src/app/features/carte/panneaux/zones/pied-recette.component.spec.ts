@@ -209,3 +209,22 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     expect(atelier.effacer).toHaveBeenCalled();
   });
 });
+
+describe('PiedRecetteComponent — rayon POI sous 250 m (décision du 02/11)', () => {
+  it('l’aperçu d’un rayon POI de 100 m est calculé, et dit estimatif ; rien pour 5 km', async () => {
+    const { f, el, stable, atelier } = monter();
+    const poi = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: { type: 'departement', code: '13' } });
+    f.componentInstance.recette.set(poi(100));
+    atelier.recette.set(poi(100));
+    atelier.apercu.set(APERCU);
+    await stable();
+    expect(el.querySelector('[data-chiffres]')).not.toBeNull();
+    expect(el.querySelector('[data-estimatif]')?.textContent?.trim()).toBe(
+      'Chiffres estimatifs : un rayon de 100 m est plus fin que les carreaux INSEE de 200 m. '
+      + 'Zone gardée pour l’analyse, jamais activée (minimum 250 m).');
+    atelier.recette.set(poi(5000));
+    f.componentInstance.recette.set(poi(5000));
+    await stable();
+    expect(el.querySelector('[data-estimatif]')).toBeNull();
+  });
+});

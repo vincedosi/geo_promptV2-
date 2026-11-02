@@ -88,6 +88,22 @@ describe('mg-panneau-jeu', () => {
     expect(el.querySelector('[data-exacte]')?.textContent).toContain('2 codes postaux');
   });
 
+  it('décision du 02/11 : une zone rayon POI de 100 m est refusée (texte exact), aucune conversion, ni enregistrement ni extraction', async () => {
+    const zone = {
+      id: Z1, name: 'Lycées 100 m', updated_at: 'v1',
+      recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '35' } },
+    } as unknown as ZoneCustomResume;
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
+    for (const r of http.match('/api/zones/plateformes')) r.flush({ plateformes: REGISTRE });
+    await stable();
+    http.expectNone((r) => r.url.includes('/couverture') || r.url.includes('/cercles'));
+    expect(el.querySelector('[data-refus-activation]')?.textContent?.trim())
+      .toBe('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
+    expect(el.querySelectorAll('mg-colonne-plateforme')).toHaveLength(0);
+    expect(el.querySelector('mg-enregistrer-jeu')).toBeNull();
+    http.verify();
+  });
+
   it('A-13 : la zone analysée en ④ est PROPOSÉE (pas prise) ; un clic la choisit', async () => {
     const lister = () => of({ zones: [{ id: Z2, name: 'Fos', recette: null } as unknown as ZoneCustomResume] });
     const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneAnalyse=${Z2}`, { lister });

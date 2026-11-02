@@ -59,6 +59,7 @@ export const RAYON_POINT_MAX_M = 100_000;
  * aucune plateforme ne l'achète exactement (DV360 et Meta : 1 km au moins). Une recette déjà enregistrée sous ce
  * rayon (100 m le permettaient) n'est PAS modifiée : le schéma la relit encore (`RAYON_POI_MIN_M`), sql/314 l'a
  * comptée et marquée, son libellé le dit et son recalcul est refusé (`rayon_sous_minimum`) — on la recrée.
+ * Décision du 02/11 : c'est aussi le minimum d'ACTIVATION de tout rayon, point ou POI (`rayonNonActivable`).
  */
 export const RAYON_POINT_MIN_M = 250;
 /**
@@ -236,6 +237,30 @@ export function refusPerimetreLocal(r: Recette): RefusRecette | null {
   const admis = PERIMETRES_ADMIS[r.type];
   if (admis && !admis.includes(r.perimetre.type)) return 'perimetre_non_admis';
   return null;
+}
+
+/**
+ * Décision du 02/11 (chef de produit) : un rayon, autour d'un point ou de POI, sous `RAYON_POINT_MIN_M` est plus fin
+ * que les carreaux INSEE (200 m de côté). En ANALYSE il reste admis et calculé (rayon POI dès `RAYON_POI_MIN_M`),
+ * chiffres dits estimatifs (`mentionEstimatif`) ; il n'est JAMAIS activé (⑤ : bilan, enregistrement du jeu,
+ * extraction — `refusActivation`), et jamais relevé en silence au minimum d'une plateforme. Rend le rayon, ou `null`.
+ */
+export function rayonNonActivable(r: Recette | null): number | null {
+  return (r?.type === 'rayon_point' || r?.type === 'rayon_poi') && r.rayon_m < RAYON_POINT_MIN_M ? r.rayon_m : null;
+}
+
+/** Le refus d'activer une telle zone (⑤), avec sa valeur ; `null` si elle s'active. */
+export function refusActivation(r: Recette | null): string | null {
+  const rayon = rayonNonActivable(r);
+  return rayon === null ? null : `Rayon de ${formaterNombre(rayon)} m : trop fin pour être activé `
+    + `(minimum ${formaterNombre(RAYON_POINT_MIN_M)} m). Gardé pour l’analyse uniquement.`;
+}
+
+/** La mention posée à côté des chiffres d'une telle zone en analyse (③, ④, « Mes zones ») ; `null` sinon. */
+export function mentionEstimatif(r: Recette | null): string | null {
+  const rayon = rayonNonActivable(r);
+  return rayon === null ? null : `Chiffres estimatifs : un rayon de ${formaterNombre(rayon)} m est plus fin que les carreaux `
+    + `INSEE de 200 m. Zone gardée pour l’analyse, jamais activée (minimum ${formaterNombre(RAYON_POINT_MIN_M)} m).`;
 }
 
 function km(m: number): string {

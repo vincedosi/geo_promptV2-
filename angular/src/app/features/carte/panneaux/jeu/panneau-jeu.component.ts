@@ -13,6 +13,7 @@ import { NOM_PLATEFORME } from '../../logique/jeu/ecran';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
 import { phraseMinimumMenages } from '../../logique/analyses/couverture';
+import { refusActivation } from '../../logique/zones/recette';
 import { ChoixCibleComponent } from '../analyse/choix-cible.component';
 import { ChoixZoneAnalyseeComponent } from '../analyse/choix-zone-analysee.component';
 import { ENCART_ERREUR } from '../analyse/styles-analyse';
@@ -77,7 +78,10 @@ const LARGEUR_COLONNES = 900;
       @if (jeu.erreur(); as e) { <div data-erreur-jeu role="alert" [class]="encartErreur">{{ e }}</div> }
     </div>
 
-    @if (!jeu.zoneId()) {
+    @if (jeu.zoneId() && tropFin(); as t) {
+      <!-- Décision du 02/11 : un rayon sous le minimum d'activation reste à l'analyse — aucune maille, aucun jeu, aucune extraction. -->
+      <div class="px-4 pb-4"><div data-refus-activation role="alert" [class]="encartErreur">{{ t }}</div></div>
+    } @else if (!jeu.zoneId()) {
       <p data-jeu-vide class="m-0 px-4 pb-4 text-[12px] leading-[1.6] text-tertiary">
         Aucune zone : choisissez une zone enregistrée, ou
         <button type="button" data-vers-zones (click)="parcours.choisir('zones')" class="cursor-pointer bg-transparent p-0 text-[12px] text-secondary underline hover:text-primary">créez-en une à l’étape ③</button>.
@@ -122,6 +126,8 @@ export class PanneauJeuComponent {
 
   /** A-13 : la zone analysée en ④ est proposée tant qu'aucune zone n'est choisie ici. */
   protected readonly proposee = computed(() => (this.jeu.zoneId() ? null : this.analyse.zoneId()));
+  /** Décision du 02/11 : le refus d'activer une zone de rayon trop fin (valeur dite), `null` sinon — même règle qu'au serveur. */
+  protected readonly tropFin = computed(() => refusActivation(this.jeu.recette()));
   /** Les colonnes qui demandent leur conversion. */
   private readonly ouvertes = computed<readonly Plateforme[]>(() => (this.large() ? PLATEFORMES : [this.ouverte()]));
 
@@ -162,7 +168,8 @@ export class PanneauJeuComponent {
     // hors suivi. La date : une zone recalculée vide les conversions sans changer aucun choix — sans elle, rien ne repart.
     effect(() => {
       const ouvertes = this.ouvertes();
-      if (!this.jeu.zoneId()) return;
+      // Une zone non activable ne demande aucune conversion (décision du 02/11).
+      if (!this.jeu.zoneId() || this.tropFin()) return;
       this.jeu.maj();
       this.jeu.choix();
       this.jeu.cible();

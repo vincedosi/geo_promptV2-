@@ -28,8 +28,13 @@ describe('recette de zone : Angular = serveur', () => {
       { v: 1, type: 'seuil_carreaux', indicateur: 'part_men_pauv', operateur: '>=', seuil: 40, perimetre: { type: 'departement', code: '33' }, min_menages: 11 },
       { v: 1, type: 'pays', code: 'METRO' },
       { v: 1, type: 'pays', code: 'FR' },
+      // Décision du 02/11 : rayons sous le minimum d'activation (estimatifs, jamais activés).
+      { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '13' } },
+      { v: 1, type: 'rayon_point', lon: 5.4, lat: 43.3, rayon_m: 200 },
     ];
     for (const r of cas) {
+      expect(A.refusActivation(r)).toBe(R.refusActivation(r));
+      expect(A.mentionEstimatif(r)).toBe(R.mentionEstimatif(r));
       expect(A.estRecalculable(r)).toBe(R.estRecalculable(r));
       expect(A.exigePerimetre(r)).toBe(R.exigePerimetre(r));
       expect(A.refusPerimetreLocal(r)).toBe(R.refusPerimetreLocal(r));

@@ -113,3 +113,16 @@ describe('CarteZoneComponent — Dupliquer, sans script de bidding (③ finition
     expect(el.querySelector('[data-recette]')!.textContent!.trim()).toMatch(/ · minimum de ménages : 11$/);
   });
 });
+
+describe('CarteZoneComponent — rayon trop fin pour être activé (décision du 02/11)', () => {
+  const MENTION = 'Chiffres estimatifs : un rayon de 100 m est plus fin que les carreaux INSEE de 200 m. '
+    + 'Zone gardée pour l’analyse, jamais activée (minimum 250 m).';
+  it('rayon POI de 100 m : la mention estimative sous la recette ; aucune à 5 km', async () => {
+    const poi = (rayon_m: number) => zone({ v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m, perimetre: { type: 'departement', code: '33' } }, 'recette_rayon_poi');
+    const { el } = await monter(poi(100));
+    expect(el.querySelector('[data-estimatif]')?.textContent?.trim()).toBe(MENTION);
+    TestBed.resetTestingModule();
+    const autre = await monter(poi(5000));
+    expect(autre.el.querySelector('[data-estimatif]')).toBeNull();
+  });
+});
