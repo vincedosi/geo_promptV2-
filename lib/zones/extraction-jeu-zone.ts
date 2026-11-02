@@ -23,10 +23,11 @@
  * Les conversions sont SÉQUENTIELLES (jamais en parallèle : chacune peut lire ≈ 100 000 accès), et un découpage lu
  * pour une plateforme sert les suivantes (deux plateformes au CP ne lisent la couverture qu'une fois).
  *
- * LE PLAN CP (décision du contrôleur, sql/278). Chaque plateforme au CP garde SES codes postaux dans les unités ; le
- * plan de `zone_set_extraction_cp` est calculé au seuil le PLUS BAS des plateformes au CP (leur sur-ensemble), ou sur
- * la liste de la recette quand le CP est exact (toutes les plateformes au CP le sont alors : même recette) —
- * `planCpDeZone` (`plan-jeu-zone.ts`).
+ * LES PLANS CP. B12 : chaque plateforme au CP a SON plan, à SON seuil et à la plage de SES mécanismes
+ * (`plansParPlateforme`), figé dans `zone_set_extraction_cp_plateforme` (sql/317, unités retenues seulement) et son
+ * bilan dans le résumé de la plateforme (`plan_cp`). Le plan COMMUN de `zone_set_extraction_cp` reste calculé au seuil
+ * le PLUS BAS des plateformes au CP (décision du contrôleur, sql/278) : ⑥/⑦ le lisent encore (rétrocompatibilité). Avec
+ * une recette `codes_postaux` exacte, la liste fait chaque plan, seuil ignoré.
  *
  * Une plateforme calculée qui ne retient AUCUNE unité refuse l'extraction (422) : un plan figé qui n'achète rien pour
  * une plateforme choisie se lirait comme un plan valable.
@@ -50,7 +51,8 @@ import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conv
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
 import {
-  planCpDeZone, reglageDuPlan, sortiesPoids, type ReglagePlan, type SortiePoids, type VolumesAttendus,
+  planCpDeZone, plansParPlateforme, reglageDuPlan, sortiesPoids,
+  type PlanPlateforme, type ReglagePlan, type SortiePoids, type VolumesAttendus,
 } from './plan-jeu-zone';
 import { lireVolumesAttendus } from './part-prevue-serveur';
 import { lireGroupesCp } from './groupes';
@@ -93,6 +95,8 @@ interface ResumePlateforme {
   n_codes?: number;
   /** Maille CP : ce que la plateforme reçoit par chacun de ses mécanismes de poids (`plateformes_poids`, A1). */
   poids?: SortiePoids[];
+  /** B12 : maille CP — le bilan de SON plan (son seuil, ses unités retenues, séquence E4, part prévue). */
+  plan_cp?: { seuil: number } & PlanPlateforme['plan']['resume'];
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
   /**
@@ -376,13 +380,17 @@ const MESSAGES_RPC: Record<string, string> = {
   unites_hors_choix: 'Le choix des plateformes a changé pendant l’extraction : relancez-la.',
 };
 
+/** Les plans CP d'une extraction : le plan commun (⑥/⑦) et celui de chaque plateforme au CP (B12). */
+interface PlansCp { commun: ReturnType<typeof planCpDeZone>; parPlateforme: PlanPlateforme[] }
+
 /**
- * Le plan CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle, et le
- * réglage du registre des mécanismes de poids (`reglageDuPlan` : plage la plus étroite, règle de groupe unique, A1).
+ * Les plans CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle, et le
+ * registre des mécanismes de poids — le plan commun au réglage `reglageDuPlan` de toutes (plage la plus étroite, règle
+ * de groupe unique, A1), celui de chaque plateforme au réglage de ses seuls mécanismes (B12).
  */
 async function planCp(
-  ctx: Contexte, auCp: readonly Choix[], reglage: ReglagePlan,
-): Promise<ReturnType<typeof planCpDeZone> | null | Echec> {
+  ctx: Contexte, auCp: readonly Choix[], reglage: ReglagePlan, poids: readonly PlateformePoids[],
+): Promise<PlansCp | null | Echec> {
   if (auCp.length === 0) return null;
   let groupes: MembresParCanonique;
   try {
@@ -402,7 +410,11 @@ async function planCp(
   } catch (e) {
     return panne('volumes attendus', e);
   }
-  return planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), ctx.jeu.mode_plan as ModePlan, groupes, liste, reglage, volumes);
+  const mode = ctx.jeu.mode_plan as ModePlan;
+  const propres = plansParPlateforme(cp.lignes, auCp, mode, groupes, poids, liste, volumes);
+  if (!propres.ok) return erreur(`${propres.message} Réglez à nouveau le jeu avant d’extraire.`, 422);
+  const commun = planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), mode, groupes, liste, reglage, volumes);
+  return { commun, parPlateforme: propres.plans };
 }
 
 /**
@@ -463,25 +475,30 @@ export async function extraireJeuZone(
     reglage = r.reglage;
   }
 
-  const plan = await planCp(ctx, auCp, reglage);
-  if (plan && 'ok' in plan) return plan.reponse;
+  const plans = await planCp(ctx, auCp, reglage, poids);
+  if (plans && 'ok' in plans) return plans.reponse;
+  const plan = plans?.commun ?? null;
   // A1, règle 5 : ce que le mécanisme de poids fait au plan est DIT sur chaque plateforme au CP — écrêtages (avant /
   // après, comptés en unités CP, chez les seules plateformes dont un mécanisme multiplicateur porte la borne), envois
-  // découpés au-delà de `nb_max_entrees` (comptés en codes).
-  if (plan) {
-    for (const r of resumes) {
-      if (!auCp.some((c) => c.plateforme === r.plateforme)) continue;
-      const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur);
-      r.poids = s.sorties;
-      r.avertissements.push(...s.avertissements);
-    }
+  // découpés au-delà de `nb_max_entrees` (comptés en codes). B12 : d'après SON plan, dont le bilan est figé avec elle.
+  for (const propre of plans?.parPlateforme ?? []) {
+    const r = resumes.find((x) => x.plateforme === propre.plateforme);
+    if (!r) continue;
+    const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, propre.plan.resume.multiplicateur);
+    r.poids = s.sorties;
+    r.avertissements.push(...s.avertissements);
+    r.plan_cp = { seuil: propre.seuil, ...propre.plan.resume };
   }
+  // B12 : les lignes de chaque plan (unités RETENUES, développées en codes) → `zone_set_extraction_cp_plateforme`.
+  const plansPlateformes = (plans?.parPlateforme ?? []).map((p) => ({
+    plateforme: p.plateforme, seuil: p.seuil, lignes: p.plan.lignes.filter((l) => l.retenu),
+  }));
 
   const { data: brut, error } = await supabase.rpc('creer_extraction_jeu_zone', {
     p_zone_set_id: jeu.id,
     p_cp: toJson(plan?.lignes ?? []),
     p_unites: toJson(unites),
-    p_resume: toJson({ ...(plan?.resume ?? {}), plateformes: resumes }),
+    p_resume: toJson({ ...(plan?.resume ?? {}), plateformes: resumes, plans_plateformes: plansPlateformes }),
     p_origine: corps.origine,
     p_commentaire: corps.commentaire,
     p_created_by: userId,

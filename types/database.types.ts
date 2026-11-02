@@ -6196,6 +6196,56 @@ export type Database = {
           },
         ]
       }
+      zone_set_extraction_cp_plateforme: {
+        Row: {
+          classe: string
+          code_canonique: string
+          code_postal: string
+          extraction_id: string
+          multiplicateur: number
+          part_en_zone: number | null
+          part_prevue: number | null
+          plateforme: string
+          pop_en_zone: number | null
+          pop_totale: number | null
+          retenu: boolean
+        }
+        Insert: {
+          classe: string
+          code_canonique: string
+          code_postal: string
+          extraction_id: string
+          multiplicateur?: number
+          part_en_zone?: number | null
+          part_prevue?: number | null
+          plateforme: string
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          retenu?: boolean
+        }
+        Update: {
+          classe?: string
+          code_canonique?: string
+          code_postal?: string
+          extraction_id?: string
+          multiplicateur?: number
+          part_en_zone?: number | null
+          part_prevue?: number | null
+          plateforme?: string
+          pop_en_zone?: number | null
+          pop_totale?: number | null
+          retenu?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_set_extraction_cp_plateforme_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "zone_set_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_set_extraction_unites: {
         Row: {
           centre: unknown

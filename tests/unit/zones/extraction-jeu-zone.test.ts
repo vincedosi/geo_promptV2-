@@ -209,6 +209,36 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     expect(ttd.avertissements).toEqual([]);
   });
 
+  it('B12 : DV360 à 20 %, TTD à 10 % → deux plans figés ; celui de DV360 ne contient que les CP retenus à 20 %', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 10, rayon_m: null }],
+      DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);
+    // 69003 à 15 % : retenu à 10 % (TTD), pas à 20 % (DV360).
+    etat.reponses.couverture_zone = {
+      data: { ...COUVERTURE, lignes: COUVERTURE.lignes.map((l) => (l.code === '69003' ? { ...l, pop_en_zone: 7_500, part: 15, part_brute: 15 } : l)) },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    const { p_cp, p_resume } = argsCreation() as unknown as {
+      p_cp: { code_postal: string; retenu: boolean }[];
+      p_resume: {
+        plans_plateformes: { plateforme: string; seuil: number; lignes: { code_postal: string; retenu: boolean; multiplicateur: number }[] }[];
+        plateformes: { plateforme: string; plan_cp?: Record<string, unknown> }[];
+      };
+    };
+    const plans = Object.fromEntries(p_resume.plans_plateformes.map((p) => [p.plateforme, p]));
+    expect(Object.keys(plans)).toEqual(['dv360', 'ttd']);
+    expect(plans.dv360.seuil).toBe(20);
+    expect(plans.dv360.lignes.map((l) => l.code_postal)).toEqual(['69001', '69002']);
+    expect(plans.dv360.lignes.every((l) => l.retenu && l.multiplicateur > 0)).toBe(true);
+    expect(plans.ttd.lignes.map((l) => l.code_postal)).toEqual(['69001', '69002', '69003']);
+    // Le plan commun (rétrocompatibilité ⑥/⑦) reste celui du seuil le plus bas.
+    expect(p_cp.filter((l) => l.retenu).map((l) => l.code_postal)).toEqual(['69001', '69002', '69003']);
+    // Le bilan de CHAQUE plan est figé avec sa plateforme.
+    const resumeDe = (p: string) => p_resume.plateformes.find((r) => r.plateforme === p)!.plan_cp;
+    expect(resumeDe('dv360')).toMatchObject({ seuil: 20, n_retenus: 2, n_codes: 2 });
+    expect(resumeDe('ttd')).toMatchObject({ seuil: 10, n_retenus: 3, n_codes: 3 });
+  });
+
   it('A1 : une règle de groupe divergente entre plateformes au CP refuse l’extraction en le disant (422)', async () => {
     jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 20, rayon_m: null }],
       DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);

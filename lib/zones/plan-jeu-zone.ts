@@ -13,10 +13,12 @@
  * ⚠ Avant A2, ce plan passait les groupes à `genererPlanCp`, qui DIVISAIT le multiplicateur par le nombre de membres
  * (`etendreAuxGroupes`). Le chemin risque le fait toujours, inchangé (ruling A1 ↔ ⑥ du lot 1).
  *
- * ⚠ UN SEUL PLAN pour toutes les plateformes au CP (jusqu'à B12, un plan par plateforme) : sa plage est la plus ÉTROITE
- * des mécanismes `multiplicateur` de ces plateformes (il doit passer chez chacune), et leurs règles de groupe doivent
- * concorder — sinon l'extraction refuse en le disant (`reglageDuPlan`). Ce que chaque plateforme reçoit est dit, par
- * mécanisme, par `sortiesPoids`.
+ * B12 : UN PLAN PAR PLATEFORME au CP (`plansParPlateforme`), au seuil de cette plateforme et à la plage de SES
+ * mécanismes, figé avec l'extraction (`zone_set_extraction_cp_plateforme`, sql/317). Le plan COMMUN (seuil le plus bas,
+ * plage la plus ÉTROITE des mécanismes `multiplicateur`, règle de groupe unique — sinon refus nommé, `reglageDuPlan`)
+ * est gardé tel quel dans `zone_set_extraction_cp` : c'est lui que lisent ⑥ Plan campagne, le rattachement, l'export et
+ * la simulation (rétrocompatibilité, hors périmètre de B12). Ce que chaque plateforme reçoit est dit, par mécanisme, par
+ * `sortiesPoids`, à partir de SON plan.
  *
  * ⚠ Duplication DÉCLARÉE : la règle « populations sur le canonique, `null` sur un membre » recopie le chemin risque de
  * `app/api/zones/jeux/[id]/extractions/route.ts`, non factorisé pour ne pas toucher au moteur risque (contrainte du
@@ -234,6 +236,37 @@ export function planCpDeZone(
       },
     },
   };
+}
+
+/** Le plan CP d'UNE plateforme (B12) : son seuil, le réglage de SES mécanismes, le plan qui en sort. */
+export interface PlanPlateforme {
+  plateforme: string;
+  seuil: number;
+  reglage: ReglagePlan;
+  plan: ReturnType<typeof planCpDeZone>;
+}
+
+/**
+ * B12 — un plan CP PAR plateforme au CP, au seuil de CETTE plateforme et borné par SES mécanismes (`reglageDuPlan` sur
+ * elle seule) : une plateforme à 20 % ne reçoit plus les CP qu'une autre retient à 10 %, et sa normalisation (moyenne
+ * des parts de SES retenus) ne dépend plus des choix des autres. Avec `codesExacts` (recette `codes_postaux`), la liste
+ * fait le plan de chacune, seuil ignoré, comme pour le plan commun. Refus nommé si une plateforme n'a aucun mécanisme
+ * au registre (on ne devine pas son mécanisme).
+ */
+export function plansParPlateforme(
+  lignes: readonly LigneCouverture[], choix: readonly { plateforme: string; seuil: number }[], mode_plan: 'pondere' | 'exclusif',
+  groupes: MembresParCanonique, poids: readonly PlateformePoids[], codesExacts?: readonly string[], volumes?: VolumesAttendus,
+): { ok: true; plans: PlanPlateforme[] } | RefusReglage {
+  const plans: PlanPlateforme[] = [];
+  for (const c of choix) {
+    const r = reglageDuPlan(poids, [c.plateforme]);
+    if (!r.ok) return r;
+    plans.push({
+      plateforme: c.plateforme, seuil: c.seuil, reglage: r.reglage,
+      plan: planCpDeZone(lignes, c.seuil, mode_plan, groupes, codesExacts, r.reglage, volumes),
+    });
+  }
+  return { ok: true, plans };
 }
 
 /** Ce qu'une plateforme reçoit par UN de ses mécanismes de poids (figé dans le résumé de l'extraction). */

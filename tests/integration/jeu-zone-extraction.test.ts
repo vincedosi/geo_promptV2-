@@ -207,6 +207,44 @@ describe('POST /api/zones/jeux/[id]/extractions — jeu de zone', () => {
   });
 });
 
+describe('B12 : un plan par plateforme au CP, au seuil de la plateforme (sql/317)', () => {
+  it('DV360 à 20 %, TTD à 10 % : deux plans figés ; celui de DV360 ne contient que les CP retenus à 20 %', async () => {
+    const deux = await jeuSur(zone, 'Lyon DV360 20 / TTD 10', [
+      { plateforme: 'dv360', maille: 'cp', seuil: 20 }, { plateforme: 'ttd', maille: 'cp', seuil: 10 },
+    ]);
+    const r = await extraireJeu(deux);
+    expect(r.status).toBe(201);
+    const { id } = await r.json() as { id: string };
+    const { data: plans, error } = await sb.from('zone_set_extraction_cp_plateforme')
+      .select('plateforme, code_postal, retenu, multiplicateur').eq('extraction_id', id);
+    if (error) throw new Error(error.message);
+    const de = (p: string) => new Set(plans!.filter((l) => l.plateforme === p).map((l) => l.code_postal));
+    const { data: unites } = await sb.from('zone_set_extraction_unites')
+      .select('plateforme, code, part, retenu').eq('extraction_id', id).eq('maille', 'cp');
+    // Ce que chaque plateforme retient à SON seuil (sql/278) : ses unités retenues — le plan de DV360 n'en a pas d'autre.
+    const retenusUnites = (p: string) => unites!.filter((u) => u.plateforme === p && u.retenu);
+    expect(retenusUnites('dv360').every((u) => Number(u.part) >= 20)).toBe(true);
+    for (const u of retenusUnites('dv360')) expect(de('dv360').has(u.code!)).toBe(true);
+    expect(plans!.every((l) => l.retenu && Number(l.multiplicateur) > 0)).toBe(true);
+    // TTD retient plus (10 %) ; tout CP du plan de DV360 est dans celui de TTD, l'inverse non.
+    expect(de('ttd').size).toBeGreaterThan(de('dv360').size);
+    for (const c of de('dv360')) expect(de('ttd').has(c)).toBe(true);
+    // Un CP retenu à 10 % mais pas à 20 % n'est PAS dans le plan de DV360.
+    const entre = unites!.filter((u) => u.plateforme === 'ttd' && u.retenu && Number(u.part) < 20).map((u) => u.code!);
+    expect(entre.length).toBeGreaterThan(0);
+    for (const c of entre) expect(de('dv360').has(c)).toBe(false);
+    // Le plan commun (⑥/⑦, rétrocompatibilité) reste celui du seuil le plus bas ; chaque bilan est figé avec sa plateforme.
+    const { data: x } = await sb.from('zone_set_extractions').select('seuil_couverture_cp, plateformes').eq('id', id).single();
+    expect(Number(x!.seuil_couverture_cp)).toBe(10);
+    const bilan = (p: string) => (x!.plateformes as { plateforme: string; plan_cp: { seuil: number; n_codes: number } }[])
+      .find((q) => q.plateforme === p)!.plan_cp;
+    expect(bilan('dv360')).toMatchObject({ seuil: 20, n_codes: de('dv360').size });
+    expect(bilan('ttd')).toMatchObject({ seuil: 10, n_codes: de('ttd').size });
+    // Rejouée : même contenu, même version.
+    expect((await extraireJeu(deux)).status).toBe(200);
+  }, LONG);
+});
+
 describe('maille exacte : Meta au rayon de la recette (5 km autour de Lyon)', () => {
   it('201 : exacte, UNE unité cercle au centre et au rayon de la recette, zéro perte', async () => {
     const { data, error } = await sb.from('zone_sets').insert({

@@ -7,7 +7,7 @@
  * `tests/integration/jeu-zone-extraction.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
-import { planCpDeZone, reglageDuPlan, sortiesPoids } from '@/lib/zones/plan-jeu-zone';
+import { planCpDeZone, plansParPlateforme, reglageDuPlan, sortiesPoids } from '@/lib/zones/plan-jeu-zone';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { PlateformePoids } from '@/lib/zones/plateformes';
 import { CODE_HORS_ZONE, FACTEUR_HORS_ZONE_NATIONAL, NORMALISATION_PLAN } from '@/lib/zones/plan';
@@ -284,5 +284,33 @@ describe('A1 — la ligne HORS_ZONE (E3) et le mode figé', () => {
     // 0,4 = le facteur de méthode (rebid-v2 D7) × le plus petit multiplicateur du plan (0,5).
     expect(FACTEUR_HORS_ZONE_NATIONAL * 0.5).toBeCloseTo(0.4, 9);
     expect(lignes.filter((l) => l.multiplicateur > 0).every((l) => l.multiplicateur > 0.4)).toBe(true);
+  });
+});
+
+describe('B12 — un plan par plateforme, au seuil de la plateforme', () => {
+  // Parts 50 / 25 / 15 / 5 % : à 20 %, deux unités ; à 10 %, trois.
+  const QUATRE = [cp('31000', 5_000, 10_000, 50), cp('31100', 2_500, 10_000, 25), cp('31200', 1_500, 10_000, 15), cp('31300', 500, 10_000, 5)];
+  const REGISTRE = [DV360_MULT, DV360_SCRIPT, poids({ plateforme: 'ttd', mecanisme: 'budget_ligne' })];
+
+  it('DV360 à 20 %, TTD à 10 % : deux plans ; celui de DV360 ne contient que les CP retenus à 20 %', () => {
+    const r = plansParPlateforme(QUATRE, [{ plateforme: 'dv360', seuil: 20 }, { plateforme: 'ttd', seuil: 10 }], 'exclusif', new Map(), REGISTRE);
+    if (!r.ok) throw new Error(r.message);
+    expect(r.plans.map((p) => [p.plateforme, p.seuil])).toEqual([['dv360', 20], ['ttd', 10]]);
+    const retenus = (p: string) => r.plans.find((x) => x.plateforme === p)!.plan.lignes.filter((l) => l.retenu).map((l) => l.code_postal);
+    expect(retenus('dv360')).toEqual(['31000', '31100']);
+    expect(retenus('ttd')).toEqual(['31000', '31100', '31200']);
+    // DV360 normalise sur SES retenus (moyenne 37,5) : 50 ÷ 37,5 = 1,333 ; 31200 n'y a aucun multiplicateur.
+    const dv = r.plans[0].plan.lignes;
+    expect(dv.find((l) => l.code_postal === '31000')!.multiplicateur).toBe(1.333);
+    expect(dv.find((l) => l.code_postal === '31200')!.multiplicateur).toBe(0);
+    expect(r.plans[0].plan.resume).toMatchObject({ n_retenus: 2, n_codes: 2 });
+    // Chaque plan est borné par le mécanisme de SA plateforme : DV360 0,1-10, TTD (budget_ligne) les bornes techniques.
+    expect(r.plans[0].plan.resume.multiplicateur.bornes).toEqual({ min: 0.1, max: 10 });
+    expect(r.plans[1].plan.resume.multiplicateur.bornes).toEqual({ min: 0.001, max: 999.999 });
+  });
+
+  it('une plateforme au CP sans mécanisme au registre : refus nommé, aucun plan', () => {
+    const r = plansParPlateforme(QUATRE, [{ plateforme: 'meta', seuil: 10 }], 'exclusif', new Map(), REGISTRE);
+    expect(r).toMatchObject({ ok: false, message: expect.stringContaining('meta') });
   });
 });
