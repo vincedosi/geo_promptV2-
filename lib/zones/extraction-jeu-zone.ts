@@ -95,8 +95,12 @@ interface ResumePlateforme {
   n_codes?: number;
   /** Maille CP : ce que la plateforme reçoit par chacun de ses mécanismes de poids (`plateformes_poids`, A1). */
   poids?: SortiePoids[];
-  /** B12 : maille CP — le bilan de SON plan (son seuil, ses unités retenues, séquence E4, part prévue). */
-  plan_cp?: { seuil: number } & PlanPlateforme['plan']['resume'];
+  /**
+   * B12 : maille CP — le bilan de SON plan (son seuil, ses unités retenues, séquence E4, part prévue), et ce que ses
+   * mécanismes en feraient (`poids`, `avertissements`). Tour 1 (I-1) : `poids` et `avertissements` de la plateforme
+   * restent ceux du plan COMMUN, celui que ⑥/⑦ poussent encore ; ceux-ci basculeront quand ⑥/⑦ liront son plan.
+   */
+  plan_cp?: { seuil: number; poids: SortiePoids[]; avertissements: Avertissement[] } & PlanPlateforme['plan']['resume'];
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
   /**
@@ -480,14 +484,17 @@ export async function extraireJeuZone(
   const plan = plans?.commun ?? null;
   // A1, règle 5 : ce que le mécanisme de poids fait au plan est DIT sur chaque plateforme au CP — écrêtages (avant /
   // après, comptés en unités CP, chez les seules plateformes dont un mécanisme multiplicateur porte la borne), envois
-  // découpés au-delà de `nb_max_entrees` (comptés en codes). B12 : d'après SON plan, dont le bilan est figé avec elle.
+  // découpés au-delà de `nb_max_entrees` (comptés en codes). B12 tour 1 (I-1) : d'après le plan COMMUN, celui que ⑥/⑦
+  // poussent encore — dire ceux du plan propre seulement tairait un écrêtage réel ; ceux du plan propre vont dans
+  // `plan_cp`, figés avec son bilan.
   for (const propre of plans?.parPlateforme ?? []) {
     const r = resumes.find((x) => x.plateforme === propre.plateforme);
-    if (!r) continue;
-    const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, propre.plan.resume.multiplicateur);
+    if (!r || !plan) continue;
+    const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur);
     r.poids = s.sorties;
     r.avertissements.push(...s.avertissements);
-    r.plan_cp = { seuil: propre.seuil, ...propre.plan.resume };
+    const sp = sortiesPoids(poids, r.plateforme, propre.plan.resume.n_codes, propre.plan.resume.multiplicateur);
+    r.plan_cp = { seuil: propre.seuil, ...propre.plan.resume, poids: sp.sorties, avertissements: sp.avertissements };
   }
   // B12 : les lignes de chaque plan (unités RETENUES, développées en codes) → `zone_set_extraction_cp_plateforme`.
   const plansPlateformes = (plans?.parPlateforme ?? []).map((p) => ({

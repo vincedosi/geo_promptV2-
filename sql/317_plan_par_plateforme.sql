@@ -30,7 +30,7 @@ create table if not exists public.zone_set_extraction_cp_plateforme (
   pop_en_zone    numeric,
   pop_totale     numeric,
   part_en_zone   numeric,
-  retenu         boolean not null default false,
+  retenu         boolean not null default true,
   multiplicateur numeric(6,3) not null default 0,
   part_prevue    numeric,
   constraint zse_cpp_pkey primary key (extraction_id, plateforme, code_postal),
@@ -49,6 +49,18 @@ create or replace trigger trg_zse_cpp_immuable
 alter table public.zone_set_extraction_cp_plateforme enable row level security;
 revoke all on table public.zone_set_extraction_cp_plateforme from public, anon, authenticated;
 grant select, insert, delete on table public.zone_set_extraction_cp_plateforme to service_role;
+
+-- Tour 1 (M-6) : seules les unités RETENUES sont écrites. La colonne `retenu` est gardée pour l'alignement avec
+-- `zone_set_extraction_cp` (un lecteur ⑥/⑦ passe d'une table à l'autre sans changer sa sélection), mais l'invariant est
+-- posé : défaut vrai, et une ligne non retenue est refusée (CHECK `zse_cpp_retenu`).
+alter table public.zone_set_extraction_cp_plateforme alter column retenu set default true;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'zse_cpp_retenu'
+                  and conrelid = 'public.zone_set_extraction_cp_plateforme'::regclass) then
+    alter table public.zone_set_extraction_cp_plateforme add constraint zse_cpp_retenu check (retenu);
+  end if;
+end $$;
 
 -- ── creer_extraction_jeu_zone : les plans par plateforme, dans l'empreinte et écrits ──────────────────────────────────
 CREATE OR REPLACE FUNCTION public.creer_extraction_jeu_zone(p_zone_set_id uuid, p_cp jsonb, p_unites jsonb, p_resume jsonb, p_origine text DEFAULT 'initiale'::text, p_commentaire text DEFAULT ''::text, p_created_by uuid DEFAULT NULL::uuid)
@@ -101,6 +113,8 @@ begin
          and not exists (select 1 from public.zone_set_plateformes
                           where zone_set_id = p_zone_set_id and maille = 'cp'))
      -- B12 : un plan par plateforme n'existe que pour une plateforme choisie AU CP, et ses lignes forment un tableau.
+     -- Tour 1 (M-5) : une plateforme, un plan — un doublon serait absorbé en silence par `on conflict do nothing`.
+     or (select count(*) <> count(distinct p ->> 'plateforme') from jsonb_array_elements(v_plans) p)
      or exists (select 1 from jsonb_array_elements(v_plans) p
                  where jsonb_typeof(p) <> 'object' or jsonb_typeof(p -> 'lignes') is distinct from 'array'
                     or not exists (select 1 from public.zone_set_plateformes zp

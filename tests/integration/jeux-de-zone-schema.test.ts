@@ -200,9 +200,20 @@ describe('sql/277-278 — jeux de zone', () => {
     // Meta a choisi le cercle : ses CP ne sont pas un choix du jeu.
     ['unites_hors_choix', `select public.creer_extraction_jeu_zone('${JEU}', '[]',
        '[{"plateforme":"meta","maille":"cp","code":"29200","pop_en_zone":1,"pop_totale":2,"part":50,"retenu":true}]', '{}');`],
+    // B12 tour 1 (M-5) : deux plans pour la même plateforme — l'un serait absorbé en silence par `on conflict`.
+    ['unites_hors_choix', `select public.creer_extraction_jeu_zone('${JEU}', ${CP}, '[]',
+       '{"plans_plateformes":[{"plateforme":"dv360","seuil":20,"lignes":[]},{"plateforme":"dv360","seuil":20,"lignes":[]}]}');`],
   ])('extraction refusée : %s', (refus, appel) => {
     const r = JSON.parse(psql(`begin; ${JEU_DE_ZONE} ${appel} rollback;`));
     expect(r).toEqual({ ok: false, error: refus });
+  });
+
+  it('B12 tour 1 (M-6) : une ligne non retenue est refusée par la table du plan par plateforme', () => {
+    const r = psqlBrut(`begin; ${JEU_DE_ZONE}
+      ${extraire(unites(CERCLES)).replace(`${RESUME}`, `'{"plans_plateformes":[{"plateforme":"dv360","seuil":20,"lignes":[{"code_postal":"29000","classe":"hors","retenu":false,"multiplicateur":0}]}]}'::jsonb`)}
+      rollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('zse_cpp_retenu');
   });
 
   it('extraction : des CP sans choix au CP sont refusés', () => {

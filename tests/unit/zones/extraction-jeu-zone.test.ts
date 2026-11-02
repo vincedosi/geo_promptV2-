@@ -239,6 +239,30 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     expect(resumeDe('ttd')).toMatchObject({ seuil: 10, n_retenus: 3, n_codes: 3 });
   });
 
+  it('B12 tour 1 (I-1) : DV360 20 % / TTD 10 % — l’écrêtage du plan COMMUN (celui que ⑥/⑦ poussent) reste dit chez DV360', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 10, rayon_m: null }],
+      DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);
+    // Règle `divise` chez les deux (elle doit concorder) ; 69003 à 10,5 %, groupe de 3 codes : retenu à 10 % seulement.
+    etat.tables.plateformes_poids = {
+      data: [{ ...POIDS_SEED[0], poids_groupe_cp: 'divise' }, poids('ttd', 'budget_ligne', { poids_groupe_cp: 'divise' })], error: null,
+    };
+    etat.reponses.couverture_zone = {
+      data: { ...COUVERTURE, lignes: COUVERTURE.lignes.map((l) => (l.code === '69003'
+        ? { ...l, pop_en_zone: 5_250, part: 10.5, part_brute: 10.5, membres: ['69003', '69004', '69005'] } : l)) },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    const plateformes = argsCreation().p_resume.plateformes as {
+      plateforme: string; avertissements: unknown[]; plan_cp: { avertissements: unknown[]; poids: unknown[] };
+    }[];
+    const dv360 = plateformes.find((r) => r.plateforme === 'dv360')!;
+    // Commun : moyenne des parts 92,3 / 30 / 10,5 = 44,27 ; 10,5 ÷ 44,27 ÷ 3 = 0,079 < 0,1 → écrêté, et c'est ce plan qui part.
+    expect(dv360.avertissements).toEqual([{ code: 'multiplicateur_min', limite: 0.1, valeur: 0.079, n: 1, a_verifier: true }]);
+    // Son plan propre (92,3 et 30 seulement) n'écrête rien : dit à part, dans `plan_cp`.
+    expect(dv360.plan_cp.avertissements).toEqual([]);
+    expect(dv360.plan_cp.poids).toMatchObject([{ mecanisme: 'multiplicateur', n_codes: 2 }]);
+  });
+
   it('A1 : une règle de groupe divergente entre plateformes au CP refuse l’extraction en le disant (422)', async () => {
     jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }, { plateforme: 'ttd', maille: 'cp', seuil: 20, rayon_m: null }],
       DESSIN, [regle('dv360', 'cp'), regle('ttd', 'cp')]);
