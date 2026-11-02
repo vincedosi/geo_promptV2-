@@ -26,9 +26,10 @@ const admin = creerClientTest();
 const LONG = 180_000;
 // Tour 1 : sql/313 redéfinit forme_simplifiee, simplification_polygone et creer_extraction_jeu_zone — rejouée après 312.
 // B12 : sql/317 porte la dernière définition de creer_extraction_jeu_zone ; B13 : sql/318 redéfinit
-// `plateformes_geo_parametres_valides` (comportements des minimums) — rejouées après 313, dans cet ordre.
+// `plateformes_geo_parametres_valides` (comportements des minimums) — rejouées après 313, dans cet ordre. B14 : sql/319
+// porte la dernière définition de creer_extraction_jeu_zone (blocs), rejouée en dernier.
 const MIGRATION = ['312_polygone_sommets_morceaux.sql', '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql',
-  '318_minimums_population.sql']
+  '318_minimums_population.sql', '319_decoupage_blocs.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 let org = '';

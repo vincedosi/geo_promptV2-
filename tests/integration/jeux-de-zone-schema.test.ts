@@ -19,10 +19,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { psql, psqlBrut, psqlLignes } from './_psql';
 
-// B12 : sql/317 porte la DERNIÈRE définition de `creer_extraction_jeu_zone` (plans par plateforme) — rejouée après
-// 277-278, 312 (qui crée `forme_simplifiee`) et 313 (tolérance retenue), l'empreinte est celle de la base.
+// B12 : sql/317 redéfinit `creer_extraction_jeu_zone` (plans par plateforme) ; B14 : sql/319 porte sa DERNIÈRE
+// définition (blocs) et la colonne `zone_set_extraction_unites.bloc` — rejouées après 277-278, 312 (qui crée
+// `forme_simplifiee`) et 313 (tolérance retenue), l'empreinte est celle de la base.
 const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql', '312_polygone_sommets_morceaux.sql',
-  '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql']
+  '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql', '319_decoupage_blocs.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join(';\n');
 
 /** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local. */

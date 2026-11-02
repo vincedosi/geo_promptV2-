@@ -133,6 +133,24 @@ export interface ResumeExtraction {
    * avant / après, habitants de la zone perdus et habitants hors zone gagnés. Absent avant A7.
    */
   simplification?: SimplificationPolygone;
+  /**
+   * B14 (ARB-6, sql/319) : au-delà de `limites.max_unites` (commune, département, IRIS), la limite lue et le bilan de
+   * chaque bloc (triés par part décroissante, chacun sous la limite) ; absent sans découpage.
+   */
+  decoupage?: { limite: number; blocs: BlocExtraction[] };
+}
+
+/** Le bilan figé d'un bloc (`BilanBloc`, `lib/zones/decoupage-blocs.ts`). */
+export interface BlocExtraction {
+  numero: number;
+  n_unites: number;
+  couverte: number;
+  achetee: number;
+  hors_zone: number;
+  taux_utile: number | null;
+  part_max: number | null;
+  part_min: number | null;
+  n_inconnues?: number;
 }
 
 /** Ce que l'extraction a figé de la simplification du polygone (A7). */

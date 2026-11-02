@@ -638,3 +638,41 @@ describe('tour 3 (N-2) : une combinaison dont une zone source est sous 250 m ne 
     expect(etat.rpcs).toEqual([]);
   });
 });
+
+describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, découpage en blocs', () => {
+  /** `n` communes à parts décroissantes (la première la plus forte), toutes retenues au seuil de 0,01 %. */
+  const communes = (n: number) => Array.from({ length: n }, (_, i) => ({
+    code: String(10000 + i), nom: `Commune ${i}`, commune: null, n_carreaux: 1,
+    pop_en_zone: 100, pop_totale: 200, part: Math.round(((n - i) / n) * 1000) / 10, part_brute: ((n - i) / n) * 100,
+  }));
+
+  it('3 500 communes sur TikTok : 2 blocs (3 000 puis 500), triés par part décroissante, bilan par bloc, annoncé', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'commune', seuil: 0.01, rayon_m: null }], DESSIN,
+      [regle('tiktok', 'commune', { max_unites: 3000, pop_min_groupe: 1000 })]);
+    etat.reponses.couverture_zone = { data: { population: 350_000, surface_km2: 9_000, lignes: communes(3500) }, error: null };
+    expect((await extraire()).status).toBe(201);
+    const unites = argsCreation().p_unites;
+    expect(unites.filter((u) => u.bloc === 1)).toHaveLength(3000);
+    expect(unites.filter((u) => u.bloc === 2)).toHaveLength(500);
+    // Les 3 000 plus fortes parts au bloc 1.
+    expect(unites.slice(0, 3000).every((u) => u.bloc === 1)).toBe(true);
+    const resume = argsCreation().p_resume.plateformes[0];
+    expect(resume.decoupage).toEqual({
+      limite: 3000,
+      blocs: [
+        expect.objectContaining({ numero: 1, n_unites: 3000, couverte: 300_000, achetee: 600_000, hors_zone: 300_000, taux_utile: 50 }),
+        expect.objectContaining({ numero: 2, n_unites: 500, couverte: 50_000, achetee: 100_000 }),
+      ],
+    });
+    expect(resume.avertissements).toEqual([{ code: 'max_unites', limite: 3000, valeur: 3500, n: 2 }]);
+  });
+
+  it('sous la limite : aucun bloc, aucun découpage figé', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'commune', seuil: 0.01, rayon_m: null }], DESSIN,
+      [regle('tiktok', 'commune', { max_unites: 3000 })]);
+    etat.reponses.couverture_zone = { data: { population: 3_000, surface_km2: 90, lignes: communes(30) }, error: null };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_unites.some((u) => 'bloc' in u)).toBe(false);
+    expect(argsCreation().p_resume.plateformes[0]).not.toHaveProperty('decoupage');
+  });
+});

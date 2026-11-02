@@ -3,7 +3,7 @@ import {
   type ResultatCercles, bilanDe, choixASimuler, choixDeBase, cleCouverture, daterCouvertures, defautsDe, lectureRequise, parPlateforme, rangerCouverture,
 } from './bilan';
 import { REGLAGES_DEFAUT_REPLI } from './conversion-defaut';
-import { texteAvertissement, texteChevauchement, texteDefaut } from './ecran';
+import { taillesBlocs, texteAvertissement, texteBlocs, texteChevauchement, texteDefaut } from './ecran';
 import type { PlateformeGeo } from './plateformes';
 
 const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'maille'>): PlateformeGeo => ({
@@ -245,5 +245,34 @@ describe('B9 (ARB-7) — la maille par défaut sur les simulations en mémoire',
     // Le pavage refusé : la maille sort de la course, les CP restent, sous la cible.
     const refus = defautsDe(regles, anneau, REGLAGES_DEFAUT_REPLI, (_p, c) => (c.maille === 'cp' ? cpVide : rien()), (_p, c) => c.maille === 'cercle').dv360!;
     expect(texteDefaut(refus)).toBe('Codes postaux par défaut : couverture 0 %, taux utile — (aucune maille n’atteint 80 % de couverture).');
+  });
+});
+
+describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, le découpage en blocs est annoncé', () => {
+  // Ligne de test de la forme du registre (TikTok à la commune) ; la vraie limite se lit dans `plateformes_geo`.
+  const tiktok = ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 3000 } });
+  const lignes = Array.from({ length: 3500 }, (_, i) => ({
+    code: String(10000 + i), nom: null, commune: null, n_carreaux: 1, pop_en_zone: 1, pop_totale: 2, part: 50, part_brute: 50,
+  }));
+  const zone = { decoupage: 'commune', zone_maj: 'v1', population: 3500, surface_km2: 9000, lignes } as unknown as ResultatCouverture;
+
+  it('3 500 communes sur TikTok : 2 blocs, de 3 000 puis 500', () => {
+    const b = bilanDe({ maille: 'commune', seuil: 20 }, tiktok, null, zone);
+    expect(b?.avertissements).toEqual([{ code: 'max_unites', limite: 3000, valeur: 3500, n: 2 }]);
+    expect(texteAvertissement(b!.avertissements[0], 'commune').replace(/\s/g, ' ')).toBe(
+      '3 500 communes pour 3 000 admis par la plateforme : découpage automatique en 2 blocs, triés par part décroissante (3 000 + 500).');
+  });
+  it('les tailles de blocs : pleins à la limite, le reste au dernier ; au-delà de trois, en abrégé', () => {
+    expect(taillesBlocs({ limite: 3000, valeur: 9000, n: 3 }).replace(/\s/g, ' ')).toBe('3 000 + 3 000 + 3 000');
+    expect(taillesBlocs({ limite: 1000, valeur: 4500, n: 5 }).replace(/\s/g, ' ')).toBe('4 × 1 000 + 500');
+  });
+  it('le découpage figé se dit dans la liste des versions, bloc par bloc ; rien sans découpage', () => {
+    const d = { limite: 3000, blocs: [{ numero: 1, n_unites: 3000, taux_utile: 52.1 }, { numero: 2, n_unites: 500, taux_utile: 31.4 }] };
+    expect(texteBlocs(d)?.replace(/\s/g, ' ')).toBe('2 blocs de 3 000 au plus : bloc 1 3 000 (taux d’utile 52,1 %), bloc 2 500 (31,4 %)');
+    expect(texteBlocs(undefined)).toBeNull();
+  });
+  it('un cercle n’est pas découpé : il garde sa consigne', () => {
+    expect(texteAvertissement({ code: 'max_unites', limite: 200, valeur: 481 }, 'cercle').replace(/\s/g, ' '))
+      .toBe('481 cercles pour 200 admis par la plateforme : augmentez le rayon ou le seuil.');
   });
 });

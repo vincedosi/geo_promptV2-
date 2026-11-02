@@ -6254,6 +6254,7 @@ export type Database = {
       }
       zone_set_extraction_unites: {
         Row: {
+          bloc: number | null
           centre: unknown
           code: string | null
           extraction_id: string
@@ -6268,6 +6269,7 @@ export type Database = {
           retenu: boolean
         }
         Insert: {
+          bloc?: number | null
           centre?: unknown
           code?: string | null
           extraction_id: string
@@ -6282,6 +6284,7 @@ export type Database = {
           retenu?: boolean
         }
         Update: {
+          bloc?: number | null
           centre?: unknown
           code?: string | null
           extraction_id?: string

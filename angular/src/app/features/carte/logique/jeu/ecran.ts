@@ -119,7 +119,10 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
       + `sont hors de la forme envoyée (perte dite au-delà de ${formaterNombre(a.limite)} %).`;
   }
   if (a.code === 'max_unites') {
-    return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
+    const avant = `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme`;
+    // B14 (ARB-6) : une maille découpée (`n` blocs) — annoncé, avec la taille de chaque bloc (avant : un seul envoi).
+    if (a.n !== undefined && a.n > 1) return `${avant} : découpage automatique en ${formaterNombre(a.n)} blocs, triés par part décroissante (${taillesBlocs(a)}).`;
+    return `${avant}${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }
   if (a.code === 'pop_min_unite') return textePopMinUnite(a, maille, limite);
   if (a.non_verifiable) {
@@ -131,6 +134,17 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
   return a.refus
     ? `Refusé : ${formaterNombre(a.valeur)} personnes achetées, sous le minimum de ${limite} par groupe de la plateforme : élargissez la zone ou choisissez une autre maille.`
     : `Palier sous ${limite} personnes : ${formaterNombre(a.valeur)} achetées, la plateforme peut refuser la diffusion.`;
+}
+
+/**
+ * B14 : la taille des blocs d'un découpage — « 3 000 + 500 » ; au-delà de trois blocs, « 3 × 3 000 + 500 ». Les blocs
+ * pleins portent la limite, le dernier le reste (`decouperEnBlocs`, une unité par entrée).
+ */
+export function taillesBlocs(a: Pick<Avertissement, 'limite' | 'valeur'> & { n?: number }): string {
+  const n = a.n ?? Math.ceil(a.valeur / a.limite);
+  const dernier = a.valeur - (n - 1) * a.limite;
+  if (n > 3) return `${formaterNombre(n - 1)} × ${formaterNombre(a.limite)} + ${formaterNombre(dernier)}`;
+  return [...Array.from({ length: n - 1 }, () => a.limite), dernier].map((v) => formaterNombre(v)).join(' + ');
 }
 
 /**
@@ -164,6 +178,17 @@ export function texteSimplification(s: { tolerance_m: number; sommets_avant: num
   if (!s || !(s.tolerance_m > 0)) return null;
   return `simplifié à ${formaterNombre(s.tolerance_m)} m : ${formaterNombre(s.sommets_avant)} → ${formaterNombre(s.sommets)} sommets, `
     + `${formaterNombre(s.perdue)} habitants de la zone perdus, ${formaterNombre(s.gagnee)} hors zone inclus`;
+}
+
+/**
+ * B14 : le découpage figé d'une extraction, dit dans la liste des versions de ⑤ — « 2 blocs de 3 000 au plus : bloc 1
+ * 3 000 (taux d'utile 52,1 %), bloc 2 500 (31,4 %) ». `null` sans découpage (extraction d'avant B14, ou sous la limite).
+ */
+export function texteBlocs(d: { limite: number; blocs: readonly { numero: number; n_unites: number; taux_utile: number | null }[] } | undefined): string | null {
+  if (!d || d.blocs.length < 2) return null;
+  const blocs = d.blocs.map((b, i) => `bloc ${b.numero} ${formaterNombre(b.n_unites)}`
+    + (b.taux_utile === null ? '' : ` (${i === 0 ? 'taux d’utile ' : ''}${formaterNombre(b.taux_utile)} %)`));
+  return `${formaterNombre(d.blocs.length)} blocs de ${formaterNombre(d.limite)} au plus : ${blocs.join(', ')}`;
 }
 
 /**

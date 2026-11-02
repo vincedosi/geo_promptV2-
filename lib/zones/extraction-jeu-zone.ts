@@ -44,6 +44,7 @@ import {
   type Avertissement, type Resume,
 } from './conversion';
 import { avertissementsRayon } from './conversion-rayon';
+import { dansLOrdreDesBlocs, decouperEnBlocs, type Decoupage } from './decoupage-blocs';
 import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type DepassementPolygone, type MesureSimplification,
@@ -76,6 +77,8 @@ interface Unite {
   plateforme: string; maille: string; retenu: boolean;
   code?: string; nom?: string | null; lon?: number; lat?: number; rayon_m?: number;
   pop_en_zone?: number | null; pop_totale?: number | null; part?: number | null;
+  /** B14 (sql/319) : le bloc de l'unité retenue quand la maille dépasse sa limite d'unités (`decouperEnBlocs`). */
+  bloc?: number;
 }
 
 /**
@@ -120,6 +123,8 @@ interface ResumePlateforme {
    * figé avec le bilan — changer le réglage ensuite ne change pas ce qu'une extraction a compté.
    */
   min_menages?: number;
+  /** B14 (ARB-6) : au-delà de `limites.max_unites`, la limite lue et le bilan de chaque bloc ; absent sinon. */
+  decoupage?: Decoupage;
 }
 
 type Echec = { ok: false; reponse: NextResponse };
@@ -316,13 +321,21 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
   if (estEchec(couverture)) return couverture;
   const bilan = appliquerSeuil(couverture.lignes, couverture.population, c.seuil);
   if (bilan.n_unites === 0) return aucuneUnite(c);
+  // B14 (ARB-6) : au-delà de la limite d'unités, les retenues partent en blocs triés par part ; annoncé (`n` blocs).
+  const d = decouperEnBlocs(couverture.lignes.filter((l) => estRetenue(l, c.seuil)), regle);
+  const unites = couverture.lignes.map((l): Unite => ({
+    plateforme: c.plateforme, maille: c.maille, code: l.code, nom: l.nom,
+    pop_en_zone: l.pop_en_zone, pop_totale: l.pop_totale, part: l.part, retenu: estRetenue(l, c.seuil),
+    ...(d?.blocs.has(l.code) ? { bloc: d.blocs.get(l.code) } : {}),
+  }));
   return {
     ok: true,
-    unites: couverture.lignes.map((l) => ({
-      plateforme: c.plateforme, maille: c.maille, code: l.code, nom: l.nom,
-      pop_en_zone: l.pop_en_zone, pop_totale: l.pop_totale, part: l.part, retenu: estRetenue(l, c.seuil),
-    })),
-    resume: { ...bilan, plateforme: c.plateforme, population: couverture.population, avertissements: verifierLimites(bilan, regle), min_menages: couverture.min_menages },
+    // Dans l'ordre des blocs (`ordinal` : bloc puis part décroissante), les non retenues ensuite.
+    unites: d ? dansLOrdreDesBlocs(unites, d.blocs) : unites,
+    resume: {
+      ...bilan, plateforme: c.plateforme, population: couverture.population, avertissements: verifierLimites(bilan, regle),
+      min_menages: couverture.min_menages, ...(d ? { decoupage: d.decoupage } : {}),
+    },
   };
 }
 

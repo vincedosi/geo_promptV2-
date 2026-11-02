@@ -87,6 +87,8 @@ export type Resume = ResumeMaille | ResumeExact;
  * - `multiplicateur_min` / `multiplicateur_max` : des multiplicateurs ramenés à la plage — `valeur` le plus extrême
  *   calculé (avant), `limite` la borne (après), `n` le nombre d'unités CP ramenées ;
  * - `nb_max_entrees` : `valeur` codes envoyés pour `limite` par envoi, découpés en `n` envois.
+ * - `max_unites` (B14) : `valeur` unités achetées pour `limite` ; `n` les blocs du découpage, aux seules
+ *   `MAILLES_DECOUPEES` (ailleurs, un dépassement sans découpage).
  * Depuis A3, `disque_hors_france` (`avertissementsDisque`) : le disque d'un rayon autour d'un point déborde du
  * territoire — `limite` 100 (% du disque, avant : le cercle se disait exact), `valeur` la part en France (après).
  * Depuis A7, `perte_simplification` (`avertissementSimplification`, `polygone-extraction.ts`) : la forme envoyée en maille polygone a été
@@ -343,8 +345,19 @@ export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertisse
   const { max_unites } = ligne.limites;
   // Au CP, la plateforme reçoit des CODES (groupes développés) : c'est eux que la limite compte (A1).
   const achetees = resume.n_codes ?? resume.n_unites;
-  return max_unites !== undefined && achetees > max_unites ? [{ code: 'max_unites', limite: max_unites, valeur: achetees }] : [];
+  if (max_unites === undefined || achetees <= max_unites) return [];
+  // B14 (ARB-6) : une maille découpée l'est en `n` blocs sous la limite (`decouperEnBlocs`) — annoncé, jamais tu.
+  const n = (MAILLES_DECOUPEES as readonly string[]).includes(ligne.maille) ? { n: Math.ceil(achetees / max_unites) } : {};
+  return [{ code: 'max_unites', limite: max_unites, valeur: achetees, ...n }];
 }
+
+/**
+ * B14 (ARB-6 = A) : les mailles dont les unités retenues sont DÉCOUPÉES en blocs au-delà de `limites.max_unites`
+ * (`decoupage-blocs.ts`, à l'extraction), une unité par entrée. Ni le cercle (refus `trop_de_cercles` au pavage, avec
+ * un rayon proposé, B10), ni le CP (la limite compte des codes, et le plan poussé est celui de ⑥/⑦), ni le polygone
+ * ou le pays (une forme, quelques codes).
+ */
+export const MAILLES_DECOUPEES = ['commune', 'departement', 'iris'] as const satisfies readonly Maille[];
 
 /** Les refus de `paver_cercles` (sql/276), tels que la RPC les rend dans `refus`. */
 type RefusConversion =

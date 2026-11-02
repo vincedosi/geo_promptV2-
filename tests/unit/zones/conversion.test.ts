@@ -507,7 +507,8 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
   });
   it('trop d’unités : avertissement chiffré ; le minimum de population n’est plus lu ici (B13, `controlerPopulation`)', () => {
     expect(verifierLimites(resume, ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 1, pop_min_groupe: 91 } }))).toEqual([
-      { code: 'max_unites', limite: 1, valeur: 2 },
+      // B14 (ARB-6) : la commune est découpée — 2 unités pour 1, en 2 blocs.
+      { code: 'max_unites', limite: 1, valeur: 2, n: 2 },
     ]);
   });
   it('une maille exacte compte aussi ses unités : une liste de CP plus longue que max_unites avertit', () => {
