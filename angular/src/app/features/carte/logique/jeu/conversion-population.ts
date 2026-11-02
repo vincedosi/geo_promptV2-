@@ -52,11 +52,14 @@ export interface ControlePopulation { refus: Avertissement | null; avertissement
  * - par groupe : `achetee`, la diffusion achetée CONNUE. Avec des unités à population inconnue (`n_inconnues`), la
  *   part connue qui atteint déjà le minimum le valide ; sinon `non_verifiable` (`valeur` la part connue, `n` les
  *   unités inconnues), toujours un avertissement (relecture B13, I-2 ; ruling du contrôleur).
+ *   B14 round 1 (I-1) : une maille découpée en blocs (`decoupage`, ARB-6) envoie chaque BLOC comme un groupe — le
+ *   minimum se contrôle bloc par bloc (`bloc` nomme le bloc), jamais sur la maille entière ; aucun rééquilibrage.
  * Le comportement du registre décide du reste : `refus` (marqué `refus: true`, l'extraction est refusée) ou
  * `avertissement`.
  */
 export function controlerPopulation(
-  bilan: { achetee: number; n_inconnues?: number }, populations: readonly (number | null | undefined)[], ligne: PlateformeGeo,
+  bilan: { achetee: number; n_inconnues?: number; decoupage?: { blocs: readonly { numero: number; achetee: number; n_inconnues?: number }[] } },
+  populations: readonly (number | null | undefined)[], ligne: PlateformeGeo,
 ): ControlePopulation {
   const sortie: ControlePopulation = { refus: null, avertissements: [] };
   const dire = (a: Avertissement, m: Minimum) => {
@@ -76,9 +79,11 @@ export function controlerPopulation(
     if (inconnues > 0) nonVerifiable({ code: 'pop_min_unite', limite: unite.limite, valeur: 0, n: inconnues }, unite);
   }
   const groupe = minimumPopulation(ligne, 'groupe');
-  if (groupe && bilan.achetee < groupe.limite) {
-    const a: Avertissement = { code: 'pop_min_groupe', limite: groupe.limite, valeur: bilan.achetee };
-    if (bilan.n_inconnues) nonVerifiable({ ...a, n: bilan.n_inconnues }, groupe);
+  const groupes = bilan.decoupage?.blocs ?? [{ ...bilan, numero: undefined }];
+  for (const g of groupe ? groupes : []) {
+    if (!groupe || g.achetee >= groupe.limite) continue;
+    const a: Avertissement = { code: 'pop_min_groupe', limite: groupe.limite, valeur: g.achetee, ...(g.numero !== undefined ? { bloc: g.numero } : {}) };
+    if (g.n_inconnues) nonVerifiable({ ...a, n: g.n_inconnues }, groupe);
     else dire(a, groupe);
   }
   return sortie;

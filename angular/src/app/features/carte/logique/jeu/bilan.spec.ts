@@ -265,6 +265,12 @@ describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, le découpage en 
   it('les tailles de blocs : pleins à la limite, le reste au dernier ; au-delà de trois, en abrégé', () => {
     expect(taillesBlocs({ limite: 3000, valeur: 9000, n: 3 }).replace(/\s/g, ' ')).toBe('3 000 + 3 000 + 3 000');
     expect(taillesBlocs({ limite: 1000, valeur: 4500, n: 5 }).replace(/\s/g, ' ')).toBe('4 × 1 000 + 500');
+    // Relecture B14 (M-1) : un multiple exact.
+    expect(taillesBlocs({ limite: 1000, valeur: 5000, n: 5 }).replace(/\s/g, ' ')).toBe('5 × 1 000');
+  });
+  it('round 1 (I-1) : le minimum de groupe d’un bloc nomme le bloc', () => {
+    expect(texteAvertissement({ code: 'pop_min_groupe', limite: 1000, valeur: 450, bloc: 2, plateforme: 'tiktok' }, 'commune').replace(/\s/g, ' '))
+      .toBe('Bloc 2 : palier sous 1 000 personnes : 450 achetées, la plateforme peut refuser la diffusion.');
   });
   it('le découpage figé se dit dans la liste des versions, bloc par bloc ; rien sans découpage', () => {
     const d = { limite: 3000, blocs: [{ numero: 1, n_unites: 3000, taux_utile: 52.1 }, { numero: 2, n_unites: 500, taux_utile: 31.4 }] };

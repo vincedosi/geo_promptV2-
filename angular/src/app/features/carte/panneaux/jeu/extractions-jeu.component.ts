@@ -9,7 +9,10 @@ import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
 import { type FormatFichier, formatsDe } from '../../logique/activation/cartes';
-import { NOM_PLATEFORME, UNITE_MAILLE, texteBlocs, texteSimplification } from '../../logique/jeu/ecran';
+import { NOM_PLATEFORME, UNITE_MAILLE, texteAvertissement, texteBlocs, texteSimplification } from '../../logique/jeu/ecran';
+
+/** « (texte) », ou rien sans texte — un seul appel par texte (relecture B14, M-2). */
+const entreParentheses = (t: string | null) => (t ? ` (${t})` : '');
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { FichiersExtractionComponent } from '../activation/fichiers-extraction.component';
 import { BOUTON_CALCUL, ENCART_ERREUR, LISTE_CHAMP } from '../analyse/styles-analyse';
@@ -34,6 +37,8 @@ interface FichiersPlateforme {
   maille: Maille;
   formats: FormatFichier[];
   aVerifier: boolean;
+  /** B14 round 1 (I-2) : les blocs du découpage figé — un fichier par bloc ; vide sans découpage. */
+  blocs: readonly { numero: number; n_unites: number }[];
 }
 
 /**
@@ -94,7 +99,7 @@ interface FichiersPlateforme {
             <div [attr.data-fichiers-version]="l.version" class="flex flex-wrap items-center gap-2 pb-1 pl-[10px]">
               <span class="min-w-[92px] text-[11px] text-secondary">{{ f.nom }}</span>
               <mg-fichiers-extraction [jeuFichier]="id" [versionFichier]="l.version" [plateformeFichier]="f.plateforme"
-                                      [mailleFichier]="f.maille" [formats]="f.formats" [aVerifier]="f.aVerifier" />
+                                      [mailleFichier]="f.maille" [formats]="f.formats" [aVerifier]="f.aVerifier" [blocsFichier]="f.blocs" />
             </div>
           }
         } }
@@ -125,15 +130,19 @@ export class ExtractionsJeuComponent {
     resume: (e.plateformes ?? []).map((p) => `${NOM_PLATEFORME[p.plateforme] ?? p.plateforme} : ${UNITE_MAILLE[p.maille]?.plusieurs ?? p.maille}`
       + ` ${formaterNombre(p.n_unites ?? 0)}, ${p.exacte ? 'exacte' : p.taux_utile == null ? '—' : `${formaterDecimal(Number(p.taux_utile))} %`}`
       // A7 tour 1 : un polygone simplifié dit sa tolérance, sa perte et son gain hors zone.
-      + (texteSimplification(p.simplification) ? ` (${texteSimplification(p.simplification)})` : '')
-      // B14 : un découpage en blocs se dit, avec le bilan de chaque bloc.
-      + (texteBlocs(p.decoupage) ? ` (${texteBlocs(p.decoupage)})` : '')).join(' · '),
+      + entreParentheses(texteSimplification(p.simplification))
+      // B14 : un découpage en blocs se dit, avec le bilan de chaque bloc et le minimum d'un bloc (round 1, I-1).
+      + entreParentheses(texteBlocs(p.decoupage))
+      + (p.avertissements ?? []).filter((a) => a.bloc !== undefined).map((a) => ` — ${texteAvertissement(a, p.maille)}`).join('')).join(' · '),
     fichiers: (e.plateformes ?? []).flatMap((p) => {
       const formats = formatsDe(p.plateforme, p.maille);
       // Sans unité, la route répond 409 : aucun bouton plutôt qu'un échec promis.
       if (!formats.length || !(p.n_unites ?? 0)) return [];
       const regle = this.jeu.plateformes().find((r) => r.plateforme === p.plateforme && r.maille === p.maille);
-      return [{ plateforme: p.plateforme, nom: NOM_PLATEFORME[p.plateforme] ?? p.plateforme, maille: p.maille, formats, aVerifier: regle?.a_verifier ?? false }];
+      return [{
+        plateforme: p.plateforme, nom: NOM_PLATEFORME[p.plateforme] ?? p.plateforme, maille: p.maille, formats,
+        aVerifier: regle?.a_verifier ?? false, blocs: p.decoupage?.blocs ?? [],
+      }];
     }),
   })));
   protected readonly jeuId = this.jeu.jeuId;

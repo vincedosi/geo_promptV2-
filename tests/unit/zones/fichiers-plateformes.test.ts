@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { texteCpDv360, texteSdfDv360 } from '@/lib/digital/fichiers-dv360';
-import { EN_TETES_CSV, fichierPlateforme, formatsDe, type EnteteFichier, type UniteFichier } from '@/lib/zones/fichiers-plateformes';
+import { EN_TETES_CSV, choisirBloc, fichierPlateforme, formatsDe, type EnteteFichier, type UniteFichier } from '@/lib/zones/fichiers-plateformes';
 
 /**
  * RÉFÉRENCES écrites AVANT l'extraction, depuis le corps de l'export de zone tel qu'il était (référentiel geotargets
@@ -154,5 +154,36 @@ describe('le fichier « pays » d’une extraction nationale (⑤ finitions, T3,
   it('le format pays ne s’applique qu’à la maille pays, et une maille pays n’a pas d’autre format', () => {
     expect(() => fichierPlateforme(entete({ maille: 'cp' }), PAYS, null, 'pays')).toThrow(/sans objet/);
     expect(() => fichierPlateforme(entete({ maille: 'pays' }), PAYS, null, 'cp')).toThrow(/sans objet/);
+  });
+});
+
+describe('B14 round 1 (I-2) — le fichier suit les blocs du découpage', () => {
+  // 3 500 communes : 3 000 au bloc 1, 500 au bloc 2 (`zone_set_extraction_unites.bloc`), et une non retenue.
+  const unites = [
+    ...Array.from({ length: 3500 }, (_, i) => unite({ ordinal: i + 1, code: String(10000 + i), nom: `C${i}`, bloc: i < 3000 ? 1 : 2 })),
+    unite({ ordinal: 3501, code: '99999', nom: 'Hors', retenu: false }),
+  ];
+  const tiktok = entete({ plateforme: 'tiktok', maille: 'commune' });
+
+  it('3 500 communes : deux fichiers, de 3 000 puis 500 lignes, chacun dit son bloc', () => {
+    for (const [numero, n] of [[1, 3000], [2, 500]] as const) {
+      const c = choisirBloc(unites, numero);
+      expect(c).toEqual({ ok: true, bloc: { numero, total: 2 } });
+      const f = fichierPlateforme({ ...tiktok, ...(c.ok ? { bloc: c.bloc } : {}) }, unites, null, 'territoires');
+      expect(lignesDonnees(f.contenu)).toHaveLength(n + 1);
+      expect(f.contenu).toContain(`# Bloc : ${numero} sur 2`);
+      expect(f.nom).toMatch(new RegExp(`_tiktok_territoires_bloc${numero}\.csv$`));
+    }
+  });
+  it('sans bloc demandé alors qu’il y en a deux : 422, la liste des blocs — jamais un fichier au-dessus de la limite', () => {
+    const c = choisirBloc(unites, undefined);
+    expect(c).toMatchObject({ ok: false, status: 422, blocs: [{ numero: 1, n_unites: 3000 }, { numero: 2, n_unites: 500 }] });
+    expect(!c.ok && c.error.replace(/\s/g, ' ')).toBe('Cette extraction est découpée en 2 blocs (3 000 + 500) : téléchargez chaque bloc (bloc=1 à 2).');
+  });
+  it('un bloc absent : 404 ; un bloc demandé sans découpage : 400 ; sans découpage ni bloc : le fichier entier', () => {
+    expect(choisirBloc(unites, 3)).toMatchObject({ ok: false, status: 404 });
+    const simples = [unite({ code: '13', nom: 'BdR' })];
+    expect(choisirBloc(simples, 1)).toMatchObject({ ok: false, status: 400 });
+    expect(choisirBloc(simples, undefined)).toEqual({ ok: true });
   });
 });

@@ -136,3 +136,29 @@ describe('B13 — le registre porte les comportements', () => {
     expect(code).not.toMatch(/(dv360|tiktok|meta|ttd)/);
   });
 });
+
+describe('B14 round 1 (I-1) — le minimum de groupe se contrôle PAR BLOC', () => {
+  const tiktok = (comportement: 'avertissement' | 'refus') => ligne({
+    plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 3000, pop_min_groupe: 1000 }, pop_min_groupe_comportement: comportement,
+  });
+  const decoupage = { limite: 3000, blocs: [{ numero: 1, achetee: 600_000 }, { numero: 2, achetee: 450 }] };
+
+  it('bloc 2 à 450 personnes, maille à 600 450 : avertissement qui nomme le bloc', () => {
+    const r = controlerPopulation({ achetee: 600_450, decoupage }, [], tiktok('avertissement'));
+    expect(r).toEqual({ refus: null, avertissements: [{ code: 'pop_min_groupe', limite: 1000, valeur: 450, bloc: 2, plateforme: 'tiktok' }] });
+  });
+  it('en refus, le bloc est refusé et nommé', () => {
+    expect(controlerPopulation({ achetee: 600_450, decoupage }, [], tiktok('refus')).refus)
+      .toEqual({ code: 'pop_min_groupe', limite: 1000, valeur: 450, bloc: 2, plateforme: 'tiktok', refus: true });
+  });
+  it('un bloc à population inconnue : minimum non vérifiable, jamais un refus (B13)', () => {
+    const d = { limite: 3000, blocs: [{ numero: 1, achetee: 600_000 }, { numero: 2, achetee: 0, n_inconnues: 3 }] };
+    expect(controlerPopulation({ achetee: 600_000, n_inconnues: 3, decoupage: d }, [], tiktok('refus'))).toEqual({
+      refus: null, avertissements: [{ code: 'pop_min_groupe', limite: 1000, valeur: 0, n: 3, bloc: 2, non_verifiable: true, plateforme: 'tiktok' }],
+    });
+  });
+  it('tous les blocs au-dessus du minimum : rien', () => {
+    expect(controlerPopulation({ achetee: 2_000, decoupage: { blocs: [{ numero: 1, achetee: 1_000 }, { numero: 2, achetee: 1_000 }] } }, [], tiktok('refus')))
+      .toEqual({ refus: null, avertissements: [] });
+  });
+});

@@ -145,13 +145,14 @@ export class ActivationApi extends HttpBaseService {
   }
 
   /** L'adresse du fichier d'une plateforme pour une extraction figée (A-6). */
-  urlFichier(jeu: string, version: number, plateforme: Plateforme, format: FormatFichier): string {
-    const p = new URLSearchParams({ plateforme, format });
+  urlFichier(jeu: string, version: number, plateforme: Plateforme, format: FormatFichier, bloc?: number): string {
+    // B14 round 1 (I-2) : un bloc du découpage (ARB-6) ; sans lui, la route refuse une extraction découpée (422).
+    const p = new URLSearchParams({ plateforme, format, ...(bloc !== undefined ? { bloc: String(bloc) } : {}) });
     return `${this.baseUrl}/zones/jeux/${encodeURIComponent(jeu)}/extractions/${version}/fichier?${p.toString()}`;
   }
 
   /** Le fichier lui-même, en `blob`, pour `mg-bouton-export` (Bearer et message de la route, jamais un `<a href>`). */
-  fichier(jeu: string, version: number, plateforme: Plateforme, format: FormatFichier): Observable<HttpResponse<Blob>> {
-    return this.httpClient.get(this.urlFichier(jeu, version, plateforme, format), { observe: 'response', responseType: 'blob' });
+  fichier(jeu: string, version: number, plateforme: Plateforme, format: FormatFichier, bloc?: number): Observable<HttpResponse<Blob>> {
+    return this.httpClient.get(this.urlFichier(jeu, version, plateforme, format, bloc), { observe: 'response', responseType: 'blob' });
   }
 }

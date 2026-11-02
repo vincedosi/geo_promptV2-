@@ -390,12 +390,12 @@ async function controler(issue: Promise<Issue>, c: Choix, regle: PlateformeGeo):
   if (!r.ok) return r;
   const controle = controlerPopulation(r.resume, r.unites.filter((u) => u.retenu).map((u) => u.pop_totale), regle);
   if (controle.refus) {
-    const { code, limite, valeur, n } = controle.refus;
+    const { code, limite, valeur, n, bloc } = controle.refus;
     return {
       ok: false,
       reponse: NextResponse.json({
         error: messageRefusPopulation(controle.refus, c.plateforme, c.maille), refus: code, plateforme: c.plateforme, limite, valeur,
-        ...(n !== undefined ? { n } : {}),
+        ...(n !== undefined ? { n } : {}), ...(bloc !== undefined ? { bloc } : {}),
       }, { status: 422 }),
     };
   }

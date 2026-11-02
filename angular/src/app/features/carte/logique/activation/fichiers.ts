@@ -1,3 +1,4 @@
+import { formaterNombre } from '../../../../core/format/nombre';
 import type { Maille, Plateforme } from '../jeu/plateformes';
 import type { FormatFichier } from './cartes';
 
@@ -28,7 +29,13 @@ export function libelleFormat(format: FormatFichier, maille: Maille): string {
  * le nom du jeu, que l'écran n'a pas forcément : `.txt` pour les deux fichiers DV360 au CP, `.geojson` pour le
  * polygone, `.csv` sinon.
  */
-export function nomRepliFichier(version: number, plateforme: Plateforme, format: FormatFichier): string {
+export function nomRepliFichier(version: number, plateforme: Plateforme, format: FormatFichier, bloc?: number): string {
   const ext = format === 'polygone' ? 'geojson' : plateforme === 'dv360' && (format === 'cp' || format === 'sdf') ? 'txt' : 'csv';
-  return `extraction_v${version}_${plateforme}_${format}.${ext}`;
+  // B14 round 1 (I-2) : le suffixe `_bloc<n>` du serveur pour un bloc du découpage.
+  return `extraction_v${version}_${plateforme}_${format}${bloc !== undefined ? `_bloc${bloc}` : ''}.${ext}`;
+}
+
+/** B14 round 1 (I-2) : le libellé du fichier d'UN bloc — « Communes (CSV) — bloc 2 (500) ». */
+export function libelleBloc(libelle: string, bloc: { numero: number; n_unites: number }): string {
+  return `${libelle} — bloc ${formaterNombre(bloc.numero)} (${formaterNombre(bloc.n_unites)})`;
 }

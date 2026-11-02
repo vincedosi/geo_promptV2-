@@ -14,18 +14,19 @@ import { FichiersExtractionComponent } from './fichiers-extraction.component';
   selector: 'mg-hote-fichiers',
   imports: [FichiersExtractionComponent],
   template: `<mg-fichiers-extraction jeuFichier="j1" [versionFichier]="2" [plateformeFichier]="plateforme()" [mailleFichier]="maille()"
-                                    [formats]="formats()" [aVerifier]="aVerifier()" />`,
+                                    [formats]="formats()" [aVerifier]="aVerifier()" [blocsFichier]="blocs()" />`,
 })
 class Hote {
   readonly plateforme = signal<Plateforme>('dv360');
   readonly maille = signal<Maille>('cp');
   readonly formats = signal<FormatFichier[]>(['cp', 'sdf']);
   readonly aVerifier = signal(false);
+  readonly blocs = signal<{ numero: number; n_unites: number }[]>([]);
 }
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 
-async function rendre(p: Partial<{ plateforme: Plateforme; maille: Maille; formats: FormatFichier[]; aVerifier: boolean }> = {}) {
+async function rendre(p: Partial<{ plateforme: Plateforme; maille: Maille; formats: FormatFichier[]; aVerifier: boolean; blocs: { numero: number; n_unites: number }[] }> = {}) {
   const api = { fichier: vi.fn(() => of(new HttpResponse({ body: new Blob(['x']), headers: new HttpHeaders() }))) };
   const enregistrer = vi.fn();
   TestBed.configureTestingModule({ providers: [{ provide: ActivationApi, useValue: api }, { provide: ENREGISTRER_FICHIER, useValue: enregistrer }] });
@@ -34,6 +35,7 @@ async function rendre(p: Partial<{ plateforme: Plateforme; maille: Maille; forma
   if (p.maille) f.componentInstance.maille.set(p.maille);
   if (p.formats) f.componentInstance.formats.set(p.formats);
   if (p.aVerifier) f.componentInstance.aVerifier.set(true);
+  if (p.blocs) f.componentInstance.blocs.set(p.blocs);
   f.detectChanges();
   await f.whenStable();
   const el = f.nativeElement as HTMLElement;
@@ -67,6 +69,17 @@ describe('mg-fichiers-extraction', () => {
     const { el, boutons } = await rendre({ plateforme: 'tiktok', maille: 'departement', formats: ['territoires'], aVerifier: true });
     expect(boutons().map((b) => b.textContent!.trim())).toEqual(['Départements (CSV)']);
     expect(el.querySelector('[data-a-verifier]')!.textContent!.trim()).toBe('à vérifier');
+  });
+
+  it('B14 round 1 (I-2) : 3 500 communes en 2 blocs — un fichier par bloc, chacun lu avec son `bloc`', async () => {
+    const { f, api, enregistrer, boutons } = await rendre({
+      plateforme: 'tiktok', maille: 'commune', formats: ['territoires'], blocs: [{ numero: 1, n_unites: 3000 }, { numero: 2, n_unites: 500 }],
+    });
+    expect(boutons().map((b) => b.textContent!.trim().replace(/\s/g, ' '))).toEqual(['Communes (CSV) — bloc 1 (3 000)', 'Communes (CSV) — bloc 2 (500)']);
+    boutons()[1].click();
+    await f.whenStable();
+    expect(api.fichier).toHaveBeenCalledWith('j1', 2, 'tiktok', 'territoires', 2);
+    expect(enregistrer).toHaveBeenCalledWith(expect.anything(), expect.any(HttpResponse), 'extraction_v2_tiktok_territoires_bloc2.csv');
   });
 
   it('aucun format (Meta sur un jeu risque, ruling 4) : rien, pas même le badge', async () => {

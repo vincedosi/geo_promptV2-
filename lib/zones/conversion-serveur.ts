@@ -190,6 +190,11 @@ export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePava
  */
 export function messageRefusPopulation(a: Avertissement, plateforme: string, maille: string): string {
   const verifier = a.a_verifier ? ' (à vérifier)' : '';
+  if (a.code === 'pop_min_groupe' && a.bloc !== undefined) {
+    // B14 round 1 (I-1) : un bloc du découpage (ARB-6) sous le minimum — le bloc refusé est nommé, sans rééquilibrage.
+    return `${plateforme} — Le bloc ${formaterNombre(a.bloc)} compte ${formaterNombre(a.valeur)} personnes, sous le minimum de `
+      + `${formaterNombre(a.limite)}${verifier} par groupe de la plateforme : élargissez la zone, relevez le seuil, ou choisissez une autre maille.`;
+  }
   if (a.code === 'pop_min_groupe') {
     return `${plateforme} — La diffusion achetée compte ${formaterNombre(a.valeur)} personnes, sous le minimum de `
       + `${formaterNombre(a.limite)}${verifier} par groupe de la plateforme : élargissez la zone, ou choisissez une autre maille.`;

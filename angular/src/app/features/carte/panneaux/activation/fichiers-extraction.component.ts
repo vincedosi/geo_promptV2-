@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject,
 import { BoutonExportComponent } from '../../../risques/exports/bouton-export.component';
 import { ActivationApi } from '../../data/activation.api';
 import type { FormatFichier } from '../../logique/activation/cartes';
-import { libelleFormat, nomRepliFichier } from '../../logique/activation/fichiers';
+import { libelleBloc, libelleFormat, nomRepliFichier } from '../../logique/activation/fichiers';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 
 /** Le badge d'une règle de plateforme marquée `a_verifier` dans le registre (son en-tête de fichier le dit aussi). */
@@ -24,8 +24,8 @@ export const LIBELLE_A_VERIFIER = 'à vérifier';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-wrap items-center gap-2', '[attr.data-fichiers-extraction]': 'plateformeFichier()' },
   template: `
-    @for (b of boutons(); track b.format) {
-      <mg-bouton-export [attr.data-format]="b.format" variante="neutre" [libelle]="b.libelle" [charger]="b.charger" [nomRepli]="b.nom" />
+    @for (b of boutons(); track b.cle) {
+      <mg-bouton-export [attr.data-format]="b.format" [attr.data-bloc]="b.bloc" variante="neutre" [libelle]="b.libelle" [charger]="b.charger" [nomRepli]="b.nom" />
     }
     @if (aVerifier() && boutons().length) {
       <span data-a-verifier title="La règle de cette plateforme est à revérifier : l’en-tête du fichier le dit aussi."
@@ -42,6 +42,11 @@ export class FichiersExtractionComponent {
   readonly mailleFichier = input.required<Maille>();
   readonly formats = input.required<readonly FormatFichier[]>();
   readonly aVerifier = input(false, { transform: booleanAttribute });
+  /**
+   * B14 round 1 (I-2) : les blocs du découpage figé (`ResumeExtraction.decoupage.blocs`, ARB-6) — un bouton par format
+   * ET par bloc, jamais un fichier au-dessus de la limite ; vide sans découpage (un bouton par format, comme avant).
+   */
+  readonly blocsFichier = input<readonly { numero: number; n_unites: number }[]>([]);
 
   protected readonly libelleAVerifier = LIBELLE_A_VERIFIER;
 
@@ -49,11 +54,16 @@ export class FichiersExtractionComponent {
     const jeu = this.jeuFichier();
     const version = this.versionFichier();
     const plateforme = this.plateformeFichier();
-    return this.formats().map((format) => ({
-      format,
-      libelle: libelleFormat(format, this.mailleFichier()),
-      nom: nomRepliFichier(version, plateforme, format),
-      charger: () => this.api.fichier(jeu, version, plateforme, format),
-    }));
+    const blocs = this.blocsFichier();
+    return this.formats().flatMap((format): { cle: string; format: FormatFichier; bloc: number | null; libelle: string; nom: string; charger: () => ReturnType<ActivationApi['fichier']> }[] => {
+      const libelle = libelleFormat(format, this.mailleFichier());
+      if (!blocs.length) {
+        return [{ cle: format, format, bloc: null, libelle, nom: nomRepliFichier(version, plateforme, format), charger: () => this.api.fichier(jeu, version, plateforme, format) }];
+      }
+      return blocs.map((b) => ({
+        cle: `${format}-${b.numero}`, format, bloc: b.numero, libelle: libelleBloc(libelle, b),
+        nom: nomRepliFichier(version, plateforme, format, b.numero), charger: () => this.api.fichier(jeu, version, plateforme, format, b.numero),
+      }));
+    });
   });
 }

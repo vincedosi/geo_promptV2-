@@ -12,6 +12,9 @@
  *   `zone_set_extraction_unites` (préfixe de la clé primaire, plafond 7 000) ; polygone par la `forme` de
  *   l'extraction (une ligne).
  * - `plateformes_geo` (une ligne par la clé) : `a_verifier` et `releve_le`, écrits dans l'en-tête de méthode.
+ * - B14 round 1 (I-2) : `&bloc=N` — une maille découpée en blocs (ARB-6, `zone_set_extraction_unites.bloc`) se
+ *   télécharge bloc par bloc (`choisirBloc`) : sans `bloc` alors qu'il y en a plusieurs, 422 avec la liste `blocs` —
+ *   jamais un fichier au-dessus de la limite de la plateforme ; bloc absent 404 ; `bloc` sans découpage 400.
  *
  * 400 : paramètre illisible, ou format sans objet pour la maille (« La plateforme meta n'achète pas au code postal
  * dans cette extraction. ») ; 404 : jeu d'un autre espace (chargeur) ou version absente ; 409 : « Aucune unité
@@ -29,7 +32,7 @@ import { PLAFOND_CP_PLAN } from '@/lib/zones/plan-extraction';
 import { lireCpPlateforme } from '@/lib/zones/cp-plateforme';
 import { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
 import {
-  FORMATS_FICHIER, fichierPlateforme, formatsDe, type FormatFichier, type Plateforme, type UniteFichier,
+  FORMATS_FICHIER, choisirBloc, fichierPlateforme, formatsDe, type FormatFichier, type Plateforme, type UniteFichier,
 } from '@/lib/zones/fichiers-plateformes';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +44,7 @@ const ParametresSchema = z.object({
   version: z.coerce.number().int().min(1),
   plateforme: z.enum(PLATEFORMES),
   format: z.enum(FORMATS_FICHIER),
+  bloc: z.coerce.number().int().min(1).max(32767).optional(),
 });
 
 /** Plateformes d'un jeu risque (A-4) : son plan n'est fait que de codes postaux. */
@@ -70,7 +74,7 @@ export async function GET(
   const { id, version } = await params;
   const q = request.nextUrl.searchParams;
   const lus = ParametresSchema.safeParse({
-    version, plateforme: q.get('plateforme') ?? undefined, format: q.get('format') ?? undefined,
+    version, plateforme: q.get('plateforme') ?? undefined, format: q.get('format') ?? undefined, bloc: q.get('bloc') ?? undefined,
   });
   if (!lus.success) return erreur(messageAnomalies(lus.error), 400);
   const { plateforme, format } = lus.data;
@@ -141,7 +145,7 @@ export async function GET(
       const { lignes } = await lireTout<Omit<UniteFichier, 'centre'> & { centre: unknown }>(
         (de, a) => supabase
           .from('zone_set_extraction_unites')
-          .select('ordinal, code, nom, centre, rayon_m, retenu')
+          .select('ordinal, code, nom, centre, rayon_m, retenu, bloc')
           .eq('extraction_id', x.id)
           .eq('plateforme', plateforme)
           .eq('maille', maille)
@@ -156,6 +160,8 @@ export async function GET(
     return erreur('Unités de l’extraction illisibles.', 500);
   }
   if (maille === 'polygone' ? !forme : !unites.some((u) => u.retenu)) return erreur(MESSAGE_AUCUNE_UNITE, 409);
+  const bloc = choisirBloc(unites, lus.data.bloc);
+  if (!bloc.ok) return NextResponse.json({ error: bloc.error, blocs: bloc.blocs }, { status: bloc.status });
 
   let fichier: ReturnType<typeof fichierPlateforme>;
   try {
@@ -163,6 +169,7 @@ export async function GET(
       {
         jeu: jeu.nom, version: x.version, plateforme, maille,
         aVerifier: regle?.a_verifier ?? false, releveLe: regle?.releve_le || null,
+        ...(bloc.bloc ? { bloc: bloc.bloc } : {}),
       },
       unites, forme, format,
     );

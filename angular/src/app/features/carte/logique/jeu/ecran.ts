@@ -125,6 +125,12 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     return `${avant}${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }
   if (a.code === 'pop_min_unite') return textePopMinUnite(a, maille, limite);
+  // B14 round 1 (I-1) : le minimum d'UN bloc du découpage — le bloc est nommé en tête.
+  if (a.bloc !== undefined) {
+    const { bloc, ...groupe } = a;
+    const texte = texteAvertissement(groupe, maille);
+    return `Bloc ${formaterNombre(bloc)} : ${texte.charAt(0).toLowerCase()}${texte.slice(1)}`;
+  }
   if (a.non_verifiable) {
     // Relecture B13 (I-2) : une part inconnue — jamais un refus ; la part connue est dite.
     return `Minimum de ${limite} personnes par groupe non vérifiable (${nombreUnites(a.n ?? 1, maille)} à population inconnue) : `
@@ -143,6 +149,8 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
 export function taillesBlocs(a: Pick<Avertissement, 'limite' | 'valeur'> & { n?: number }): string {
   const n = a.n ?? Math.ceil(a.valeur / a.limite);
   const dernier = a.valeur - (n - 1) * a.limite;
+  // Relecture B14 (M-1) : un multiple exact de la limite se dit « 5 × 1 000 », pas « 4 × 1 000 + 1 000 ».
+  if (n > 3 && dernier === a.limite) return `${formaterNombre(n)} × ${formaterNombre(a.limite)}`;
   if (n > 3) return `${formaterNombre(n - 1)} × ${formaterNombre(a.limite)} + ${formaterNombre(dernier)}`;
   return [...Array.from({ length: n - 1 }, () => a.limite), dernier].map((v) => formaterNombre(v)).join(' + ');
 }

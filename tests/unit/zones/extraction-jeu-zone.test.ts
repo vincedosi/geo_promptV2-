@@ -667,6 +667,34 @@ describe('B14 (ARB-6 = A) : au-delà de la limite d’unités, découpage en blo
     expect(resume.avertissements).toEqual([{ code: 'max_unites', limite: 3000, valeur: 3500, n: 2 }]);
   });
 
+  // Round 1 (I-1) : 3 003 communes — 3 000 à 200 personnes, puis 3 rurales à 150 (les plus faibles parts) : le bloc 2
+  // compte 450 personnes, sous le minimum de groupe de 1 000, alors que la maille entière le dépasse largement.
+  const rurales = () => communes(3003).map((l, i) => (i >= 3000 ? { ...l, pop_totale: 150 } : l));
+
+  it('round 1 (I-1) : 3 003 communes TikTok — bloc 2 à 450 personnes, avertissement qui nomme le bloc', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'commune', seuil: 0.01, rayon_m: null }], DESSIN,
+      [{ ...regle('tiktok', 'commune', { max_unites: 3000, pop_min_groupe: 1000 }), pop_min_groupe_comportement: 'avertissement' }]);
+    etat.reponses.couverture_zone = { data: { population: 300_300, surface_km2: 9_000, lignes: rurales() }, error: null };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0].avertissements).toEqual([
+      { code: 'max_unites', limite: 3000, valeur: 3003, n: 2 },
+      { code: 'pop_min_groupe', limite: 1000, valeur: 450, bloc: 2, plateforme: 'tiktok' },
+    ]);
+  });
+
+  it('round 1 (I-1) : même cas, registre en refus — le bloc 2 est refusé, nommé, rien de figé', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'commune', seuil: 0.01, rayon_m: null }], DESSIN,
+      [{ ...regle('tiktok', 'commune', { max_unites: 3000, pop_min_groupe: 1000 }), pop_min_groupe_comportement: 'refus' }]);
+    etat.reponses.couverture_zone = { data: { population: 300_300, surface_km2: 9_000, lignes: rurales() }, error: null };
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    const corps = await r.json() as { error: string; refus: string; bloc: number; valeur: number };
+    expect(corps).toMatchObject({ refus: 'pop_min_groupe', bloc: 2, valeur: 450, limite: 1000 });
+    expect(corps.error.replace(/\s/g, ' ')).toBe('tiktok — Le bloc 2 compte 450 personnes, sous le minimum de 1 000 par groupe de la '
+      + 'plateforme : élargissez la zone, relevez le seuil, ou choisissez une autre maille.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
   it('sous la limite : aucun bloc, aucun découpage figé', async () => {
     jeuAvec([{ plateforme: 'tiktok', maille: 'commune', seuil: 0.01, rayon_m: null }], DESSIN,
       [regle('tiktok', 'commune', { max_unites: 3000 })]);

@@ -25,6 +25,7 @@
  * ⚠ `formatsDe` est recopié dans l'Angular (T3) avec un test de parité : le changer ici, c'est le changer là-bas.
  */
 import { toSlug } from '@/lib/custom-geo/slug';
+import { formaterNombre } from '@/lib/format/nombre';
 import { texteCpDv360, texteSdfDv360 } from '@/lib/digital/fichiers-dv360';
 import type { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
 
@@ -42,6 +43,8 @@ export interface UniteFichier {
   centre: { type: string; coordinates: number[] } | null;
   rayon_m: number | null;
   retenu: boolean;
+  /** B14 (sql/319) : le bloc du découpage d'une unité retenue (ARB-6) ; absent ou `null` sans découpage. */
+  bloc?: number | null;
 }
 
 /** Ce que le fichier dit de lui-même : l'extraction, la plateforme, et la fraîcheur du registre `plateformes_geo`. */
@@ -55,6 +58,8 @@ export interface EnteteFichier {
   aVerifier: boolean;
   /** `plateformes_geo.releve_le` (AAAA-MM-JJ) ; `null` quand la règle est inconnue : la ligne est alors omise. */
   releveLe: string | null;
+  /** B14 round 1 (I-2) : le bloc écrit — ses seules unités, nommé dans l'en-tête et le nom du fichier. */
+  bloc?: { numero: number; total: number };
 }
 
 /** En-têtes de colonnes des CSV, une seule définition (lus aussi par les tests). */
@@ -101,7 +106,38 @@ function methodeCsv(e: EnteteFichier): string[] {
     // Revue finale du lot 7 (M-12) : jamais une ligne « Relevé … : » vide.
     ...(e.releveLe ? [`# Relevé des limites de la plateforme : ${e.releveLe}`] : []),
     ...(e.aVerifier ? ['# À vérifier : la règle de ciblage de cette plateforme n’a pas été confirmée sur sa documentation.'] : []),
+    ...(e.bloc ? [`# Bloc : ${e.bloc.numero} sur ${e.bloc.total} (découpage au-delà de la limite d’unités de la plateforme)`] : []),
   ];
+}
+
+/** Le bloc d'un fichier : accepté (`bloc` absent sans découpage), ou refusé avec son statut et la liste des blocs. */
+export type ChoixBloc =
+  | { ok: true; bloc?: { numero: number; total: number } }
+  | { ok: false; status: 400 | 404 | 422; error: string; blocs: { numero: number; n_unites: number }[] };
+
+/**
+ * B14 round 1 (I-2) : le bloc à écrire, d'après les blocs des unités RETENUES (`zone_set_extraction_unites.bloc`).
+ * Plusieurs blocs sans `demande` : 422 avec la liste — jamais un fichier au-dessus de la limite de la plateforme. Un
+ * bloc absent : 404 ; un bloc demandé sans découpage : 400 ; ni l'un ni l'autre : le fichier entier.
+ */
+export function choisirBloc(unites: readonly UniteFichier[], demande: number | undefined): ChoixBloc {
+  const compte = new Map<number, number>();
+  for (const u of unites) if (u.retenu && u.bloc != null) compte.set(u.bloc, (compte.get(u.bloc) ?? 0) + 1);
+  const blocs = [...compte].sort(([a], [b]) => a - b).map(([numero, n_unites]) => ({ numero, n_unites }));
+  const total = blocs.length;
+  if (demande === undefined) {
+    if (total <= 1) return total === 1 ? { ok: true, bloc: { numero: blocs[0].numero, total } } : { ok: true };
+    return {
+      ok: false, status: 422, blocs,
+      error: `Cette extraction est découpée en ${total} blocs (${blocs.map((b) => formaterNombre(b.n_unites)).join(' + ')}) : `
+        + `téléchargez chaque bloc (bloc=${blocs[0].numero} à ${blocs[total - 1].numero}).`,
+    };
+  }
+  if (total === 0) return { ok: false, status: 400, blocs, error: 'Cette extraction n’est pas découpée en blocs pour cette plateforme.' };
+  if (!compte.has(demande)) {
+    return { ok: false, status: 404, blocs, error: `Ce bloc n’existe pas : blocs ${blocs[0].numero} à ${blocs[total - 1].numero}.` };
+  }
+  return { ok: true, bloc: { numero: demande, total } };
 }
 
 /** `5000` → `5`, `1500` → `1.5` : des kilomètres sans zéros inutiles. */
@@ -121,8 +157,8 @@ export function fichierPlateforme(
   if (!formatsDe(e.plateforme, e.maille).includes(format)) {
     throw new Error(`Format ${format} sans objet pour ${e.plateforme} à la maille ${e.maille}.`);
   }
-  const retenues = unites.filter((u) => u.retenu);
-  const base = `extraction_${toSlug(e.jeu)}_v${e.version}_${e.plateforme}_${format}`;
+  const retenues = unites.filter((u) => u.retenu && (!e.bloc || u.bloc === e.bloc.numero));
+  const base = `extraction_${toSlug(e.jeu)}_v${e.version}_${e.plateforme}_${format}${e.bloc ? `_bloc${e.bloc.numero}` : ''}`;
   const csv = (lignes: string[]) => ({
     nom: `${base}.csv`, type: 'text/csv; charset=utf-8', contenu: BOM + [...methodeCsv(e), ...lignes].join('\n'),
   });

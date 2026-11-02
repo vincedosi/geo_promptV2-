@@ -54,5 +54,7 @@ describe('ActivationApi — les routes de ⑦ sur HttpBaseService.baseUrl', () =
     api.fichier(J, 2, 'meta', 'cercles').subscribe();
     const r = http.expectOne(`${BASE}/api/zones/jeux/${J}/extractions/2/fichier?plateforme=meta&format=cercles`);
     expect(r.request.responseType).toBe('blob');
+    // B14 round 1 (I-2) : un bloc du découpage.
+    expect(api.urlFichier(J, 2, 'tiktok', 'territoires', 2)).toBe(`${BASE}/api/zones/jeux/${J}/extractions/2/fichier?plateforme=tiktok&format=territoires&bloc=2`);
   });
 });
