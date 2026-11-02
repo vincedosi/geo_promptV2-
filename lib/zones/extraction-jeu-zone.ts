@@ -44,10 +44,11 @@ import {
   type Avertissement, type Resume,
 } from './conversion';
 import { avertissementsRayon } from './conversion-rayon';
+import { avertissementsEcartes, controlerPopulation } from './conversion-population';
 import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type DepassementPolygone, type MesureSimplification,
 } from './polygone-extraction';
-import { lirePoids, lireRegles, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
+import { lirePoids, lireRegles, messageRefusPopulation, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
 import {
@@ -135,6 +136,8 @@ interface Pavage {
   somme_disques?: number;
   /** A6 : chaque cercle porte la population de son DISQUE (pas de sa cellule hexagonale). */
   cercles: { lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }[];
+  /** B13 (sql/318) : les cellules au seuil écartées par le seul minimum par cercle (`p_pop_min`). */
+  ecartes_pop_min?: { n_cercles: number; population_max: number | null };
 }
 
 const erreur = (message: string, status: number): Echec => ({ ok: false, reponse: NextResponse.json({ error: message }, { status }) });
@@ -325,6 +328,9 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
   if (r.error || !o || o.refus !== undefined || !Array.isArray(o.cercles)) {
     return refusDe(c.plateforme, repondreCouverture(r, MESSAGES_CONVERSION, 'zones/extractions cercles', ECHEC, 'Rayon ou seuil hors des bornes du calcul.'));
   }
+  // B13 : tout écarté par le minimum par cercle — dit tel quel (pas « au seuil »), avec le minimum et le plus peuplé.
+  const ecartes = avertissementsEcartes(o.ecartes_pop_min, regle);
+  if (o.n_cercles === 0 && ecartes.length > 0) return erreur(messageRefusPopulation({ ...ecartes[0], refus: true }, c.plateforme, c.maille), 422);
   if (o.n_cercles === 0) return aucuneUnite(c);
   const chiffres = {
     n_unites: o.n_cercles, couverte: o.couverte, achetee: o.achetee, manques: o.manques, hors_zone: o.hors_zone, taux_utile: o.taux_utile,
@@ -345,12 +351,36 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
       // B8 : le rayon de la recette hors des bornes de la plateforme (avant → après), figé avec le bilan.
       avertissements: [
         ...verifierLimites(bilan, regle), ...avertissementsDisque(ctx.recette, regle.maille), ...avertissementsRayon(ctx.recette, regle.maille, regle, rayon_m),
+        ...ecartes,
       ],
     },
   };
 }
 
 /** Une plateforme : la règle relue (la table a pu changer depuis l'enregistrement), l'exactitude, puis sa maille. */
+/**
+ * B13 : les minimums de population de la plateforme, le MÊME contrôle pour toute maille — cercle exact unique compris
+ * (son unité porte la population de la zone, le disque entier) : sur les unités RETENUES et la diffusion achetée. Un
+ * refus du registre refuse l'extraction (422 `pop_min_unite` / `pop_min_groupe`, chiffré) ; un avertissement est figé.
+ */
+async function controler(issue: Promise<Issue>, c: Choix, regle: PlateformeGeo): Promise<Issue> {
+  const r = await issue;
+  if (!r.ok) return r;
+  const controle = controlerPopulation(r.resume, r.unites.filter((u) => u.retenu).map((u) => u.pop_totale), regle);
+  if (controle.refus) {
+    const { code, limite, valeur, n } = controle.refus;
+    return {
+      ok: false,
+      reponse: NextResponse.json({
+        error: messageRefusPopulation(controle.refus, c.plateforme, c.maille), refus: code, plateforme: c.plateforme, limite, valeur,
+        ...(n !== undefined ? { n } : {}),
+      }, { status: 422 }),
+    };
+  }
+  r.resume.avertissements.push(...controle.avertissements);
+  return r;
+}
+
 function convertir(ctx: Contexte, c: Choix, regles: readonly PlateformeGeo[]): Promise<Issue> | Issue {
   const regle = regles.find((l) => l.plateforme === c.plateforme && l.maille === c.maille);
   const refus = refusDuChoix(c, regle);
@@ -369,8 +399,8 @@ function convertir(ctx: Contexte, c: Choix, regles: readonly PlateformeGeo[]): P
   const exacte = ctx.recette
     ? exactitude(ctx.recette, regle.maille, regle, c.rayon_m ?? undefined) === 'exacte'
     : regle.maille === 'polygone';
-  if (exacte) return convertirExacte(ctx, c, regle);
-  return c.maille === 'cercle' ? convertirCercles(ctx, c, regle) : convertirTerritoire(ctx, c, regle);
+  if (exacte) return controler(convertirExacte(ctx, c, regle), c, regle);
+  return controler(c.maille === 'cercle' ? convertirCercles(ctx, c, regle) : convertirTerritoire(ctx, c, regle), c, regle);
 }
 
 /**

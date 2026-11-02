@@ -93,11 +93,14 @@ export type Resume = ResumeMaille | ResumeExact;
  * simplifiée — `valeur` la part de la population de la zone hors de la forme simplifiée (en %), `limite` le seuil
  * d'affichage lu en base, `n` les habitants perdus.
  * Depuis B8, `rayon_min` / `rayon_max` : le rayon de la recette hors des bornes de la plateforme (`conversion-rayon.ts`).
+ * Depuis B13, `pop_min_unite` / `pop_min_groupe` (`conversion-population.ts`) : `n` unités sous le minimum (`valeur` la
+ * moins peuplée), ou la diffusion achetée (`valeur`) sous le minimum du groupe ; `refus` si le registre refuse,
+ * `ecartes` pour les cercles écartés au pavage (`valeur` le plus peuplé des écartés).
  * `a_verifier` : la limite citée n'est pas confirmée (amendement E9, affiché à côté de la valeur).
  */
 export interface Avertissement {
-  code: 'max_unites' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees' | 'disque_hors_france'
-    | 'perte_simplification' | 'rayon_min' | 'rayon_max';
+  code: 'max_unites' | 'pop_min_unite' | 'pop_min_groupe' | 'multiplicateur_min' | 'multiplicateur_max' | 'nb_max_entrees'
+    | 'disque_hors_france' | 'perte_simplification' | 'rayon_min' | 'rayon_max';
   limite: number;
   valeur: number;
   n?: number;
@@ -107,6 +110,10 @@ export interface Avertissement {
   /** `nb_max_entrees` : le mécanisme qui porte la limite (`script`…). */
   mecanisme?: string;
   a_verifier?: true;
+  /** B13 : le minimum REFUSE (comportement du registre) — l'extraction ne se fait pas. */
+  refus?: true;
+  /** B13 : des cercles écartés au pavage par le minimum par cercle (règle 5). */
+  ecartes?: true;
 }
 
 /**
@@ -324,23 +331,17 @@ export function resumePays(unites: readonly UnitePays[], population: number, sur
 /**
  * Les limites de la ligne que le bilan dépasse. `max_unites` porte sur les unités achetées — en CODES au CP
  * (`n_codes`, groupes développés, A1) —, maille exacte comprise :
- * une liste de codes postaux exacte au CP peut dépasser le plafond de la plateforme (relecture T5). `pop_min_groupe`
- * porte sur la diffusion achetée — le palier unique d'A-9. Les sommets et morceaux du polygone ne sont pas vérifiés
+ * une liste de codes postaux exacte au CP peut dépasser le plafond de la plateforme (relecture T5). Les minimums de
+ * population (par unité, par groupe) et leur comportement : `controlerPopulation` (`conversion-population.ts`, B13).
+ * Les sommets et morceaux du polygone ne sont pas vérifiés
  * ici mais par `depassementsPolygone` (`polygone-extraction.ts`), sur la forme SIMPLIFIÉE que mesure la base à l'extraction (A7) ; la clé
  * `limites.max_sommets` (sql/274) n'a ni valeur ni lecteur.
  */
 export function verifierLimites(resume: Resume, ligne: PlateformeGeo): Avertissement[] {
-  const { max_unites, pop_min_groupe } = ligne.limites;
-  const avertissements: Avertissement[] = [];
+  const { max_unites } = ligne.limites;
   // Au CP, la plateforme reçoit des CODES (groupes développés) : c'est eux que la limite compte (A1).
   const achetees = resume.n_codes ?? resume.n_unites;
-  if (max_unites !== undefined && achetees > max_unites) {
-    avertissements.push({ code: 'max_unites', limite: max_unites, valeur: achetees });
-  }
-  if (pop_min_groupe !== undefined && resume.achetee < pop_min_groupe) {
-    avertissements.push({ code: 'pop_min_groupe', limite: pop_min_groupe, valeur: resume.achetee });
-  }
-  return avertissements;
+  return max_unites !== undefined && achetees > max_unites ? [{ code: 'max_unites', limite: max_unites, valeur: achetees }] : [];
 }
 
 /** Les refus de `paver_cercles` (sql/276), tels que la RPC les rend dans `refus`. */

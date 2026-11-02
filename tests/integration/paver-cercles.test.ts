@@ -30,6 +30,8 @@ interface Resultat {
   n_carreaux: number; motif_vide: string | null; territoires_non_carroyes: { code: string; nom: string }[];
   population: number; couverte: number; manques: number; hors_zone: number; achetee: number; taux_utile: number | null;
   reference: { grilles: { territoire: string; pas_3857: number }[] };
+  /** B13 (sql/318) : les cellules au seuil écartées par le seul `p_pop_min`, et le plus peuplé de leurs disques. */
+  ecartes_pop_min: { n_cercles: number; population_max: number | null };
 }
 
 let org = '';
@@ -135,6 +137,10 @@ describe('paver_cercles — CIRFA Bretagne (≈ 5 000 km², M5)', () => {
     expect(r.cercles.every((c) => c.pop_totale >= 3000)).toBe(true);
     expect(r.n_cercles).toBe(base.cercles.filter((c) => c.pop_totale >= 3000).length);
     expect(r.n_cercles).toBeLessThan(base.n_cercles);
+    // B13 (règle 5) : ce que le minimum écarte est rendu — avant (base) = après + écartés ; le plus peuplé des écartés.
+    const sous = base.cercles.filter((c) => c.pop_totale < 3000);
+    expect(r.ecartes_pop_min).toEqual({ n_cercles: sous.length, population_max: Math.max(...sous.map((c) => c.pop_totale)) });
+    expect(base.ecartes_pop_min).toEqual({ n_cercles: 0, population_max: null });
   }, LONG);
 
   it('p_max_cercles = 10 → trop_de_cercles, avec le nombre de cercles et le plafond', async () => {

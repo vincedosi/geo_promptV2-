@@ -30,7 +30,8 @@ const ligne = (plateforme: string, maille: string, limites: Record<string, numbe
 const REGLES = [
   ligne('meta', 'cercle', { max_unites: 200, rayon_min_m: 1000, rayon_max_m: 80000 }),
   ligne('meta', 'cp', { max_unites: 50000 }),
-  ligne('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }),
+  // B13 (sql/318) : le comportement du minimum par cercle, lu dans le registre — `refus` = filtre dur au pavage.
+  { ...ligne('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }), pop_min_unite_comportement: 'refus' },
   ligne('ttd', 'cercle', {}),
   ligne('tiktok', 'cercle', {}, false, 'TikTok ne cible pas un rayon en France.'),
 ];
@@ -133,6 +134,12 @@ describe('paver_cercles', () => {
     etat.reponses.paver_cercles = { data: PAVAGE, error: null };
     await appel(ZONE, '?cible=ind&rayon=5000&seuil=30&plateforme=dv360');
     expect(etat.rpcs[0].args).toMatchObject({ p_rayon_m: 5000, p_seuil: 30, p_pop_min: 1000, p_max_cercles: undefined });
+  });
+  it('B13 : un minimum en `avertissement` au registre ne filtre rien au pavage', async () => {
+    etat.tables.plateformes_geo = { data: REGLES.map((r) => (r.plateforme === 'dv360' ? { ...r, pop_min_unite_comportement: 'avertissement' } : r)), error: null };
+    etat.reponses.paver_cercles = { data: PAVAGE, error: null };
+    await appel(ZONE, '?cible=ind&rayon=5000&seuil=30&plateforme=dv360');
+    expect(etat.rpcs[0].args).toMatchObject({ p_pop_min: undefined });
   });
   it('422 trop_de_cercles : le nombre, le plafond, et le plus petit rayon qui passe (B10), cherché un pavage à la fois', async () => {
     // n ∝ 1 / r² : 481 cercles à 10 km → il faut r ≥ 15,51 km, soit 16 km au pas de 500 m.

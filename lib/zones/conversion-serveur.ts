@@ -17,13 +17,15 @@ import {
   MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PlateformeGeoSchema, PlateformePoidsSchema, type PlateformeGeo, type PlateformePoids,
 } from './plateformes';
 import { REGLAGES_DEFAUT_REPLI, type ReglagesDefaut } from './conversion-defaut';
+import type { Avertissement } from './conversion';
+import { popMinPavage } from './conversion-population';
 import { type GardeRecherche, chercherRayonPropose } from './rayon-propose';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Les colonnes d'une ligne de `plateformes_geo` — une chaîne LITTÉRALE : supabase-js en déduit le type des lignes. */
 const COLONNES_PLATEFORMES_GEO =
-  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays, pays_a_verifier, poids_groupe_cp, parametres_a_verifier, polygone_sommets_max, polygone_morceaux_max';
+  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays, pays_a_verifier, poids_groupe_cp, parametres_a_verifier, polygone_sommets_max, polygone_morceaux_max, pop_min_unite_comportement, pop_min_groupe_comportement';
 
 /**
  * Les règles des plateformes demandées (toutes sans filtre : `GET /api/zones/plateformes`), triées par `ordre` et
@@ -125,8 +127,9 @@ interface DemandePavage { zoneId: string; orgId: string; cible: string; rayon_m:
 
 /**
  * `paver_cercles` (sql/276) avec les limites de la plateforme : `pop_min_unite` (population minimale d'un cercle,
- * DV360) et `max_unites` (plafond de cercles, Meta : refus `trop_de_cercles` chiffré). Rend la réponse brute de
- * supabase-js ; `repondreCouverture` la traduit.
+ * DV360) quand le registre dit `refus` (`popMinPavage`, B13 — en `avertissement`, rien n'est filtré) et `max_unites`
+ * (plafond de cercles, Meta : refus `trop_de_cercles` chiffré). Rend la réponse brute de supabase-js ;
+ * `repondreCouverture` la traduit.
  */
 export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo) {
   return supabase.rpc('paver_cercles', {
@@ -136,7 +139,7 @@ export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, reg
     p_rayon_m: d.rayon_m,
     p_seuil: d.seuil,
     // `undefined` : la clé n'est pas envoyée, la RPC garde son défaut — aucune limite écrite ici.
-    p_pop_min: regle.limites.pop_min_unite,
+    p_pop_min: popMinPavage(regle),
     p_max_cercles: regle.limites.max_unites,
   });
 }
@@ -177,4 +180,25 @@ export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePava
     return { n_cercles: typeof e?.n_cercles === 'number' ? e.n_cercles : 0, ...(typeof e?.refus === 'string' ? { refus: e.refus } : {}) };
   }, { rayon_m: d.rayon_m, n_cercles: o.n_cercles, plafond: o.plafond, duree_ms }, regle.limites, garde);
   return { ...pavage, data: { ...o, ...proposition } as unknown as typeof pavage.data };
+}
+
+/**
+ * B13 : le refus d'un minimum de population (`controlerPopulation`), en français, préfixé de la plateforme — un 422
+ * de l'extraction. Les nombres viennent du bilan et du registre ; « à vérifier » à côté de la valeur (E9).
+ * Cercle exact unique : « dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 par cercle de la plateforme
+ * (à vérifier) : élargissez le rayon, ou choisissez une autre maille. »
+ */
+export function messageRefusPopulation(a: Avertissement, plateforme: string, maille: string): string {
+  const verifier = a.a_verifier ? ' (à vérifier)' : '';
+  if (a.code === 'pop_min_groupe') {
+    return `${plateforme} — La diffusion achetée compte ${formaterNombre(a.valeur)} personnes, sous le minimum de `
+      + `${formaterNombre(a.limite)} par groupe de la plateforme${verifier} : élargissez la zone, ou choisissez une autre maille.`;
+  }
+  const cercle = maille === 'cercle';
+  const n = a.n ?? 1;
+  const qui = n === 1
+    ? `${cercle ? 'Le cercle compte' : 'Une unité compte'} ${formaterNombre(a.valeur)} habitants`
+    : `${formaterNombre(n)} ${cercle ? 'cercles' : 'unités'} comptent moins de ${formaterNombre(a.limite)} habitants (${a.ecartes ? 'le plus peuplé' : 'le moins peuplé'} : ${formaterNombre(a.valeur)})`;
+  return `${plateforme} — ${qui}, sous le minimum de ${formaterNombre(a.limite)} par ${cercle ? 'cercle' : 'unité'} de la plateforme${verifier} : `
+    + `${cercle ? 'élargissez le rayon' : 'relevez le seuil'}, ou choisissez une autre maille.`;
 }

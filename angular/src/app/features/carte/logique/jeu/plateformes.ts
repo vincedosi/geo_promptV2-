@@ -14,11 +14,14 @@ export const MAILLES = ['polygone', 'cp', 'iris', 'commune', 'departement', 'cer
 /** Les valeurs de `poids_groupe_cp` (sql/304). */
 export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 
-/** Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, sql/304 ; bornes du polygone, sql/312). */
+/** Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, sql/304 ; bornes du polygone, sql/312 ; minimums, sql/318). */
 export const PARAMETRES_VERIFIABLES = [
   'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
-  'polygone_sommets_max', 'polygone_morceaux_max',
+  'polygone_sommets_max', 'polygone_morceaux_max', 'pop_min_unite_comportement', 'pop_min_groupe_comportement',
 ] as const;
+
+/** Le comportement d'un minimum de population (sql/318, B13) : `refus` ou `avertissement`. */
+export const COMPORTEMENTS_POPULATION = ['refus', 'avertissement'] as const;
 
 export type Plateforme = (typeof PLATEFORMES)[number];
 export type Maille = (typeof MAILLES)[number];
@@ -54,4 +57,7 @@ export interface PlateformeGeo {
   /** Ligne polygone (sql/312, A7) : sommets et morceaux maximaux de la forme envoyée, après simplification ; `null` ou absent = aucune limite connue. */
   polygone_sommets_max?: number | null | undefined;
   polygone_morceaux_max?: number | null | undefined;
+  /** B13 (sql/318) : le comportement de `limites.pop_min_unite` / `pop_min_groupe` ; `null` ou absent sans minimum. */
+  pop_min_unite_comportement?: (typeof COMPORTEMENTS_POPULATION)[number] | null | undefined;
+  pop_min_groupe_comportement?: (typeof COMPORTEMENTS_POPULATION)[number] | null | undefined;
 }

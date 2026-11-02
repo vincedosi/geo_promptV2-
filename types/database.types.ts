@@ -4779,6 +4779,8 @@ export type Database = {
           poids_groupe_cp: string | null
           polygone_morceaux_max: number | null
           polygone_sommets_max: number | null
+          pop_min_groupe_comportement: string | null
+          pop_min_unite_comportement: string | null
           releve_le: string
         }
         Insert: {
@@ -4798,6 +4800,8 @@ export type Database = {
           poids_groupe_cp?: string | null
           polygone_morceaux_max?: number | null
           polygone_sommets_max?: number | null
+          pop_min_groupe_comportement?: string | null
+          pop_min_unite_comportement?: string | null
           releve_le: string
         }
         Update: {
@@ -4817,6 +4821,8 @@ export type Database = {
           poids_groupe_cp?: string | null
           polygone_morceaux_max?: number | null
           polygone_sommets_max?: number | null
+          pop_min_groupe_comportement?: string | null
+          pop_min_unite_comportement?: string | null
           releve_le?: string
         }
         Relationships: []

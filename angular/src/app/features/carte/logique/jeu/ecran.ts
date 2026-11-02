@@ -121,7 +121,31 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
   if (a.code === 'max_unites') {
     return `${nombreUnites(a.valeur, maille)} pour ${formaterNombre(a.limite)} admis par la plateforme${maille === 'cercle' ? ' : augmentez le rayon ou le seuil' : ''}.`;
   }
-  return `Palier sous ${formaterNombre(a.limite)} personnes : ${formaterNombre(a.valeur)} achetées, la plateforme peut refuser la diffusion.`;
+  if (a.code === 'pop_min_unite') return textePopMinUnite(a, maille, limite);
+  // B13 : le minimum du groupe — refus ou avertissement, selon le registre.
+  return a.refus
+    ? `Refusé : ${formaterNombre(a.valeur)} personnes achetées, sous le minimum de ${limite} par groupe de la plateforme : élargissez la zone ou choisissez une autre maille.`
+    : `Palier sous ${limite} personnes : ${formaterNombre(a.valeur)} achetées, la plateforme peut refuser la diffusion.`;
+}
+
+/**
+ * B13 : le minimum de population PAR UNITÉ (`controlerPopulation`, `avertissementsEcartes`) — cercles écartés au
+ * pavage (avant : ces cercles au seuil, après : écartés), refus du registre (le cercle exact unique de 1 km à 300
+ * habitants chez DV360), ou avertissement. `limite` porte déjà « (à vérifier) » (E9).
+ */
+function textePopMinUnite(a: Avertissement, maille: Maille, limite: string): string {
+  const n = a.n ?? 1;
+  const par = maille === 'cercle' ? 'cercle' : UNITE_MAILLE[maille].un;
+  if (a.ecartes) {
+    return `${nombreUnites(n, maille)} au seuil ${n > 1 ? 'écartés' : 'écarté'} : moins de ${limite} habitants, le minimum par ${par} de la plateforme `
+      + `(${n > 1 ? 'le plus peuplé' : 'il'} : ${formaterNombre(a.valeur)}).${a.refus ? ' Aucun cercle ne reste : élargissez le rayon ou baissez le seuil.' : ''}`;
+  }
+  const qui = n === 1
+    ? `${maille === 'cercle' ? 'Le cercle compte' : `1 ${UNITE_MAILLE[maille].un} compte`} ${formaterNombre(a.valeur)} habitants`
+    : `${nombreUnites(n, maille)} sous ${limite} habitants (le moins peuplé : ${formaterNombre(a.valeur)})`;
+  return a.refus
+    ? `Refusé : ${qui.charAt(0).toLowerCase()}${qui.slice(1)}, sous le minimum de ${limite} par ${par} de la plateforme : élargissez le rayon ou choisissez une autre maille.`
+    : `${qui}, sous le minimum de ${limite} par ${par} de la plateforme : elle peut refuser leur diffusion.`;
 }
 
 /**

@@ -505,20 +505,15 @@ describe('verifierLimites — lit les limites de la ligne, n’en écrit aucune'
     expect(verifierLimites(resume, ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 2, pop_min_groupe: 90 } }))).toEqual([]);
     expect(verifierLimites(resume, ligne({ plateforme: 'ttd', maille: 'cp' }))).toEqual([]);
   });
-  it('trop d’unités et groupe trop petit : deux avertissements chiffrés', () => {
+  it('trop d’unités : avertissement chiffré ; le minimum de population n’est plus lu ici (B13, `controlerPopulation`)', () => {
     expect(verifierLimites(resume, ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 1, pop_min_groupe: 91 } }))).toEqual([
       { code: 'max_unites', limite: 1, valeur: 2 },
-      { code: 'pop_min_groupe', limite: 91, valeur: 90 },
     ]);
   });
   it('une maille exacte compte aussi ses unités : une liste de CP plus longue que max_unites avertit', () => {
     expect(verifierLimites(resumeExact(500, 3, 4), ligne({ plateforme: 'meta', maille: 'cp', limites: { max_unites: 3 } })))
       .toEqual([{ code: 'max_unites', limite: 3, valeur: 4 }]);
     expect(verifierLimites(resumeExact(500, 3, 3), ligne({ plateforme: 'meta', maille: 'cp', limites: { max_unites: 3 } }))).toEqual([]);
-  });
-  it('une maille exacte : le groupe est la zone entière', () => {
-    expect(verifierLimites(resumeExact(50, 1), ligne({ plateforme: 'tiktok', maille: 'commune', limites: { pop_min_groupe: 51 } })))
-      .toEqual([{ code: 'pop_min_groupe', limite: 51, valeur: 50 }]);
   });
 });
 
@@ -585,7 +580,7 @@ describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
   // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
   const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/conversion-defaut.ts', 'lib/zones/rayon-propose.ts',
-    'lib/zones/polygone-extraction.ts']
+    'lib/zones/polygone-extraction.ts', 'lib/zones/conversion-population.ts']
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);

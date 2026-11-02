@@ -2,10 +2,12 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import * as S from '@/lib/zones/conversion';
 import * as SD from '@/lib/zones/conversion-defaut';
+import * as SPop from '@/lib/zones/conversion-population';
 import * as SP from '@/lib/zones/plateformes';
 import type * as SC from '@/lib/zones/couverture';
 import * as A from '../../../angular/src/app/features/carte/logique/jeu/conversion';
 import * as AD from '../../../angular/src/app/features/carte/logique/jeu/conversion-defaut';
+import * as APop from '../../../angular/src/app/features/carte/logique/jeu/conversion-population';
 import * as AP from '../../../angular/src/app/features/carte/logique/jeu/plateformes';
 import type * as AC from '../../../angular/src/app/features/carte/logique/analyses/couverture';
 import type { Recette } from '@/lib/zones/recette';
@@ -58,10 +60,15 @@ describe('conversion d’une zone : Angular = serveur', () => {
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion-rayon.ts')).toBe(corps('lib/zones/conversion-rayon.ts'));
     // B9 : la maille par défaut, sortie de `conversion.ts` pour la même raison.
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion-defaut.ts')).toBe(corps('lib/zones/conversion-defaut.ts'));
+    // B13 : les minimums de population et leur comportement, sortis pour la même raison.
+    expect(corps('angular/src/app/features/carte/logique/jeu/conversion-population.ts')).toBe(corps('lib/zones/conversion-population.ts'));
   });
   it('mêmes plateformes, mêmes mailles, dans le même ordre', () => {
     expect([...AP.PLATEFORMES]).toEqual([...SP.PLATEFORMES]);
     expect([...AP.MAILLES]).toEqual([...SP.MAILLES]);
+    // B13 : mêmes paramètres « à vérifier », mêmes comportements de minimum.
+    expect([...AP.PARAMETRES_VERIFIABLES]).toEqual([...SP.PARAMETRES_VERIFIABLES]);
+    expect([...AP.COMPORTEMENTS_POPULATION]).toEqual([...SP.COMPORTEMENTS_POPULATION]);
   });
   it('mêmes messages de refus', () => {
     expect(A.MESSAGES_CONVERSION).toEqual(S.MESSAGES_CONVERSION);
@@ -112,6 +119,21 @@ describe('conversion d’une zone : Angular = serveur', () => {
     for (const l of regles) {
       expect(A.verifierLimites(A.appliquerSeuil(lignes, 130, 10), l)).toEqual(S.verifierLimites(S.appliquerSeuil(lignes, 130, 10), l));
       expect(A.verifierLimites(A.resumeExact(500, 3, 4), l)).toEqual(S.verifierLimites(S.resumeExact(500, 3, 4), l));
+    }
+    // B13 : les minimums de population, sous tous les comportements du registre.
+    const minimums = [
+      ligne({ plateforme: 'dv360', maille: 'cercle', limites: { pop_min_unite: 1_000 }, pop_min_unite_comportement: 'refus', parametres_a_verifier: ['pop_min_unite_comportement'] }),
+      ligne({ plateforme: 'dv360', maille: 'cercle', limites: { pop_min_unite: 1_000 }, pop_min_unite_comportement: 'avertissement' }),
+      ligne({ plateforme: 'tiktok', maille: 'departement', limites: { pop_min_groupe: 1_000 }, pop_min_groupe_comportement: 'avertissement' }),
+      ligne({ plateforme: 'tiktok', maille: 'departement', limites: { pop_min_groupe: 1_000 }, pop_min_groupe_comportement: 'refus' }),
+      ligne({ plateforme: 'tiktok', maille: 'commune', limites: { pop_min_groupe: 1_000 } }), ...regles,
+    ];
+    for (const l of minimums) {
+      for (const [bilan, pops] of [[{ achetee: 300 }, [300]], [{ achetee: 5_000 }, [4_000, 800, null]], [{ achetee: 0, n_inconnues: 1 }, [null]]] as const) {
+        expect(APop.controlerPopulation(bilan, pops, l)).toEqual(SPop.controlerPopulation(bilan, pops, l));
+      }
+      expect(APop.popMinPavage(l)).toBe(SPop.popMinPavage(l));
+      expect(APop.avertissementsEcartes({ n_cercles: 2, population_max: 900 }, l)).toEqual(SPop.avertissementsEcartes({ n_cercles: 2, population_max: 900 }, l));
     }
     for (const part_brute of [20, 19.96, 0.02, 0, null]) {
       for (const seuil of [0, 20]) expect(A.estRetenue({ part_brute }, seuil)).toBe(S.estRetenue({ part_brute }, seuil));

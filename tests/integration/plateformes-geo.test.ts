@@ -22,6 +22,8 @@ const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.s
 // l'empreinte est celle de la base (reliquat A6 corrigé au tour 1 d'A7).
 const MIGRATION_PAYS = ['300_maille_pays.sql', '311_cercle_population_disque.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
+/** B13 : les minimums de population et leur comportement (et `paver_cercles`, recopié de sql/311). */
+const MIGRATION_MINIMUMS = readFileSync(join(process.cwd(), 'sql', '318_minimums_population.sql'), 'utf8');
 
 /** Empreinte du contenu ET des contraintes de la table : un rejeu qui en changerait l'un ou l'autre la changerait. */
 const EMPREINTE = `select md5(
@@ -206,6 +208,61 @@ describe('sql/300 — la maille pays', () => {
   it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
     const base = psql(EMPREINTE_PAYS);
     const lignes = psqlLignes(`begin;\n${MIGRATION_PAYS}\n${EMPREINTE_PAYS}\n${MIGRATION_PAYS}\n${EMPREINTE_PAYS}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
+  });
+});
+
+describe('sql/318 (B13) — les minimums de population, chacun avec son comportement', () => {
+  it('le relevé : DV360 cercle 1 000 par cercle en refus (comportement à vérifier), TikTok 1 000 par groupe en avertissement, Meta sans minimum', () => {
+    expect(psqlLignes(`select plateforme || '.' || maille || '|' || coalesce(limites->>'pop_min_unite', '-') || '|'
+                              || coalesce(pop_min_unite_comportement, '-') || '|' || coalesce(limites->>'pop_min_groupe', '-') || '|'
+                              || coalesce(pop_min_groupe_comportement, '-') || '|' || ('pop_min_unite_comportement' = any (parametres_a_verifier))
+                         from public.plateformes_geo
+                        where limites ?| array['pop_min_unite', 'pop_min_groupe'] or plateforme = 'meta'
+                        order by plateforme, maille;`)).toEqual([
+      'dv360.cercle|1000|refus|-|-|true',
+      'meta.cercle|-|-|-|-|false', 'meta.cp|-|-|-|-|false', 'meta.pays|-|-|-|-|false', 'meta.polygone|-|-|-|-|false',
+      'tiktok.commune|-|-|1000|avertissement|false', 'tiktok.departement|-|-|1000|avertissement|false',
+    ]);
+  });
+
+  it.each([
+    ['un comportement sans minimum', `update public.plateformes_geo set pop_min_groupe_comportement = 'refus' where plateforme = 'meta' and maille = 'cercle'`],
+    ['un comportement inconnu', `update public.plateformes_geo set pop_min_unite_comportement = 'filtre' where plateforme = 'dv360' and maille = 'cercle'`],
+    ['un refus par unité hors cercle', `update public.plateformes_geo set limites = limites || '{"pop_min_unite": 500}', pop_min_unite_comportement = 'refus' where plateforme = 'tiktok' and maille = 'commune'`],
+  ])('la base refuse %s', (_cas, ordre) => {
+    const r = psqlBrut(`begin;\n${ordre};\nrollback;`);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/plateformes_geo_pop_min_comportements/);
+  });
+
+  it('chaque minimum du registre porte son comportement (la base l’admet sans, pour le rejeu du seed de sql/274)', () => {
+    expect(psql(`select count(*) from public.plateformes_geo
+                  where (limites ? 'pop_min_unite' and pop_min_unite_comportement is null)
+                     or (limites ? 'pop_min_groupe' and pop_min_groupe_comportement is null);`)).toBe('0');
+  });
+
+  it('un avertissement par unité hors cercle est admis, et le comportement peut être « à vérifier » (transaction annulée)', () => {
+    expect(psql(`begin;
+      update public.plateformes_geo set limites = limites || '{"pop_min_unite": 500}', pop_min_unite_comportement = 'avertissement',
+             parametres_a_verifier = parametres_a_verifier || '{pop_min_groupe_comportement}'::text[]
+       where plateforme = 'tiktok' and maille = 'commune';
+      select pop_min_unite_comportement from public.plateformes_geo where plateforme = 'tiktok' and maille = 'commune';
+      rollback;`)).toBe('avertissement');
+  });
+
+  it('paver_cercles rend ecartes_pop_min (règle 5)', () => {
+    expect(psql(`select pg_get_functiondef('public.paver_cercles'::regproc) like '%ecartes_pop_min%';`)).toBe('t');
+  });
+
+  it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
+    const empreinte = `select md5(${EMPREINTE.slice('select md5('.length, -');'.length)}
+      || pg_get_functiondef('public.paver_cercles'::regproc)
+      || pg_get_functiondef('public.plateformes_geo_parametres_valides'::regproc));`;
+    const base = psql(empreinte);
+    const lignes = psqlLignes(`begin;\n${MIGRATION_MINIMUMS}\n${empreinte}\n${MIGRATION_MINIMUMS}\n${empreinte}\nrollback;`);
     const [premiere, seconde] = lignes.slice(-2);
     expect(premiere).toBe(seconde);
     expect(seconde).toBe(base);

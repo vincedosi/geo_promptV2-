@@ -1,8 +1,10 @@
 import { DECOUPAGES, type Decoupage, type ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import {
-  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, resumeExact, resumePays, unitesPays, verifierLimites,
+  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, resumeExact, resumePays, unitesPays,
+  verifierLimites,
 } from './conversion';
+import { avertissementsEcartes, controlerPopulation } from './conversion-population';
 import {
   type DefautExplique, REGLAGES_DEFAUT_REPLI, type ReglagesDefaut, type Simulations, choisirDefaut, mailleParDefaut, simulationDe,
   simulationsRequises,
@@ -45,6 +47,8 @@ export interface ResultatCercles {
   min_menages: number;
   /** A5 : les carreaux de la zone écartés par ce minimum. */
   carreaux_ecartes: { n_carreaux: number; population: number };
+  /** B13 (sql/318) : les cellules au seuil écartées par le seul minimum par cercle de la plateforme (`refus`). */
+  ecartes_pop_min?: { n_cercles: number; population_max: number | null };
   motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'carreaux_tous_ecartes' | 'aucune_cellule_au_seuil' | null;
 }
 
@@ -135,7 +139,8 @@ export function defautsDe(
     const simulations: Simulations = {};
     for (const { choix, ligne } of choixASimuler(regles, p, recette, surface_km2)) {
       const b = bilanDe(choix, ligne, recette, lu(p, choix, ligne));
-      if (b) simulations[choix.maille] = simulationDe(b.resume);
+      // B13 : une maille que le minimum de population du registre refuse n'est pas un défaut possible.
+      if (b) simulations[choix.maille] = b.avertissements.some((a) => a.refus) ? 'refusee' : simulationDe(b.resume);
       else if (echec(p, choix, ligne)) simulations[choix.maille] = 'refusee';
     }
     const d = choisirDefaut(regles, p, recette ?? SANS_RECETTE, simulations, reglages ?? REGLAGES_DEFAUT_REPLI);
@@ -228,6 +233,10 @@ export function bilanDe(
 ): BilanPlateforme | null {
   if (!lu) return null;
   let resume: Resume;
+  // B13 : les populations des unités RETENUES (une par cercle, une pour une maille exacte, une par territoire retenu),
+  // et ce que le minimum par cercle a écarté au pavage — `controlerPopulation`, le contrôle de l'extraction.
+  let populations: readonly (number | null)[];
+  let ecartes: Avertissement[] = [];
   if (lectureRequise(c, ligne, recette) === 'cercles') {
     const k = lu as ResultatCercles;
     if (k.rayon_m !== c.rayon_m || k.seuil !== c.seuil) return null;
@@ -237,6 +246,10 @@ export function bilanDe(
       // A6 : la somme des lignes (disques), que le bilan compare à la diffusion achetée (`texteChevauchement`).
       ...(typeof k.somme_disques === 'number' ? { somme_disques: k.somme_disques } : {}),
     };
+    // `?? []` : une réponse factice d'avant A6 peut ne pas porter les cercles ; la RPC les rend toujours.
+    populations = (k.cercles ?? []).map((x) => x.pop_totale);
+    // Tout écarté par le minimum : l'extraction le refuserait, l'écran le dit comme un refus.
+    ecartes = avertissementsEcartes(k.ecartes_pop_min, ligne).map((a) => (k.n_cercles === 0 ? { ...a, refus: true as const } : a));
   } else {
     const cv = lu as ResultatCouverture;
     // Une liste de codes postaux achetée au CP : une unité par code (comme l'extraction, `convertirExacte`).
@@ -246,16 +259,26 @@ export function bilanDe(
       const pays = unitesPays(codes, cv.population, cv.decoupage === 'departement' ? cv.lignes : null);
       // A4 (ARB-3) : les territoires à population inconnue comptés à part (`n_inconnues`), comme à l'extraction.
       resume = resumePays(pays, cv.population, cv.surface_km2);
-      return { resume, avertissements: verifierLimites(resume, ligne), pays };
+      const p = controlerPopulation(resume, pays.map((u) => u.population), ligne);
+      return { resume, avertissements: [...(p.refus ? [p.refus] : []), ...verifierLimites(resume, ligne), ...p.avertissements], pays };
     }
-    const nCodes = c.maille === 'cp' && recette?.type === 'codes_postaux' ? new Set(recette.codes).size : 1;
-    resume = estExacte(c, ligne, recette) ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
+    const liste = c.maille === 'cp' && recette?.type === 'codes_postaux';
+    const nCodes = liste ? new Set(recette.codes).size : 1;
+    const exacte = estExacte(c, ligne, recette);
+    resume = exacte ? resumeExact(cv.population, cv.surface_km2, nCodes) : appliquerSeuil(cv.lignes, cv.population, c.seuil);
+    // Une liste de CP exacte ne dit pas la population de chaque code : aucune unité à comparer (le groupe, si).
+    populations = exacte ? (liste ? [] : [cv.population]) : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale);
   }
+  const p = controlerPopulation(resume, populations, ligne);
   // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.
   // B8 : le rayon de la recette hors des bornes de la plateforme (avant → après, exact → calculé), comme à l'extraction.
+  // B13 : un refus du registre en tête (l'extraction le refuserait), puis les avertissements.
   return {
     resume,
-    avertissements: [...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille), ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m)],
+    avertissements: [
+      ...(p.refus ? [p.refus] : []), ...verifierLimites(resume, ligne), ...avertissementsDisque(recette, c.maille),
+      ...avertissementsRayon(recette, c.maille, ligne, c.rayon_m), ...ecartes, ...p.avertissements,
+    ],
   };
 }
 

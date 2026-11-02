@@ -86,6 +86,61 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
     });
   });
 
+  it('B13 : cercle exact de 1 km à 300 habitants sur DV360 — le refus du registre, message explicite, rien de figé', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cercle', seuil: 30, rayon_m: 1000 }], { ...POINT, rayon_m: 1000 }, [{
+      ...regle('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }),
+      pop_min_unite_comportement: 'refus', parametres_a_verifier: ['pop_min_unite_comportement'],
+    }]);
+    etat.reponses.couverture_zone = { data: { population: 300, surface_km2: 3.14, lignes: [] }, error: null };
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    const corps = await r.json() as { error: string; refus: string; plateforme: string; limite: number; valeur: number };
+    expect(corps).toMatchObject({ refus: 'pop_min_unite', plateforme: 'dv360', limite: 1000, valeur: 300 });
+    // `formaterNombre` sépare les milliers par une espace fine insécable (U+202F).
+    expect(corps.error).toBe('dv360 — Le cercle compte 300 habitants, sous le minimum de 1 000 par cercle de la plateforme '
+      + '(à vérifier) : élargissez le rayon, ou choisissez une autre maille.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('B13 : TikTok au département, groupe de 800 personnes — avertissement figé (registre), extraction faite', async () => {
+    jeuAvec([{ plateforme: 'tiktok', maille: 'departement', seuil: 20, rayon_m: null }], DESSIN, [{
+      ...regle('tiktok', 'departement', { max_unites: 3000, pop_min_groupe: 1000 }), pop_min_groupe_comportement: 'avertissement',
+    }]);
+    etat.reponses.couverture_zone = {
+      data: { population: 500, surface_km2: 3, lignes: [{ code: '01', nom: 'Ain', commune: null, n_carreaux: 2, pop_en_zone: 500, pop_totale: 800, part: 62.5, part_brute: 62.5 }] },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0].avertissements).toEqual([{ code: 'pop_min_groupe', limite: 1000, valeur: 800, plateforme: 'tiktok' }]);
+  });
+
+  it('B13 : Meta en cercle exact à 5 habitants — aucun minimum, aucun avertissement', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 1000 }], { ...POINT, rayon_m: 1000 },
+      [regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000 })]);
+    etat.reponses.couverture_zone = { data: { population: 5, surface_km2: 3.14, lignes: [] }, error: null };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0].avertissements).toEqual([]);
+  });
+
+  it('B13 : DV360 pavé — les cercles écartés par le minimum sont dits (règle 5), p_pop_min lu du comportement', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cercle', seuil: 30, rayon_m: 2000 }], POINT, [{
+      ...regle('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }), pop_min_unite_comportement: 'refus',
+    }]);
+    etat.reponses.paver_cercles = {
+      data: {
+        n_candidates: 12, n_cercles: 1, population: 10_000, couverte: 4_000, manques: 6_000, hors_zone: 500, achetee: 4_500,
+        taux_utile: 88.9, cercles: [{ lon: 4.8, lat: 45.7, pop_en_zone: 4_000, pop_totale: 4_500, part: 88.9 }],
+        ecartes_pop_min: { n_cercles: 2, population_max: 900 },
+      },
+      error: null,
+    };
+    expect((await extraire()).status).toBe(201);
+    expect(etat.rpcs.find((x) => x.nom === 'paver_cercles')!.args).toMatchObject({ p_pop_min: 1000 });
+    expect(argsCreation().p_resume.plateformes[0].avertissements).toEqual([
+      { code: 'pop_min_unite', limite: 1000, valeur: 900, n: 2, ecartes: true, plateforme: 'dv360' },
+    ]);
+  });
+
   it('rayon_point en cercle à un AUTRE rayon : pavage, exacte false, n_candidates (et non n_touchees)', async () => {
     jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 2000 }], POINT, [regle('meta', 'cercle', { rayon_min_m: 1000 })]);
     etat.reponses.paver_cercles = {

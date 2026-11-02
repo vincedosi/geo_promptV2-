@@ -23,9 +23,10 @@ const ZONE = 'a2a2a2a2-0000-4000-8000-000000000304';
 const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.sql'), 'utf8');
 /** sql/308 et sql/309 (A4) redéfinissent les fonctions de couverture : rejouées après 304, la base revient à son état courant. */
 // A5 : sql/310 redéfinit à son tour les trois fonctions de couverture — la chaîne rejouée va jusqu'à elle.
-// A7 : sql/312 redéfinit `plateformes_geo_parametres_valides` (bornes du polygone admises) — rejouée en dernier.
+// A7 : sql/312 redéfinit `plateformes_geo_parametres_valides` (bornes du polygone admises) ; B13 : sql/318 la redéfinit
+// encore (comportements des minimums admis) — rejouée en dernier.
 const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql',
-  '312_polygone_sommets_morceaux.sql']
+  '312_polygone_sommets_morceaux.sql', '318_minimums_population.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
@@ -105,10 +106,11 @@ describe('plateformes_geo — poids d’un groupe de CP, « à vérifier » par 
   it('meme sur les quatre lignes CP, marqué à vérifier ; NULL et liste vide ailleurs', () => {
     expect(psql(`select count(*) from public.plateformes_geo
                   where maille = 'cp' and poids_groupe_cp = 'meme' and parametres_a_verifier @> '{poids_groupe_cp}';`)).toBe('4');
-    // A7 (sql/312) : la ligne TTD polygone déclare ses deux bornes « à vérifier » — les seuls paramètres hors CP.
+    // A7 (sql/312) : la ligne TTD polygone déclare ses deux bornes « à vérifier » ; B13 (sql/318) : la ligne DV360
+    // cercle, le comportement de son minimum par cercle — les seuls paramètres hors CP.
     expect(psql(`select count(*) from public.plateformes_geo
                   where maille <> 'cp' and (poids_groupe_cp is not null
-                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max}');`)).toBe('0');
+                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max,pop_min_unite_comportement}');`)).toBe('0');
   });
 
   it('les listes de lib/zones/plateformes.ts sont celles des CHECK de la base', () => {

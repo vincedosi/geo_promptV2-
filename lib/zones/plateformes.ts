@@ -25,13 +25,19 @@ export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 
 /**
  * Les paramètres qu'une ligne peut déclarer « à vérifier » (`parametres_a_verifier`, fonction
- * `plateformes_geo_parametres_valides`, sql/304 ; sql/312) : la règle de poids d'un groupe de CP, les clés de
- * `limites` et les bornes du polygone (A7).
+ * `plateformes_geo_parametres_valides`, sql/304 ; sql/312 ; sql/318) : la règle de poids d'un groupe de CP, les clés de
+ * `limites`, les bornes du polygone (A7) et le comportement des minimums de population (B13).
  */
 export const PARAMETRES_VERIFIABLES = [
   'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
-  'polygone_sommets_max', 'polygone_morceaux_max',
+  'polygone_sommets_max', 'polygone_morceaux_max', 'pop_min_unite_comportement', 'pop_min_groupe_comportement',
 ] as const;
+
+/**
+ * Le comportement d'un minimum de population (CHECK `plateformes_geo_pop_min_comportements`, sql/318, B13) : `refus`
+ * (l'unité ou le groupe sous le minimum n'est pas acheté) ou `avertissement` (acheté, et dit).
+ */
+export const COMPORTEMENTS_POPULATION = ['refus', 'avertissement'] as const;
 
 /** Une limite est un entier positif ; absente = aucune limite connue (jamais 0 pour « illimité »). */
 const limite = z.number().int().positive().optional();
@@ -89,6 +95,12 @@ export const PlateformeGeoSchema = z.object({
    */
   polygone_sommets_max: z.number().int().positive().nullable().optional(),
   polygone_morceaux_max: z.number().int().positive().nullable().optional(),
+  /**
+   * B13 (sql/318) : le comportement de `limites.pop_min_unite` et de `limites.pop_min_groupe` — jamais sans la limite
+   * (CHECK) ; absent ou `null` avec une limite = `avertissement` (`minimumPopulation`). Lu par `controlerPopulation` (`conversion-population.ts`).
+   */
+  pop_min_unite_comportement: z.enum(COMPORTEMENTS_POPULATION).nullable().optional(),
+  pop_min_groupe_comportement: z.enum(COMPORTEMENTS_POPULATION).nullable().optional(),
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;

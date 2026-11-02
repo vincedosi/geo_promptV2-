@@ -86,6 +86,49 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     expect(texteAvertissement({ code: 'rayon_max', limite: 80000, valeur: 100000, rayon_m: 80000, plateforme: 'meta' }, 'cercle').replace(/\s/g, ' '))
       .toBe('Rayon ajusté de 100 km à 80 km (maximum Meta) : maille non exacte, perte calculée.');
   });
+  it('B13 : cercle exact de 1 km à 300 habitants sur DV360 — le refus du registre, en tête, et le défaut l’écarte', () => {
+    // Ligne de test de la forme du relevé (sql/318) : 1 000 par cercle, `refus`, comportement « à vérifier ».
+    const dv360 = ligne({
+      plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1000, pop_min_unite: 1000 },
+      pop_min_unite_comportement: 'refus', parametres_a_verifier: ['pop_min_unite_comportement'],
+    });
+    const recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 1000, part_retenue: 1 } as const;
+    const c = { maille: 'cercle' as const, seuil: 20, rayon_m: 1000 };
+    expect(lectureRequise(c, dv360, recette)).toBe('forme');
+    const b = bilanDe(c, dv360, recette, couverture('forme', 'v1', 300));
+    expect(b?.resume).toMatchObject({ exacte: true, achetee: 300 });
+    expect(b?.avertissements).toEqual([
+      { code: 'pop_min_unite', limite: 1000, valeur: 300, n: 1, plateforme: 'dv360', a_verifier: true, refus: true },
+    ]);
+    expect(texteAvertissement(b!.avertissements[0], 'cercle').replace(/\s/g, ' ')).toBe(
+      'Refusé : le cercle compte 300 habitants, sous le minimum de 1 000 (à vérifier) par cercle de la plateforme : '
+      + 'élargissez le rayon ou choisissez une autre maille.');
+    // À 1 000 habitants, le cercle passe.
+    expect(bilanDe(c, dv360, recette, couverture('forme', 'v1', 1000))?.avertissements).toEqual([]);
+  });
+  it('B13 : TikTok — le groupe sous le minimum avertit (registre) ; Meta — aucun minimum', () => {
+    const tiktok = ligne({
+      plateforme: 'tiktok', maille: 'departement', limites: { pop_min_groupe: 1000 }, pop_min_groupe_comportement: 'avertissement',
+    });
+    const b = bilanDe({ maille: 'departement', seuil: 20 }, tiktok, null, couverture('departement', 'v1', 900));
+    // Le département retenu compte 1 000 habitants : la borne est admise.
+    expect(b?.avertissements).toEqual([]);
+    const petit = { ...couverture('departement', 'v1', 500), lignes: [{ code: '01', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 500, pop_totale: 800, part: 62.5, part_brute: 62.5 }] } as unknown as ResultatCouverture;
+    const p = bilanDe({ maille: 'departement', seuil: 20 }, tiktok, null, petit);
+    expect(p?.avertissements).toEqual([{ code: 'pop_min_groupe', limite: 1000, valeur: 800, plateforme: 'tiktok' }]);
+    expect(texteAvertissement(p!.avertissements[0], 'departement').replace(/\s/g, ' '))
+      .toBe('Palier sous 1 000 personnes : 800 achetées, la plateforme peut refuser la diffusion.');
+    const meta = ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 1000 } });
+    const recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 1000, part_retenue: 1 } as const;
+    expect(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 1000 }, meta, recette, couverture('forme', 'v1', 5))?.avertissements).toEqual([]);
+  });
+  it('B13 : cercles écartés au pavage par le minimum — dits avant/après (règle 5)', () => {
+    const dv360 = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { pop_min_unite: 1000 }, pop_min_unite_comportement: 'refus' });
+    const b = bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, dv360, null, { ...pavage, ecartes_pop_min: { n_cercles: 2, population_max: 900 } });
+    expect(b?.avertissements).toEqual([{ code: 'pop_min_unite', limite: 1000, valeur: 900, n: 2, ecartes: true, plateforme: 'dv360' }]);
+    expect(texteAvertissement(b!.avertissements[0], 'cercle').replace(/\s/g, ' '))
+      .toBe('2 cercles au seuil écartés : moins de 1 000 habitants, le minimum par cercle de la plateforme (le plus peuplé : 900).');
+  });
   it('la clé porte la date de mise à jour : une zone recalculée se relit', () => {
     expect(cleCouverture('z', 'm1', 'ind', 'cp')).not.toBe(cleCouverture('z', 'm2', 'ind', 'cp'));
     expect(cleCouverture('z', null, 'ind', 'cp')).toBe('z||ind|cp');
