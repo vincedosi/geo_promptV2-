@@ -49,16 +49,63 @@ export function memesParametres(a: ParametresJeu, b: ParametresJeu): boolean {
 export const SEUIL_PAR_DEFAUT = 20;
 
 /**
- * Le rayon proposé à une plateforme en cercle sans choix explicite : celui de la recette (un rayon autour d'un point
- * ou de POI : la zone le dit), sinon 10 km — l'exemple d'A-10, un réglage d'écran et non une règle de plateforme —,
- * ramené dans les bornes de la ligne de `plateformes_geo` (une borne absente ne borne pas).
+ * Le repli du rayon par défaut quand la surface de la zone est inconnue (B10) : 10 km, l'exemple d'A-10 — un réglage
+ * d'écran et non une règle de plateforme.
  */
 export const RAYON_PAR_DEFAUT_M = 10_000;
 
-export function rayonParDefaut(ligne: Pick<PlateformeGeo, 'limites'> | undefined, recette: Recette | null): number {
-  const voulu = recette?.type === 'rayon_point' || recette?.type === 'rayon_poi' ? recette.rayon_m : RAYON_PAR_DEFAUT_M;
+/**
+ * B10 : R = √(surface / π) / 3 — le rayon du disque de même surface que la zone, divisé par 3 (valeur du brief B10).
+ * Une cellule hexagonale de rayon r couvrant ≈ 2,6 r², une zone compacte se pave alors en ≈ 9π / 2,6 ≈ 11 à 14
+ * cellules quelle que soit sa taille : assez pour qu'une petite zone retienne des cercles au seuil, assez peu pour
+ * qu'une vaste reste sous un plafond de plateforme.
+ */
+export const DIVISEUR_RAYON_SURFACE = 3;
+
+/** Le pas de la réglette de rayon de ⑤ ; le serveur propose ses rayons au même pas (`PAS_RAYON_PROPOSE_M`, parité). */
+export const PAS_RAYON_M = 500;
+
+const M2_PAR_KM2 = 1e6;
+
+/**
+ * Le rayon par défaut et sa raison (dite à l'écran, commun.md règle 5) : `calcule_m` est l'avant (rayon de la recette,
+ * rayon tiré de la surface arrondi à 10 m, ou le repli), `rayon_m` l'après, `borne` la borne de la ligne qui l'a
+ * ramené. Le rayon tiré de la surface se règle au pas de la réglette.
+ */
+export interface RayonDefaut {
+  rayon_m: number;
+  source: 'recette' | 'surface' | 'repli';
+  calcule_m: number;
+  surface_km2?: number;
+  borne?: 'rayon_min_m' | 'rayon_max_m';
+}
+
+/**
+ * Le rayon proposé à une plateforme en cercle sans choix explicite : celui de la recette (un rayon autour d'un point
+ * ou de POI : la zone le dit ; son ajustement est dit par `avertissementsRayon`, B8), sinon celui tiré de la surface de
+ * la zone (B10), sinon le repli — ramené dans les bornes de la ligne de `plateformes_geo` (une borne absente ne borne
+ * pas). Aucune borne écrite ici.
+ */
+export function rayonDefautExplique(
+  ligne: Pick<PlateformeGeo, 'limites'> | undefined, recette: Recette | null, surface_km2?: number | null,
+): RayonDefaut {
   const { rayon_min_m: min, rayon_max_m: max } = ligne?.limites ?? {};
-  return Math.min(Math.max(voulu, min ?? voulu), max ?? Number.POSITIVE_INFINITY);
+  const borner = (v: number) => Math.min(Math.max(v, min ?? v), max ?? Number.POSITIVE_INFINITY);
+  const borne = (v: number): Pick<RayonDefaut, 'borne'> =>
+    min !== undefined && v < min ? { borne: 'rayon_min_m' } : max !== undefined && v > max ? { borne: 'rayon_max_m' } : {};
+  if (recette?.type === 'rayon_point' || recette?.type === 'rayon_poi') {
+    return { rayon_m: borner(recette.rayon_m), source: 'recette', calcule_m: recette.rayon_m, ...borne(recette.rayon_m) };
+  }
+  if (typeof surface_km2 !== 'number' || !(surface_km2 > 0)) {
+    return { rayon_m: borner(RAYON_PAR_DEFAUT_M), source: 'repli', calcule_m: RAYON_PAR_DEFAUT_M, ...borne(RAYON_PAR_DEFAUT_M) };
+  }
+  const brut = Math.sqrt((surface_km2 * M2_PAR_KM2) / Math.PI) / DIVISEUR_RAYON_SURFACE;
+  const auPas = Math.max(PAS_RAYON_M, Math.round(borner(brut) / PAS_RAYON_M) * PAS_RAYON_M);
+  return { rayon_m: borner(auPas), source: 'surface', calcule_m: Math.round(brut / 10) * 10, surface_km2, ...borne(brut) };
+}
+
+export function rayonParDefaut(ligne: Pick<PlateformeGeo, 'limites'> | undefined, recette: Recette | null, surface_km2?: number | null): number {
+  return rayonDefautExplique(ligne, recette, surface_km2).rayon_m;
 }
 
 /** Le choix d'UNE plateforme : `rayon_m` pour la maille cercle, et pour elle seule (CHECK `zsp_rayon_cercle`). */

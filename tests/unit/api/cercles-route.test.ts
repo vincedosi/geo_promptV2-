@@ -134,14 +134,30 @@ describe('paver_cercles', () => {
     await appel(ZONE, '?cible=ind&rayon=5000&seuil=30&plateforme=dv360');
     expect(etat.rpcs[0].args).toMatchObject({ p_rayon_m: 5000, p_seuil: 30, p_pop_min: 1000, p_max_cercles: undefined });
   });
-  it('422 trop_de_cercles : le nombre et le plafond dans la réponse', async () => {
-    etat.reponses.paver_cercles = { data: { refus: 'trop_de_cercles', n_cercles: 481, plafond: 200 }, error: null };
+  it('422 trop_de_cercles : le nombre, le plafond, et le plus petit rayon qui passe (B10), cherché un pavage à la fois', async () => {
+    // n ∝ 1 / r² : 481 cercles à 10 km → il faut r ≥ 15,51 km, soit 16 km au pas de 500 m.
+    etat.reponses.paver_cercles = (args) => {
+      const n = Math.ceil(481 * (10_000 / (args.p_rayon_m as number)) ** 2);
+      return { data: n > 200 ? { refus: 'trop_de_cercles', n_cercles: n, plafond: 200 } : { ...PAVAGE, n_cercles: n }, error: null };
+    };
     const r = await appel(ZONE);
     expect(r.status).toBe(422);
-    expect(await r.json()).toEqual({
+    const corps = await r.json();
+    expect(corps).toMatchObject({
       error: 'Trop de cercles retenus pour cette plateforme : augmentez le rayon ou le seuil.',
       refus: 'trop_de_cercles', n_cercles: 481, plafond: 200,
+      rayon_propose: { rayon_m: 16_000, au_pas: true },
     });
+    expect(corps.rayon_propose.n_cercles).toBeLessThanOrEqual(200);
+    // Le premier pavage, puis au plus six essais — tous aux limites de la ligne lue.
+    expect(etat.rpcs.length).toBeLessThanOrEqual(7);
+    expect(etat.rpcs.length).toBe(1 + corps.rayon_propose.essais);
+    for (const c of etat.rpcs) expect(c.args).toMatchObject({ p_max_cercles: 200, p_seuil: 20 });
+  });
+  it('422 trop_de_cercles sans rayon sous le plafond jusqu’au maximum de la plateforme : rien de proposé, dit', async () => {
+    etat.reponses.paver_cercles = { data: { refus: 'trop_de_cercles', n_cercles: 5_000_000, plafond: 200 }, error: null };
+    const corps = await (await appel(ZONE)).json();
+    expect(corps).toMatchObject({ rayon_propose: null, sans_proposition: { motif: 'aucun_sous_plafond', rayon_max_m: 80_000 } });
   });
   it.each([
     ['zone_introuvable', 404], ['cible_inconnue', 422], ['zone_trop_vaste', 422], ['trop_de_candidates', 422],

@@ -187,9 +187,9 @@ export class PanneauJeuComponent {
     inject(DestroyRef).onDestroy(() => observateur?.disconnect());
   }
 
-  /** La liste nomme la zone : sa recette et sa date vont à l'état (un jeu ouvert porte déjà les siennes). */
+  /** La liste nomme la zone : sa recette, sa date et sa surface (B10) vont à l’état (un jeu ouvert porte déjà les siennes). */
   protected zoneLue(z: ZoneCustomResume): void {
     this.ligneZone.set(z);
-    if (!this.jeu.jeuId() && z.id === this.jeu.zoneId()) this.jeu.choisirZone(z.id, z.recette ?? null, z.updated_at ?? null);
+    if (!this.jeu.jeuId() && z.id === this.jeu.zoneId()) this.jeu.choisirZone(z.id, z.recette ?? null, z.updated_at ?? null, z.surface_km2 ?? null);
   }
 }

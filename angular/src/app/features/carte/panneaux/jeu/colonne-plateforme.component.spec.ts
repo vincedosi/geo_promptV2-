@@ -123,6 +123,26 @@ describe('mg-colonne-plateforme', () => {
     expect(texte(el, '[data-chiffres]')).toContain('Cercles retenus / cellules examinées');
     expect(el.querySelector('[data-chevauchement]')).toBeNull();
   });
+  it('B10 : le rayon par défaut dit d’où il vient (surface, borne) ; un rayon proposé s’adopte en un geste', async () => {
+    const { el, http, jeu, stable } = await colonne('meta');
+    expect(texte(el, '[data-rayon-defaut]')).toBe('Rayon par défaut 10 km : surface de la zone inconnue.');
+    jeu.choisirZone(Z1, null, null, 20);
+    await stable();
+    expect(texte(el, '[data-rayon-defaut]')).toBe(
+      'Rayon par défaut 1 km : 840 m tiré de la surface (√(surface / π) / 3 pour 20 km²), ramené au minimum de Meta.');
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(
+      { error: 'x', refus: 'trop_de_cercles', n_cercles: 481, plafond: 200, rayon_propose: { rayon_m: 16000, n_cercles: 196, au_pas: true, essais: 5 } },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await stable();
+    expect(texte(el, '[data-erreur]')).toBe('481 cercles pour 200 admis par la plateforme. Plus petit rayon sous le plafond : 16 km (196 cercles).');
+    el.querySelector<HTMLButtonElement>('[data-rayon-propose]')!.click();
+    await stable();
+    expect(jeu.choix().meta?.rayon_m).toBe(16000);
+    expect(el.querySelector('[data-rayon-propose]')).toBeNull();
+    expect(el.querySelector('[data-rayon-defaut]')).toBeNull();
+  });
   it('A6 : cercles — la somme des disques dépasse la diffusion achetée, le bilan le dit', async () => {
     const { el, http, jeu, stable } = await colonne('meta');
     jeu.valider('meta');

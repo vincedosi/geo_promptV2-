@@ -7,10 +7,11 @@ import { JeuCarteService } from '../../couches/jeu-carte.service';
 import { MAX_CODES_CONTOURS } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
+import { rayonDefautExplique } from '../../logique/jeu/mailles-url';
 import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
-  texteChevauchement, texteDefaut, texteDiffusionInconnue, texteUnitePays,
+  texteChevauchement, texteDefaut, texteDiffusionInconnue, texteRayonDefaut, texteUnitePays,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
@@ -76,6 +77,7 @@ import { ChoixMailleComponent } from './choix-maille.component';
                 <input type="range" [min]="r.min" [max]="r.max" [step]="r.pas" [value]="rayonLocal()"
                   (input)="rayonLocal.set(valeurDe($event))" (pointerup)="relacherRayon()" (touchend)="relacherRayon()" (keyup)="relacherRayon()" (change)="relacherRayon()"
                   aria-label="Rayon des cercles" class="w-full accent-teal" />
+                @if (rayonDefautTexte(); as t) { <p data-rayon-defaut class="m-0 text-[11px] text-secondary">{{ t }}</p> }
               </div>
             }
             @if (c.maille !== 'polygone') {
@@ -87,6 +89,10 @@ import { ChoixMailleComponent } from './choix-maille.component';
 
         @if (jeu.enCours()[plateforme()]) { <div data-conversion class="font-mono text-[11px] text-tertiary">Conversion…</div> }
         @if (jeu.erreurs()[plateforme()]; as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
+        @if (jeu.rayonsProposes()[plateforme()]; as p) {
+          <button type="button" data-rayon-propose (click)="regler({ rayon: p.rayon_m })"
+            [class]="pastille + ' self-start ' + pastilleInactive">Passer à {{ km(p.rayon_m) }} km</button>
+        }
         @if (motifVide(); as m) { <div data-motif-vide [class]="encartAvertissement">{{ m }}</div> }
 
         @if (bilan(); as b) {
@@ -265,6 +271,17 @@ export class ColonnePlateformeComponent {
     return t === null ? '—' : `${formaterDecimal(t)} %`;
   });
   protected readonly kmTexte = computed(() => formaterDecimal(this.rayonLocal() / M_PAR_KM));
+  protected readonly km = (m: number) => formaterDecimal(m / M_PAR_KM);
+  /**
+   * B10 : d'où vient le rayon par défaut (surface de la zone, borne de la plateforme, ou repli), tant que le rayon choisi
+   * EST ce défaut et qu'aucun jeu ouvert ne porte le sien ; sinon `null`.
+   */
+  protected readonly rayonDefautTexte = computed(() => {
+    const c = this.choix();
+    if (c?.maille !== 'cercle' || this.jeu.jeu()) return null;
+    const d = rayonDefautExplique(this.ligne(), this.jeu.recette(), this.jeu.surface());
+    return d.rayon_m === c.rayon_m ? texteRayonDefaut(d, this.plateforme()) : null;
+  });
   protected readonly unitesTexte = computed(() => nombreUnites(this.bilan()?.resume.n_unites ?? 0, this.choix()?.maille ?? 'polygone'));
 
   protected regler(r: { maille?: Maille; seuil?: number; rayon?: number }): void {

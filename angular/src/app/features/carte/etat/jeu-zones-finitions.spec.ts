@@ -77,3 +77,44 @@ describe('JeuZonesService — E6 : la cible et le mode dans l’URL (⑤ finitio
     expect([jeu.cible(), jeu.modePlan()]).toEqual(['jeunes_15_29', 'exclusif']);
   });
 });
+
+describe('JeuZonesService — B10 : rayon tiré de la surface, rayon proposé sous le plafond', () => {
+  it('la surface donnée avec la recette règle le rayon par défaut de Meta (20 km² → 1 km ; 30 000 km² → 32,5 km)', async () => {
+    const { jeu, stable } = await monter(`/carte?zoneJeu=${Z1}`);
+    jeu.choisirZone(Z1, null, null, 20);
+    await stable();
+    expect(jeu.surface()).toBe(20);
+    expect(jeu.choix().meta).toMatchObject({ maille: 'cercle', rayon_m: 1000 });
+    jeu.choisirZone(Z1, null, null, 30000);
+    await stable();
+    expect(jeu.choix().meta?.rayon_m).toBe(32500);
+  });
+  it('le refus porte le plus petit rayon qui passe : dit (avant → après), offert, oublié une fois réglé', async () => {
+    const { http, jeu, stable } = await monter(`/carte?zoneJeu=${Z1}`);
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(
+      { error: 'Trop de cercles retenus pour cette plateforme : augmentez le rayon ou le seuil.', refus: 'trop_de_cercles', n_cercles: 481, plafond: 200,
+        rayon_propose: { rayon_m: 16000, n_cercles: 196, au_pas: true, essais: 5 } },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await stable();
+    expect(jeu.erreurs().meta).toBe('481 cercles pour 200 admis par la plateforme. Plus petit rayon sous le plafond : 16 km (196 cercles).');
+    expect(jeu.rayonsProposes().meta).toEqual({ rayon_m: 16000, n_cercles: 196, au_pas: true });
+    jeu.regler('meta', { rayon: 16000 });
+    await stable();
+    expect(jeu.choix().meta?.rayon_m).toBe(16000);
+    expect(jeu.rayonsProposes().meta).toBeUndefined();
+  });
+  it('aucun rayon jusqu’au maximum : la phrase le dit, rien n’est offert', async () => {
+    const { http, jeu, stable } = await monter(`/carte?zoneJeu=${Z1}`);
+    jeu.valider('meta');
+    http.expectOne((r) => r.url.includes('/cercles')).flush(
+      { error: 'x', refus: 'trop_de_cercles', n_cercles: 900, plafond: 200, rayon_propose: null,
+        sans_proposition: { motif: 'aucun_sous_plafond', rayon_max_m: 80000, essais: 1 } },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await stable();
+    expect(jeu.erreurs().meta).toBe('900 cercles pour 200 admis par la plateforme, et encore trop jusqu’au rayon maximal (80 km) : relevez le seuil ou réduisez la zone.');
+    expect(jeu.rayonsProposes().meta).toBeUndefined();
+  });
+});

@@ -32,6 +32,8 @@ export interface ZoneCustomResume {
   region_codes?: string[];
   /** La recette de la zone (lot 3, `custom_geo_zones.recette`) ; `null` pour une zone d'avant le lot 3. */
   recette?: Recette | null;
+  /** Surface géodésique de la forme, en km² (`surface_km2`, sql/316, B10) : le rayon par défaut de la maille cercle de ⑤. */
+  surface_km2?: number | null;
 }
 
 /** `GET /api/custom-geo/stats` (`get_custom_geo_zones_stats`) : champs lus par `ZonesOverlay.tsx:171-175`. */

@@ -68,7 +68,8 @@ export interface DetailJeuZone {
     id: string; type: 'zone'; nom: string; description: string | null; version: number; created_at: string;
     custom_geo_zone_id: string; cible: string; mode_plan: ModePlan;
   };
-  zone: { id: string; nom: string; recette: Recette | null };
+  /** `surface_km2` : sql/316 (B10), absente d'une réponse d'avant. */
+  zone: { id: string; nom: string; recette: Recette | null; surface_km2?: number | null };
   plateformes: ChoixEnregistre[];
 }
 

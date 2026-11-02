@@ -584,7 +584,7 @@ describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
   // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
-  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/conversion-defaut.ts',
+  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/conversion-defaut.ts', 'lib/zones/rayon-propose.ts',
     'lib/zones/polygone-extraction.ts']
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;

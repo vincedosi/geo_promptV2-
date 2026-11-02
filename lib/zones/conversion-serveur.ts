@@ -17,6 +17,7 @@ import {
   MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PlateformeGeoSchema, PlateformePoidsSchema, type PlateformeGeo, type PlateformePoids,
 } from './plateformes';
 import { REGLAGES_DEFAUT_REPLI, type ReglagesDefaut } from './conversion-defaut';
+import { chercherRayonPropose } from './rayon-propose';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
@@ -138,4 +139,27 @@ export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, reg
     p_pop_min: regle.limites.pop_min_unite,
     p_max_cercles: regle.limites.max_unites,
   });
+}
+
+/**
+ * B10 : le pavage de `paverPourPlateforme`, et, s'il est refusé `trop_de_cercles`, le plus petit rayon qui passe sous
+ * le plafond (`chercherRayonPropose`, au plus `ESSAIS_RAYON_PROPOSE` pavages de plus, UN À LA FOIS) ajouté au refus :
+ * `rayon_propose` (`{ rayon_m, n_cercles, au_pas, essais }`) ou `null` avec `sans_proposition` (le motif). Rien n'est
+ * appliqué : l'écran montre le refus (avant) et la proposition (après), l'utilisateur choisit. Tout autre résultat est
+ * rendu tel quel. Un essai en échec est journalisé et arrête la recherche ; le refus d'origine reste rendu.
+ */
+export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo) {
+  const pavage = await paverPourPlateforme(supabase, d, regle);
+  const o = pavage.data as { refus?: unknown; n_cercles?: unknown; plafond?: unknown } | null;
+  if (pavage.error || o?.refus !== 'trop_de_cercles' || typeof o.n_cercles !== 'number' || typeof o.plafond !== 'number') return pavage;
+  const proposition = await chercherRayonPropose(async (rayon_m) => {
+    const essai = await paverPourPlateforme(supabase, { ...d, rayon_m }, regle);
+    if (essai.error) {
+      console.error('[zones/cercles] rayon proposé, essai à', rayon_m, 'm :', essai.error.code, essai.error.message);
+      return null;
+    }
+    const e = essai.data as { refus?: unknown; n_cercles?: unknown } | null;
+    return { n_cercles: typeof e?.n_cercles === 'number' ? e.n_cercles : 0, ...(typeof e?.refus === 'string' ? { refus: e.refus } : {}) };
+  }, { rayon_m: d.rayon_m, n_cercles: o.n_cercles, plafond: o.plafond }, regle.limites);
+  return { ...pavage, data: { ...o, ...proposition } as unknown as typeof pavage.data };
 }

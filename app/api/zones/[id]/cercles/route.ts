@@ -14,6 +14,10 @@
  * Statuts des refus : 404 `zone_introuvable`, 503 `couverture_non_construite`, 422 sinon (`trop_de_cercles` porte
  * `n_cercles` et `plafond`) — messages `MESSAGES_CONVERSION` (`lib/zones/conversion.ts`).
  *
+ * B10 : un refus `trop_de_cercles` porte aussi le plus petit rayon qui passe sous le plafond (`rayon_propose`, ou
+ * `null` et `sans_proposition`) — `paverAvecProposition`, au plus six pavages de plus, UN À LA FOIS, dans la même
+ * requête (≈ 40 s au pire mesuré depuis A6, sous `maxDuration`). Rien n'est appliqué : l'écran propose, l'utilisateur choisit.
+ *
  * Quota : 6 / min / compte, à lui seul (un pavage n'est ni une couverture ni une zone). Au pire mesuré (ARA à 40 km,
  * 1,76 s / 119 500 accès, sql/276), ≈ 720 000 accès / min / compte.
  */
@@ -25,7 +29,7 @@ import { createQuota } from '@/lib/api/rate-limit';
 import { espaceDeZone, idDeZone } from '@/lib/zones/session-zones';
 import { RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 import { MESSAGES_CONVERSION } from '@/lib/zones/conversion';
-import { lireRegles, paverPourPlateforme, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { lireRegles, paverAvecProposition, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { PLATEFORMES } from '@/lib/zones/plateformes';
 
 export const dynamic = 'force-dynamic';
@@ -77,6 +81,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const refus = refusDuChoix({ plateforme, maille: 'cercle', rayon_m: rayon }, regle);
   if (refus || !regle) return NextResponse.json({ error: refus }, { status: 400 });
 
-  const pavage = await paverPourPlateforme(supabase, { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil }, regle);
+  const pavage = await paverAvecProposition(supabase, { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil }, regle);
   return repondreCouverture(pavage, MESSAGES_CONVERSION, 'zones/cercles', ECHEC, 'Rayon ou seuil hors des bornes du calcul.');
 }

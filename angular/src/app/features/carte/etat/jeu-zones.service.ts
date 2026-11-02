@@ -1,7 +1,5 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { map } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
 import { type DetailJeuZone, JeuxApi, type ModePlan, type ReponsePlateformes } from '../data/jeux.api';
 import { MODE_PLAN_DEFAUT_ZONE } from '../../risques/logique/jeu';
@@ -16,17 +14,12 @@ import {
   PARAM_CIBLE_JEU, PARAM_MODE_JEU, ecrireMailles, lireMailles, lireModeJeu, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
 import { mailleSansObjet } from '../logique/jeu/conversion';
-import { MESSAGE_JEU_RISQUE } from '../logique/jeu/ecran';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
+import { jeuPerdu, lireJeuDeZone } from './jeu-zones-lecture';
 import { TachesJeu, cleTache } from './jeu-zones-taches';
 import { LectureAnnulable } from './lecture-annulable';
-
-/** Un jeu RISQUE reçu par ⑤ : la phrase que le serveur rend dans l'autre sens (`MESSAGE_JEU_RISQUE`). */
-class JeuRisque extends Error {
-  constructor() { super(MESSAGE_JEU_RISQUE); }
-}
 
 /**
  * ⑤ Jeu de zones — l'ÉTAT (lot 5, T9) : la zone convertie, le jeu enregistré ouvert, le choix de maille par
@@ -64,6 +57,8 @@ export class JeuZonesService {
   /** Recette CONNUE (sélecteur, jeu), même illisible (`null`) ; sinon ni choix ni lecture : une zone pays aurait les
    *  défauts d'une zone locale (DV360 au CP, 5 956 lignes ; pavage Meta refusé) — relecture 2. */
   private readonly _recetteConnue = signal(false);
+  /** B10 : la surface de la zone (km², sql/316), donnée avec sa recette : le rayon par défaut s'en tire ; `null` inconnue. */
+  private readonly _surface = signal<number | null>(null);
   /** La cible et le mode choisis AVANT enregistrement (`?cibleJeu=`, `?modeJeu=`, ⑤ finitions T5) ; un jeu ouvert porte les siens. */
   private readonly _cibleChoisie = signal<string | null>(null);
   private readonly _modeChoisi = signal<ModePlan | null>(null);
@@ -87,6 +82,7 @@ export class JeuZonesService {
   readonly jeuId: Signal<string | null> = this._jeuId.asReadonly();
   readonly extraction: Signal<number | null> = this._extraction.asReadonly();
   readonly recette: Signal<Recette | null> = this._recette.asReadonly();
+  readonly surface: Signal<number | null> = this._surface.asReadonly();
   /** La date de la forme courante : la changer vide les conversions, et l'écran les redemande. */
   readonly maj: Signal<string | null> = this._maj.asReadonly();
   readonly relectureZone: Signal<number> = this._relectureZone.asReadonly();
@@ -103,9 +99,9 @@ export class JeuZonesService {
 
   /** B9 (ARB-7) : défaut et raison par plateforme, sur les simulations EN MÉMOIRE (`defautsDe`) ; vide pour un jeu ouvert. */
   readonly defauts: Signal<ReturnType<typeof defautsDe>> = computed(() => (this.jeu() ? {} : defautsDe(this.plateformes(), this._recette(),
-    this.lecturePlateformes.resultat()?.reglages_defaut, (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)))));
+    this.lecturePlateformes.resultat()?.reglages_defaut, (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)), this._surface())));
   /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (`defauts`), seuil 20 %. */
-  private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts()));
+  private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts(), this._surface()));
 
   /**
    * Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. Un choix
@@ -146,6 +142,8 @@ export class JeuZonesService {
   /** Le message d'échec de la conversion de chaque plateforme (refus en français). */
   readonly erreurs: Signal<Partial<Record<Plateforme, string>>> = computed(() =>
     parPlateforme(this.choix(), this.regleDe, (p, c, l) => this.taches.erreur(this.tache(p, c, l))));
+  /** B10 : le rayon proposé avec un refus `trop_de_cercles` de la plateforme (la colonne l'offre en un geste). */
+  readonly rayonsProposes = computed(() => parPlateforme(this.choix(), this.regleDe, (p, c, l) => this.taches.proposition(this.tache(p, c, l))));
 
   private dernier: ParametresJeu = lireParametresJeu(this.route.snapshot.queryParamMap);
   private detruit = false;
@@ -183,10 +181,11 @@ export class JeuZonesService {
    * Choisit (ou retire, `null`) la zone à convertir. Une AUTRE zone ferme le jeu ouvert et efface tout résultat et
    * tout choix explicite. `recette` et `maj` (date de mise à jour) : ce que le sélecteur connaît — rappeler avec la
    * zone courante les renseigne (zone arrivée par l'URL) ; une autre `maj` (zone recalculée en ③) fait tout relire.
-   * `recette` : `undefined` = inconnue (rien ne se lit), `null` = illisible. */
-  choisirZone(id: string | null, recette?: Recette | null, maj: string | null = null): void {
+   * `recette` : `undefined` = inconnue (rien ne se lit), `null` = illisible. `surface` (B10) : km², avec la recette. */
+  choisirZone(id: string | null, recette?: Recette | null, maj: string | null = null, surface?: number | null): void {
     const zone = id === null ? null : lireZoneAnalyse(id);
     if (zone === this._zoneId() && this._jeuId() === null) {
+      if (zone && surface !== undefined) this._surface.set(surface);
       if (zone && recette !== undefined) {
         this._recette.set(recette);
         this._recetteConnue.set(true);
@@ -205,6 +204,7 @@ export class JeuZonesService {
     this._reglages.set({});
     this._recette.set(recette ?? null);
     this._recetteConnue.set(recette !== undefined);
+    this._surface.set(surface ?? null);
     this._maj.set(maj);
     this._erreur.set(null);
     this._zoneId.set(zone);
@@ -256,7 +256,7 @@ export class JeuZonesService {
     const actuel = this.choix()[plateforme];
     const maille = r.maille ?? actuel?.maille;
     if (!maille || mailleSansObjet(this._recette(), maille)) return;
-    const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette());
+    const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette(), this._surface());
     if (actuel && ecrireMailles({ [plateforme]: actuel }) === ecrireMailles({ [plateforme]: suivant })) return;
     this._reglages.update((avant) => ({ ...avant, [plateforme]: suivant }));
     this.taches.oublier(`cercles|${plateforme}`); // un refus de pavage valait pour l'ancien rayon ou l'ancien seuil
@@ -274,7 +274,7 @@ export class JeuZonesService {
     const actuel = this.choix()[plateforme];
     if (this.detruit || !zone || !actuel || !this._recetteConnue()) return;
     const cible = this.cible();
-    const simulations = this.jeu() || this._reglages()[plateforme] ? [] : choixASimuler(this.plateformes(), plateforme, this._recette())
+    const simulations = this.jeu() || this._reglages()[plateforme] ? [] : choixASimuler(this.plateformes(), plateforme, this._recette(), this._surface())
       .filter((s) => !this.taches.erreur(this.tache(plateforme, s.choix, s.ligne))).map((s) => s.choix);
     for (const c of [actuel, ...simulations]) {
       const ligne = this.regle(plateforme, c.maille);
@@ -342,20 +342,17 @@ export class JeuZonesService {
   private ouvrirJeu(id: string): void {
     this.lectureJeu.perimer();
     this._jeuId.set(id);
-    const lecture = this.api.lire(id).pipe(map((r) => {
-      if (r.jeu.type !== 'zone') throw new JeuRisque();
-      return r as DetailJeuZone;
-    }));
-    this.lectureJeu.lancer(lecture, (r) => {
+    this.lectureJeu.lancer(lireJeuDeZone(this.api, id), (r) => {
       if (r.jeu.custom_geo_zone_id !== this._zoneId()) {
         this.viderResultats();
         this._maj.set(null);
       }
       this._zoneId.set(r.jeu.custom_geo_zone_id);
       this._recette.set(r.zone.recette);
+      this._surface.set(r.zone.surface_km2 ?? null);
       this._recetteConnue.set(true);
     }, (e) => {
-      if (e instanceof JeuRisque || (e instanceof HttpErrorResponse && e.status === 404)) {
+      if (jeuPerdu(e)) {
         this._jeuId.set(null);
         this._extraction.set(null);
       }
@@ -376,6 +373,7 @@ export class JeuZonesService {
       this.viderResultats();
       this._recette.set(null);
       this._recetteConnue.set(false);
+      this._surface.set(null);
       this._maj.set(null);
       this._zoneId.set(zone);
     }

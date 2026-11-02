@@ -58,6 +58,8 @@ export interface CustomGeoZoneSummary {
   dept_codes?: string[];
   /** Codes région INSEE résolus (issus de custom_geo_zone_codes, code_type='region') */
   region_codes?: string[];
+  /** Surface géodésique de la forme, en km² (colonne générée, sql/316, B10) : le rayon par défaut de la maille cercle de ⑤. */
+  surface_km2?: number | null;
 }
 
 export interface CustomGeoZoneFull extends CustomGeoZoneSummary {

@@ -4,7 +4,7 @@ import type { Observable } from 'rxjs';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
 import type { ChoixMaille } from '../logique/jeu/mailles-url';
 import { lectureRequise } from '../logique/jeu/bilan';
-import { texteTropDeCercles } from '../logique/jeu/ecran';
+import { rayonPropose, texteTropDeCercles } from '../logique/jeu/ecran';
 import type { Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { FileLectures } from './file-lectures';
@@ -34,6 +34,8 @@ export function cleTache(
 export class TachesJeu {
   private readonly file = new FileLectures();
   private readonly _erreurs = signal<ReadonlyMap<string, string>>(new Map());
+  /** B10 : le rayon proposé avec un refus `trop_de_cercles`, par clé de tâche ; oublié avec l'échec. */
+  private readonly _propositions = signal<ReadonlyMap<string, NonNullable<ReturnType<typeof rayonPropose>>>>(new Map());
   /** Le pavage demandé en dernier par plateforme (`zone|cible|rayon|seuil`) : un second `valider` identique n'en relance pas. */
   private readonly demandes = new Map<Plateforme, string>();
 
@@ -47,6 +49,11 @@ export class TachesJeu {
   /** Le message d'échec de la tâche, s'il y en a un (lu dans un `computed` : suit les échecs). */
   erreur(cle: string): string | undefined {
     return this._erreurs().get(cle);
+  }
+
+  /** B10 : le rayon proposé avec le refus `trop_de_cercles` de la tâche, s'il y en a un (suit les échecs). */
+  proposition(cle: string): NonNullable<ReturnType<typeof rayonPropose>> | undefined {
+    return this._propositions().get(cle);
   }
 
   /** Oublie l'échec précédent de la tâche, puis la met en file (une tâche de même clé est remplacée). */
@@ -69,12 +76,15 @@ export class TachesJeu {
   oublier(cle: string): void {
     const suite = new Map(this._erreurs());
     if (suite.delete(cle)) this._erreurs.set(suite);
+    const propositions = new Map(this._propositions());
+    if (propositions.delete(cle)) this._propositions.set(propositions);
   }
 
   /** Annule tout : la file, la lecture en vol, et les échecs notés. */
   vider(): void {
     this.file.vider();
     this._erreurs.set(new Map());
+    this._propositions.set(new Map());
   }
 
   private echec(cle: string, e: unknown): void {
@@ -85,5 +95,7 @@ export class TachesJeu {
       return;
     }
     this._erreurs.update((m) => new Map(m).set(cle, message));
+    const p = e instanceof HttpErrorResponse ? rayonPropose(e.error) : null;
+    if (p) this._propositions.update((m) => new Map(m).set(cle, p));
   }
 }

@@ -1,5 +1,5 @@
 import {
-  RAYON_PAR_DEFAUT_M, lireModeJeu, parametresDe, SEUIL_PAR_DEFAUT, ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
+  DIVISEUR_RAYON_SURFACE, PAS_RAYON_M, RAYON_PAR_DEFAUT_M, rayonDefautExplique, lireModeJeu, parametresDe, SEUIL_PAR_DEFAUT, ecrireMailles, lireMailles, lireParametresJeu, lireVersion, memesParametres, rayonParDefaut,
 } from './mailles-url';
 
 describe('?mailles= (A-10)', () => {
@@ -66,6 +66,36 @@ describe('rayon proposé à une plateforme en cercle', () => {
     expect(rayonParDefaut({ limites: {} }, { v: 1, type: 'dessin' })).toBe(RAYON_PAR_DEFAUT_M);
     expect(rayonParDefaut(undefined, null)).toBe(RAYON_PAR_DEFAUT_M);
     expect(rayonParDefaut({ limites: { rayon_min_m: 15000 } }, null)).toBe(15000);
+  });
+});
+
+describe('B10 : rayon par défaut tiré de la surface de la zone', () => {
+  const meta = { limites: { rayon_min_m: 1000, rayon_max_m: 80000 } };
+  const dessin = { v: 1, type: 'dessin' } as const;
+  it('zone de 20 km² sur Meta : √(20 / π) / 3 ≈ 0,84 km, ramené au minimum de Meta (1 km), dit', () => {
+    const d = rayonDefautExplique(meta, dessin, 20);
+    expect(d).toEqual({ rayon_m: 1000, source: 'surface', calcule_m: 840, surface_km2: 20, borne: 'rayon_min_m' });
+    expect(rayonParDefaut(meta, dessin, 20)).toBe(1000);
+  });
+  it('zone de 30 000 km² : ≈ 32,6 km, au pas de la réglette (32,5 km), sans borne', () => {
+    const d = rayonDefautExplique(meta, dessin, 30000);
+    expect(d).toEqual({ rayon_m: 32500, source: 'surface', calcule_m: 32570, surface_km2: 30000 });
+    expect(d.rayon_m % PAS_RAYON_M).toBe(0);
+    expect(DIVISEUR_RAYON_SURFACE).toBe(3);
+  });
+  it('zone plus vaste que le maximum : ramenée au maximum, dit', () => {
+    expect(rayonDefautExplique(meta, dessin, 550000)).toMatchObject({ rayon_m: 80000, borne: 'rayon_max_m' });
+  });
+  it('le rayon de la recette l’emporte sur la surface (son ajustement est dit par avertissementsRayon, B8)', () => {
+    expect(rayonDefautExplique(meta, { v: 1, type: 'rayon_point', lon: 5, lat: 43, rayon_m: 500 }, 20))
+      .toEqual({ rayon_m: 1000, source: 'recette', calcule_m: 500, borne: 'rayon_min_m' });
+  });
+  it('surface inconnue : le repli d’écran (10 km), dit', () => {
+    expect(rayonDefautExplique(meta, dessin, null)).toEqual({ rayon_m: RAYON_PAR_DEFAUT_M, source: 'repli', calcule_m: RAYON_PAR_DEFAUT_M });
+    expect(rayonDefautExplique(meta, dessin, 0).source).toBe('repli');
+  });
+  it('une ligne sans borne : jamais sous un pas de réglette', () => {
+    expect(rayonDefautExplique({ limites: {} }, dessin, 0.01).rayon_m).toBe(PAS_RAYON_M);
   });
 });
 

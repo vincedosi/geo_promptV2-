@@ -73,9 +73,14 @@ function codesPays(c: ChoixMaille, ligne: PlateformeGeo, recette: Recette | null
  */
 export const SANS_RECETTE: Recette = { v: 1, type: 'dessin' };
 
-/** Un choix bien formé : une maille cercle reçoit un rayon (le donné, sinon `rayonParDefaut`), une autre n'en porte pas. */
-export function choixNeuf(maille: Maille, seuil: number, rayon: number | undefined, ligne: PlateformeGeo | undefined, recette: Recette | null): ChoixMaille {
-  return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, recette) } : { maille, seuil };
+/**
+ * Un choix bien formé : une maille cercle reçoit un rayon (le donné, sinon `rayonParDefaut`, tiré de la surface de la
+ * zone sans rayon de recette — B10), une autre n'en porte pas.
+ */
+export function choixNeuf(
+  maille: Maille, seuil: number, rayon: number | undefined, ligne: PlateformeGeo | undefined, recette: Recette | null, surface_km2?: number | null,
+): ChoixMaille {
+  return maille === 'cercle' ? { maille, seuil, rayon_m: rayon ?? rayonParDefaut(ligne, recette, surface_km2) } : { maille, seuil };
 }
 
 /**
@@ -85,7 +90,7 @@ export function choixNeuf(maille: Maille, seuil: number, rayon: number | undefin
  */
 export function choixDeBase(
   enregistres: readonly { plateforme: Plateforme; maille: Maille; seuil: number; rayon_m: number | null }[] | null,
-  regles: readonly PlateformeGeo[], recette: Recette | null, defauts?: Partial<Record<Plateforme, DefautExplique>>,
+  regles: readonly PlateformeGeo[], recette: Recette | null, defauts?: Partial<Record<Plateforme, DefautExplique>>, surface_km2?: number | null,
 ): ChoixParPlateforme {
   if (enregistres) {
     return Object.fromEntries(enregistres.map((c) => [c.plateforme, c.rayon_m === null
@@ -95,7 +100,7 @@ export function choixDeBase(
   for (const p of PLATEFORMES) {
     const maille = defauts ? defauts[p]?.maille ?? null : mailleParDefaut(regles, p, recette ?? SANS_RECETTE);
     const ligne = regles.find((l) => l.plateforme === p && l.maille === maille);
-    if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette);
+    if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2);
   }
   return choix;
 }
@@ -105,11 +110,11 @@ export function choixDeBase(
  * deviendrait (seuil par défaut, rayon par défaut), donc chiffré par la MÊME lecture que le choix une fois adopté.
  */
 export function choixASimuler(
-  regles: readonly PlateformeGeo[], p: Plateforme, recette: Recette | null,
+  regles: readonly PlateformeGeo[], p: Plateforme, recette: Recette | null, surface_km2?: number | null,
 ): { choix: ChoixMaille; ligne: PlateformeGeo }[] {
   return simulationsRequises(regles, p, recette ?? SANS_RECETTE).flatMap((m) => {
     const ligne = regles.find((l) => l.plateforme === p && l.maille === m);
-    return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette), ligne }] : [];
+    return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2), ligne }] : [];
   });
 }
 
@@ -122,12 +127,12 @@ export function choixASimuler(
 export function defautsDe(
   regles: readonly PlateformeGeo[], recette: Recette | null, reglages: ReglagesDefaut | undefined,
   lu: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => ResultatCouverture | ResultatCercles | undefined,
-  echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => boolean,
+  echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => boolean, surface_km2?: number | null,
 ): Partial<Record<Plateforme, DefautExplique>> {
   const sortie: Partial<Record<Plateforme, DefautExplique>> = {};
   for (const p of PLATEFORMES) {
     const simulations: Simulations = {};
-    for (const { choix, ligne } of choixASimuler(regles, p, recette)) {
+    for (const { choix, ligne } of choixASimuler(regles, p, recette, surface_km2)) {
       const b = bilanDe(choix, ligne, recette, lu(p, choix, ligne));
       if (b) simulations[choix.maille] = simulationDe(b.resume);
       else if (echec(p, choix, ligne)) simulations[choix.maille] = 'refusee';

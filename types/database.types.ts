@@ -2671,6 +2671,7 @@ export type Database = {
           org_id: string
           recette: Json | null
           resolved_at: string | null
+          surface_km2: number | null
           source_metadata: Json
           source_type: string
           updated_at: string
@@ -2692,6 +2693,7 @@ export type Database = {
           org_id: string
           recette?: Json | null
           resolved_at?: string | null
+          surface_km2?: never
           source_metadata?: Json
           source_type: string
           updated_at?: string
@@ -2713,6 +2715,7 @@ export type Database = {
           org_id?: string
           recette?: Json | null
           resolved_at?: string | null
+          surface_km2?: never
           source_metadata?: Json
           source_type?: string
           updated_at?: string

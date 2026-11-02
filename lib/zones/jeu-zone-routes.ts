@@ -205,13 +205,13 @@ export async function enregistrerJeuZone(
 }
 
 /**
- * GET d'un jeu de zone : `{ jeu, zone: { id, nom, recette }, plateformes }`. Deux lectures, en parallèle ; aucune de
+ * GET d'un jeu de zone : `{ jeu, zone: { id, nom, recette, surface_km2 }, plateformes }` (`surface_km2` : sql/316, B10). Deux lectures, en parallèle ; aucune de
  * `zone_set_cp` (un jeu de zone n'en a pas). La zone ne peut manquer (clé étrangère `on delete restrict`) : son
  * absence est une anomalie, rendue en 500.
  */
 export async function lireJeuZone(supabase: ClientAdmin, jeu: LigneJeu): Promise<NextResponse> {
   const [zone, choix] = await Promise.all([
-    supabase.from('custom_geo_zones').select('id, name, recette')
+    supabase.from('custom_geo_zones').select('id, name, recette, surface_km2')
       .eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
     supabase.from('zone_set_plateformes').select(COLONNES_CHOIX).eq('zone_set_id', jeu.id).order('plateforme'),
   ]);
@@ -222,7 +222,7 @@ export async function lireJeuZone(supabase: ClientAdmin, jeu: LigneJeu): Promise
   return NextResponse.json(
     {
       jeu: Object.fromEntries(CHAMPS_JEU_ZONE.map((k) => [k, jeu[k]])),
-      zone: { id: zone.data.id, nom: zone.data.name, recette: zone.data.recette },
+      zone: { id: zone.data.id, nom: zone.data.name, recette: zone.data.recette, surface_km2: zone.data.surface_km2 },
       plateformes: choix.data ?? [],
     },
     { headers: { 'Cache-Control': 'no-store' } },
