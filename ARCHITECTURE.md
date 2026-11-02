@@ -1664,6 +1664,7 @@ le Voronoi, a sa route directe `GET /api/voronoi` (lot 4).
 | `/api/user/organizations` | GET | Orgs de l'utilisateur courant (badge de session React et Angular) ; `name` est le nom AFFICHÉ (`nomAffiche`, `lib/espaces/nom-espace.ts` : « dentsu.explore (interne) » pour `genesis-global`), la base garde son nom |
 | `/api/user/switch-org` | POST | Changement d'org active |
 | `/api/auth/[...auth]` | GET/POST | Catch-all INERTE. L'authentification se fait entierement cote client par le SDK Supabase ; cette route existe pour qu'un appel a `/api/auth/*` reponde autre chose qu'un 404 |
+| `/api/dev/connexion-auto` | POST | **Developpement local seulement** (2026-11-02). 404 si `NODE_ENV !== 'development'` ou si `DEV_CONNEXION_AUTO_EMAIL` / `DEV_CONNEXION_AUTO_MOT_DE_PASSE` manquent, SANS appeler GoTrue ; sinon `signInWithPassword` cote serveur (cle anon) et rend `{ access_token, refresh_token }` (`no-store`), jamais les identifiants ; 502 si GoTrue refuse. Hors du matcher de `middleware.ts`. Appelee par `ConnexionAutoService` de l'Angular autonome (voir « Sans session » plus bas). Ne touche pas l'espace actif (`profiles.organization_id`) : la session arrive sur l'espace deja actif du compte. Test : `tests/unit/api/connexion-auto-dev-route.test.ts` |
 
 > La page `/integration-panneaux` et ses routes `/api/integration-panneaux/*`
 > ont ete supprimees en 2026-07 (pipeline CSV incomplet, perte de colonnes —
@@ -2222,6 +2223,8 @@ l'enveloppe `{ error, nb_polygones: 0, category }`. `maxDuration` 60 s (lycees :
 | `UPSTASH_REDIS_REST_URL` | Redis rate limiting |
 | `UPSTASH_REDIS_REST_TOKEN` | Token Redis |
 | `ADMIN_INIT_KEY` | Cle init admin |
+| `DEV_CONNEXION_AUTO_EMAIL` | Developpement local SEULEMENT (2026-11-02) : e-mail du compte que `POST /api/dev/connexion-auto` connecte pour l'Angular autonome. Dans `.env.development.local` (non suivi), jamais dans un fichier versionne. Absente : la route repond 404 et l'ecran `/connexion` s'affiche |
+| `DEV_CONNEXION_AUTO_MOT_DE_PASSE` | Mot de passe de ce compte, memes regles. Ne quitte jamais le serveur : la route ne rend que les jetons de session |
 | `INNGEST_EVENT_KEY` | Jobs async |
 | `INNGEST_SIGNING_KEY` | Signing jobs |
 | `NEXT_PUBLIC_APP_URL` | URL app ; absente, l'origine de la requete. Sert le `redirectTo` des liens de mot de passe (`lib/espaces/lien-mot-de-passe.ts`) : l'origine retenue doit figurer dans la liste blanche de GoTrue. Second lecteur depuis le 2026-10-13 : `angular/scripts/ecrire-config.mjs` (`npm run config`) la recopie dans `urlApplicationReact` de `config.local.json` — OPTIONNELLE, non posee a ce jour ; sans elle, les etapes 6 a 8 du parcours de la carte Angular (5 a 7 avant le passage a 8 etapes du 2026-10-13) affichent « Bientot dans le parcours. » au lieu du lien vers l'ecran React |
@@ -3123,6 +3126,25 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
       reprendre ; il réévalue à la fin de la navigation. Démarrage en échec :
       ni message ni redirection, l'erreur prime. Verrouillé par
       `app.config.spec.ts` (routes réelles) et `racine-distante.component.spec.ts`.
+    - **Connexion automatique en développement (autonome seulement,
+      2026-11-02)** : `STRATEGIE_AUTONOME` porte `connexionAuto: true`. Sans
+      session, et si `MODE_DEVELOPPEMENT` est vrai, `authGuard` appelle
+      d'abord `ConnexionAutoService.tenter()` (`core/auth/connexion-auto.service.ts`) :
+      `POST /api/dev/connexion-auto` par le `HttpClient` RACINE (sans nos
+      intercepteurs), puis `AuthService.ouvrirSession` (`setSession`, qui écrit
+      le cookie `@supabase/ssr`). Réussie, la page demandée s'ouvre sans écran ;
+      en échec (404 hors `next dev` ou sans variables `DEV_CONNEXION_AUTO_*`,
+      jetons refusés), renvoi vers `/connexion?redirection=…` comme avant, et
+      l'échec est mémorisé pour la page (pas de nouvelle requête à chaque
+      navigation). Un succès ne l'est pas : après « Se déconnecter » (qui mène
+      à `/connexion` sans passer par `authGuard`), la prochaine page protégée
+      rouvre la session. Les 401 et `SIGNED_OUT` passent toujours par
+      `RacineDistanteComponent` vers `/connexion`, sans tentative. **Dans un
+      hôte AIDA : rien ne change** — stratégie `message`, aucune tentative.
+      L'espace actif n'est pas touché : le badge lit `active_org_id` de
+      `/api/user/organizations` (= `profiles.organization_id`) et
+      `switch-org` ne part que sur un geste. Verrouillé par `auth.guard.spec.ts`,
+      `connexion-auto.service.spec.ts`, `auth.service.spec.ts` et `app.config.spec.ts`.
   - **Garde des imports partagés** (`tests/unit/angular/imports-partages.test.ts`,
     2026-09-30). Hors `*.spec.ts`, les imports À L'EXÉCUTION vers `@angular/*`
     sont limités à `core`, `common`, `common/http`, `router`,

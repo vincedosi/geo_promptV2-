@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { appConfig } from './app.config';
+import { CHEMIN_CONNEXION_AUTO } from './core/auth/connexion-auto.service';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
 import { ECRIRE_HTML } from './core/theme/theme.service';
@@ -131,8 +132,15 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
         rappel?.('SIGNED_OUT', null);
         return { error: null };
       });
+      // Connexion automatique de développement : pose la session comme le vrai client (SIGNED_IN).
+      const setSession = vi.fn(async (j: { access_token: string }) => {
+        session = { access_token: j.access_token, user: { email: 'auto@exemple.test' } };
+        rappel?.('SIGNED_IN', session);
+        return { data: { session }, error: null };
+      });
       return {
         signOut,
+        setSession,
         emettre: (evt: string, s: unknown) => {
           session = s;
           rappel?.(evt, s);
@@ -144,11 +152,17 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
             return { data: { subscription: { unsubscribe() {} } } };
           },
           signOut,
+          setSession,
         },
       };
     }
 
-    async function demarrer(url: string, connecte: boolean) {
+    /**
+     * Sans session, en développement (les specs tournent hors production), `authGuard` tente d'abord la
+     * connexion automatique (`/api/dev/connexion-auto`, 2026-11-02). Par défaut on lui répond 404 — la route
+     * hors `next dev` ou sans variables — pour éprouver le repli vers `/connexion` ; `jetons` éprouve le succès.
+     */
+    async function demarrer(url: string, connecte: boolean, auto: 'refus' | 'jetons' = 'refus') {
       const client = supabaseAvecSession(connecte);
       TestBed.configureTestingModule({
         providers: [...appConfig.providers, provideHttpClientTesting(), { provide: SUPABASE, useValue: client }, { provide: BASE_RESSOURCES, useValue: BASE }, ...feuilles.providers],
@@ -159,6 +173,16 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       await attendre();
       await feuilleGlobaleChargee();
       http.expectOne(URL_CONFIG).flush({ supabaseUrl: 'http://x', supabaseAnonKey: 'k', apiBaseUrl: '' });
+      if (!connecte) {
+        let auto_: ReturnType<HttpTestingController['match']> = [];
+        for (let i = 0; i < 50 && auto_.length === 0; i++) {
+          await attendre();
+          auto_ = http.match(CHEMIN_CONNEXION_AUTO);
+        }
+        expect(auto_.length, 'la connexion automatique doit être tentée une fois').toBe(1);
+        if (auto === 'jetons') auto_[0].flush({ access_token: 'jeton-auto', refresh_token: 'rafraichissement-auto' });
+        else auto_[0].flush({ error: 'Introuvable.' }, { status: 404, statusText: 'Not Found' });
+      }
       await navigation;
       await attendre();
       await harness.fixture.whenStable();
@@ -185,6 +209,13 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       const { router, http } = await demarrer('/app/catalogue', false);
       expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcatalogue');
       http.expectNone('/api/risques/sites/compter');
+    }, DELAI_DEMARRAGE_REEL);
+
+    it('sans session, connexion automatique de développement réussie : la page demandée s\'ouvre sans écran de connexion', async () => {
+      const { router, client, http } = await demarrer('/app/catalogue', false, 'jetons');
+      expect(client.setSession).toHaveBeenCalledWith({ access_token: 'jeton-auto', refresh_token: 'rafraichissement-auto' });
+      expect(router.url).toBe('/app/catalogue');
+      http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
     }, DELAI_DEMARRAGE_REEL);
 
     it("sans session : la carte principale renvoie vers /connexion, sans aucun appel d'API", async () => {

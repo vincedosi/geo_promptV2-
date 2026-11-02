@@ -60,6 +60,24 @@ export class AuthService {
   }
 
   /**
+   * Pose une session dont on a déjà les jetons — ceux de la connexion
+   * automatique de développement (`ConnexionAutoService`). `setSession` écrit
+   * le cookie `@supabase/ssr` comme une connexion par le formulaire.
+   * supabase-js ne lève pas : on lit `{ error }`, et toute exception vaut échec.
+   * @returns `true` si une session est ouverte.
+   */
+  async ouvrirSession(jetonAcces: string, jetonRafraichissement: string): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabase.auth.setSession({ access_token: jetonAcces, refresh_token: jetonRafraichissement });
+      if (error || !data.session) return false;
+      this._session.set(data.session);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * - `globale` (défaut, geste de l'utilisateur) : révoque la session côté
    *   GoTrue. supabase-js ne lève pas : signOut() RENVOIE `{ error }`. Sans le
    *   repli local, un signOut réseau en échec laisserait le cookie en place —
