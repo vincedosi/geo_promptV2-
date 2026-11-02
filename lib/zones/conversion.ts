@@ -1,6 +1,6 @@
 /**
  * @file lib/zones/conversion.ts — la conversion d'une zone dans une maille (lot 5, T5) : seuil, perte, exactitude,
- * maille par défaut, limites des plateformes. Logique PURE, sans I/O.
+ * limites des plateformes. Logique PURE, sans I/O. La maille par défaut : `conversion-defaut.ts` (B9).
  *
  * ⑤ est le SEUL endroit qui traduit une zone dans une maille, et il dit toujours ce que la traduction perd (spec
  * § 16.2-2). Le seuil se rejoue côté écran (une réglette ne lance aucune requête) ET côté serveur à l'extraction : la
@@ -228,13 +228,6 @@ export function avertissementsDisque(recette: Recette | null, maille: Maille): A
 }
 
 /**
- * De la plus fine à la plus grossière. Le cercle avant la commune : son rayon se règle, une commune ne se découpe
- * pas. L'IRIS n'est acheté par aucune plateforme au 24/10 (A-5) ; il prend son rang si une ligne le porte un jour.
- * Le pays en DERNIER (⑤ finitions, A-4) : il n'est jamais le défaut d'une zone qui n'est pas nationale.
- */
-const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement', 'pays'];
-
-/**
  * Les phrases d'une maille SANS OBJET pour la recette (⑤ finitions, A-3), refus `maille_sans_objet`.
  *
  * ⚠ COPIE DÉCLARÉE : `decoupage_pays` recopie `MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays`
@@ -329,30 +322,6 @@ export function unitesPays(
 export function resumePays(unites: readonly UnitePays[], population: number, surface_km2: number): ResumeExact {
   const n_inconnues = unites.filter((u) => u.population === null).length;
   return { ...resumeExact(population, surface_km2, unites.length), ...(n_inconnues > 0 ? { n_inconnues } : {}) };
-}
-
-/**
- * La maille proposée par défaut (A-4) parmi les mailles natives et disponibles de la plateforme : d'abord écarter les
- * mailles « à vérifier » (une maille exacte mais douteuse ne passe pas devant une maille sûre), puis préférer la maille
- * exacte pour la recette, puis la plus fine. Si toutes sont « à vérifier » (TTD au 24/10), le même ordre parmi elles :
- * le badge le dit à l'écran. `null` si la plateforme n'a aucune maille achetable. Une maille sans objet pour la recette
- * n'est pas candidate (`mailleSansObjet`) ; le pays, qui ne l'est que pour une zone nationale, y passe devant le
- * polygone, exact lui aussi (Q-1 du 30/10 : le ciblage pays d'office — TTD a les deux, toutes deux « à vérifier »).
- */
-export function mailleParDefaut(lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette): Maille | null {
-  const rang = (l: PlateformeGeo) => [
-    l.a_verifier ? 1 : 0,
-    exactitude(recette, l.maille, l) === 'exacte' ? 0 : 1,
-    l.maille === 'pays' ? -1 : FINESSE.indexOf(l.maille),
-  ];
-  // Une maille sans objet pour la recette n'est jamais le défaut (⑤ finitions, A-4).
-  const candidates = lignes.filter((l) => l.plateforme === plateforme && l.natif && l.disponible && mailleSansObjet(recette, l.maille) === null);
-  candidates.sort((a, b) => {
-    const ra = rang(a);
-    const rb = rang(b);
-    return ra[0] - rb[0] || ra[1] - rb[1] || ra[2] - rb[2];
-  });
-  return candidates[0]?.maille ?? null;
 }
 
 /**

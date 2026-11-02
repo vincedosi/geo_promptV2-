@@ -1,9 +1,11 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import * as S from '@/lib/zones/conversion';
+import * as SD from '@/lib/zones/conversion-defaut';
 import * as SP from '@/lib/zones/plateformes';
 import type * as SC from '@/lib/zones/couverture';
 import * as A from '../../../angular/src/app/features/carte/logique/jeu/conversion';
+import * as AD from '../../../angular/src/app/features/carte/logique/jeu/conversion-defaut';
 import * as AP from '../../../angular/src/app/features/carte/logique/jeu/plateformes';
 import type * as AC from '../../../angular/src/app/features/carte/logique/analyses/couverture';
 import type { Recette } from '@/lib/zones/recette';
@@ -24,7 +26,9 @@ const _types: [
   Egal<SP.PlateformeGeo, AP.PlateformeGeo>,
   Egal<S.Resume, A.Resume>,
   Egal<S.Avertissement, A.Avertissement>,
-] = [true, true, true, true];
+  Egal<SD.DefautExplique, AD.DefautExplique>,
+  Egal<SD.Simulations, AD.Simulations>,
+] = [true, true, true, true, true, true];
 void _types;
 
 /** Le code d'un fichier sans son en-tête (premier commentaire de bloc) ni ses lignes d'import. */
@@ -37,6 +41,13 @@ const ligne = (p: Partial<SP.PlateformeGeo> & Pick<SP.PlateformeGeo, 'plateforme
   note: null, ordre: 0, ...p,
 });
 
+/** B9 : des simulations de toutes formes — complètes, partielles, refusées, sous la cible. */
+const SIMULATIONS: SD.Simulations[] = [
+  {}, { cp: { couverture: 10, taux_utile: 95 }, cercle: { couverture: 90, taux_utile: 70 } },
+  { cp: 'refusee', cercle: { couverture: 50, taux_utile: 40 }, commune: { couverture: 85, taux_utile: 60 } },
+  { cercle: 'refusee', cp: 'refusee', polygone: { couverture: 100, taux_utile: 100 } },
+];
+
 describe('conversion d’une zone : Angular = serveur', () => {
   it('les types partagés sont égaux (tenu par tsc)', () => {
     expect(_types.every(Boolean)).toBe(true);
@@ -45,6 +56,8 @@ describe('conversion d’une zone : Angular = serveur', () => {
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion.ts')).toBe(corps('lib/zones/conversion.ts'));
     // B8 : le rayon hors des bornes d'une plateforme, sorti de `conversion.ts` (plafond de 400 lignes côté Angular).
     expect(corps('angular/src/app/features/carte/logique/jeu/conversion-rayon.ts')).toBe(corps('lib/zones/conversion-rayon.ts'));
+    // B9 : la maille par défaut, sortie de `conversion.ts` pour la même raison.
+    expect(corps('angular/src/app/features/carte/logique/jeu/conversion-defaut.ts')).toBe(corps('lib/zones/conversion-defaut.ts'));
   });
   it('mêmes plateformes, mêmes mailles, dans le même ordre', () => {
     expect([...AP.PLATEFORMES]).toEqual([...SP.PLATEFORMES]);
@@ -52,6 +65,7 @@ describe('conversion d’une zone : Angular = serveur', () => {
   });
   it('mêmes messages de refus', () => {
     expect(A.MESSAGES_CONVERSION).toEqual(S.MESSAGES_CONVERSION);
+    expect(AD.REGLAGES_DEFAUT_REPLI).toEqual(SD.REGLAGES_DEFAUT_REPLI);
   });
   it('un jeu risque reçu par ⑤ se dit par la phrase du chargeur serveur (revue finale du lot 5, point 9)', () => {
     expect(MESSAGE_JEU_RISQUE).toBe(OU_SE_GERE.risque);
@@ -84,9 +98,17 @@ describe('conversion d’une zone : Angular = serveur', () => {
       for (const l of regles) {
         for (const rayon of [undefined, 20_000, 5_000]) expect(A.exactitude(r, l.maille, l, rayon)).toBe(S.exactitude(r, l.maille, l, rayon));
       }
-      for (const p of SP.PLATEFORMES) expect(A.mailleParDefaut(regles, p, r)).toBe(S.mailleParDefaut(regles, p, r));
+      for (const p of SP.PLATEFORMES) {
+        expect(AD.mailleParDefaut(regles, p, r)).toBe(SD.mailleParDefaut(regles, p, r));
+        expect(AD.simulationsRequises(regles, p, r)).toEqual(SD.simulationsRequises(regles, p, r));
+        for (const sims of SIMULATIONS) {
+          expect(AD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI)).toEqual(SD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI));
+        }
+      }
       for (const m of SP.MAILLES) expect(A.avertissementsDisque(r, m)).toEqual(S.avertissementsDisque(r, m));
     }
+    for (const l of regles) expect(AD.mailleSure(l)).toBe(SD.mailleSure(l));
+    expect(AD.simulationDe(A.appliquerSeuil(lignes, 130, 10))).toEqual(SD.simulationDe(S.appliquerSeuil(lignes, 130, 10)));
     for (const l of regles) {
       expect(A.verifierLimites(A.appliquerSeuil(lignes, 130, 10), l)).toEqual(S.verifierLimites(S.appliquerSeuil(lignes, 130, 10), l));
       expect(A.verifierLimites(A.resumeExact(500, 3, 4), l)).toEqual(S.verifierLimites(S.resumeExact(500, 3, 4), l));

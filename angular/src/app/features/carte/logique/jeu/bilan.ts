@@ -1,9 +1,12 @@
-import type { Decoupage, ResultatCouverture } from '../analyses/couverture';
+import { DECOUPAGES, type Decoupage, type ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import {
-  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, mailleParDefaut, resumeExact, resumePays, unitesPays,
-  verifierLimites,
+  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, exactitude, resumeExact, resumePays, unitesPays, verifierLimites,
 } from './conversion';
+import {
+  type DefautExplique, REGLAGES_DEFAUT_REPLI, type ReglagesDefaut, type Simulations, choisirDefaut, mailleParDefaut, simulationDe,
+  simulationsRequises,
+} from './conversion-defaut';
 import { avertissementsRayon } from './conversion-rayon';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
@@ -76,12 +79,13 @@ export function choixNeuf(maille: Maille, seuil: number, rayon: number | undefin
 }
 
 /**
- * Les choix de base : ceux du jeu ouvert (`enregistres`), sinon la maille par défaut de chaque plateforme (A-4) au
- * seuil par défaut — les choix explicites (`?mailles=`) se posent par-dessus.
+ * Les choix de base : ceux du jeu ouvert (`enregistres`), sinon la maille par défaut de chaque plateforme au seuil par
+ * défaut — B9 : celle de `defauts` (`defautsDe`, ARB-7) ; sans eux, l'ordre de finesse (A-4). Les choix explicites
+ * (`?mailles=`) se posent par-dessus.
  */
 export function choixDeBase(
   enregistres: readonly { plateforme: Plateforme; maille: Maille; seuil: number; rayon_m: number | null }[] | null,
-  regles: readonly PlateformeGeo[], recette: Recette | null,
+  regles: readonly PlateformeGeo[], recette: Recette | null, defauts?: Partial<Record<Plateforme, DefautExplique>>,
 ): ChoixParPlateforme {
   if (enregistres) {
     return Object.fromEntries(enregistres.map((c) => [c.plateforme, c.rayon_m === null
@@ -89,11 +93,49 @@ export function choixDeBase(
   }
   const choix: ChoixParPlateforme = {};
   for (const p of PLATEFORMES) {
-    const maille = mailleParDefaut(regles, p, recette ?? SANS_RECETTE);
+    const maille = defauts ? defauts[p]?.maille ?? null : mailleParDefaut(regles, p, recette ?? SANS_RECETTE);
     const ligne = regles.find((l) => l.plateforme === p && l.maille === maille);
     if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette);
   }
   return choix;
+}
+
+/**
+ * B9 : les choix à SIMULER pour décider du défaut d'une plateforme (`simulationsRequises`) — chacun tel que le défaut le
+ * deviendrait (seuil par défaut, rayon par défaut), donc chiffré par la MÊME lecture que le choix une fois adopté.
+ */
+export function choixASimuler(
+  regles: readonly PlateformeGeo[], p: Plateforme, recette: Recette | null,
+): { choix: ChoixMaille; ligne: PlateformeGeo }[] {
+  return simulationsRequises(regles, p, recette ?? SANS_RECETTE).flatMap((m) => {
+    const ligne = regles.find((l) => l.plateforme === p && l.maille === m);
+    return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette), ligne }] : [];
+  });
+}
+
+/**
+ * B9 (ARB-7 = A) : le défaut de chaque plateforme et sa raison (`choisirDefaut`), sur les lectures EN MÉMOIRE (`lu`,
+ * celle que requiert le choix simulé) — aucune requête ici. Une simulation sans lecture et en échec (`echec`) est
+ * `refusee` ; sans lecture ni échec, elle manque, et le défaut reste provisoire (`en_attente`). `reglages` : ceux de
+ * `reglages_conversion` (sql/315) rendus par la route ; absents (réponse d'avant sql/315), leur repli documenté.
+ */
+export function defautsDe(
+  regles: readonly PlateformeGeo[], recette: Recette | null, reglages: ReglagesDefaut | undefined,
+  lu: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => ResultatCouverture | ResultatCercles | undefined,
+  echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => boolean,
+): Partial<Record<Plateforme, DefautExplique>> {
+  const sortie: Partial<Record<Plateforme, DefautExplique>> = {};
+  for (const p of PLATEFORMES) {
+    const simulations: Simulations = {};
+    for (const { choix, ligne } of choixASimuler(regles, p, recette)) {
+      const b = bilanDe(choix, ligne, recette, lu(p, choix, ligne));
+      if (b) simulations[choix.maille] = simulationDe(b.resume);
+      else if (echec(p, choix, ligne)) simulations[choix.maille] = 'refusee';
+    }
+    const d = choisirDefaut(regles, p, recette ?? SANS_RECETTE, simulations, reglages ?? REGLAGES_DEFAUT_REPLI);
+    if (d) sortie[p] = d;
+  }
+  return sortie;
 }
 
 /** La maille rend-elle la zone telle quelle (A-6) ? Le rayon CHOISI compte : un autre rayon pave (T8). */
@@ -130,6 +172,25 @@ export function daterCouvertures(
 ): ReadonlyMap<string, ResultatCouverture> {
   const sansDate = `${zone}||`;
   return new Map([...cache].map(([k, v]) => [k.startsWith(sansDate) ? `${zone}|${maj}|${k.slice(sansDate.length)}` : k, v]));
+}
+
+/** Les couvertures EN MÉMOIRE de la zone et de la cible courantes, par découpage (`cle` : la clé de chacune). */
+export function couverturesCourantes(
+  cache: ReadonlyMap<string, ResultatCouverture>, cle: (d: Decoupage) => string,
+): Partial<Record<Decoupage, ResultatCouverture>> {
+  const sortie: Partial<Record<Decoupage, ResultatCouverture>> = {};
+  for (const d of DECOUPAGES) {
+    const r = cache.get(cle(d));
+    if (r) sortie[d] = r;
+  }
+  return sortie;
+}
+
+/** Le dernier pavage de chaque plateforme, s'il est de cette zone et de cette cible ; les autres sont tus. */
+export function cerclesCourants(
+  pavages: Partial<Record<Plateforme, ResultatCercles>>, zone: string | null, cible: string,
+): Partial<Record<Plateforme, ResultatCercles>> {
+  return Object.fromEntries(Object.entries(pavages).filter(([, r]) => r.zone_id === zone && r.cible === cible));
 }
 
 /**

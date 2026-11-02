@@ -3,12 +3,13 @@ import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, 
 import { ActivatedRoute, Router } from '@angular/router';
 import { map } from 'rxjs';
 import { CouvertureApi } from '../data/couverture.api';
-import { type DetailJeuZone, JeuxApi, type ModePlan } from '../data/jeux.api';
+import { type DetailJeuZone, JeuxApi, type ModePlan, type ReponsePlateformes } from '../data/jeux.api';
 import { MODE_PLAN_DEFAUT_ZONE } from '../../risques/logique/jeu';
-import { CIBLE_PAR_DEFAUT, DECOUPAGES, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
+import { CIBLE_PAR_DEFAUT, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
-  type BilanPlateforme, type ResultatCercles, bilanDe, choixDeBase, choixNeuf, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture,
+  type BilanPlateforme, type ResultatCercles, bilanDe, cerclesCourants, choixASimuler, choixDeBase, choixNeuf, cleCouverture, couverturesCourantes,
+  daterCouvertures, defautsDe, lectureRequise, parPlateforme, rangerCouverture,
 } from '../logique/jeu/bilan';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
@@ -72,7 +73,7 @@ export class JeuZonesService {
   private readonly _relectureZone = signal(0);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
-  private readonly lecturePlateformes = new LectureAnnulable<readonly PlateformeGeo[]>(messageErreurCouverture);
+  private readonly lecturePlateformes = new LectureAnnulable<ReponsePlateformes>(messageErreurCouverture);
   /** La file des conversions et leurs échecs (T0 des finitions) ; une zone introuvable la retire, message gardé. */
   private readonly taches = new TachesJeu((message) => {
     this.choisirZone(null);
@@ -96,12 +97,15 @@ export class JeuZonesService {
   /** Le mode de plan : le choisi (enregistré par « Enregistrer les réglages »), sinon celui du jeu, sinon exclusif (ARB-2, A1). */
   readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODE_PLAN_DEFAUT_ZONE);
   /** Le registre `plateformes_geo`, lu une fois par page. */
-  readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() => this.lecturePlateformes.resultat() ?? []);
+  readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() => this.lecturePlateformes.resultat()?.plateformes ?? []);
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */
   readonly erreur: Signal<string | null> = computed(() => this._erreur() ?? this.lectureJeu.erreur() ?? this.lecturePlateformes.erreur());
 
-  /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (A-4), seuil 20 %. */
-  private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette()));
+  /** B9 (ARB-7) : défaut et raison par plateforme, sur les simulations EN MÉMOIRE (`defautsDe`) ; vide pour un jeu ouvert. */
+  readonly defauts: Signal<ReturnType<typeof defautsDe>> = computed(() => (this.jeu() ? {} : defautsDe(this.plateformes(), this._recette(),
+    this.lecturePlateformes.resultat()?.reglages_defaut, (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)))));
+  /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (`defauts`), seuil 20 %. */
+  private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts()));
 
   /**
    * Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. Un choix
@@ -124,21 +128,11 @@ export class JeuZonesService {
   });
 
   /** Les couvertures lues pour la zone et la cible COURANTES, par découpage. */
-  readonly couvertures: Signal<Partial<Record<Decoupage, ResultatCouverture>>> = computed(() => {
-    const sortie: Partial<Record<Decoupage, ResultatCouverture>> = {};
-    for (const d of DECOUPAGES) {
-      const r = this._couvertures().get(this.cleCouv(d));
-      if (r) sortie[d] = r;
-    }
-    return sortie;
-  });
-
+  readonly couvertures: Signal<Partial<Record<Decoupage, ResultatCouverture>>> = computed(() =>
+    couverturesCourantes(this._couvertures(), (d) => this.cleCouv(d)));
   /** Le dernier pavage en cercles lu pour chaque plateforme, s'il est de la zone et de la cible courantes. */
-  readonly cercles: Signal<Partial<Record<Plateforme, ResultatCercles>>> = computed(() => {
-    const zone = this._zoneId();
-    const cible = this.cible();
-    return Object.fromEntries(Object.entries(this._cercles()).filter(([, r]) => r.zone_id === zone && r.cible === cible));
-  });
+  readonly cercles: Signal<Partial<Record<Plateforme, ResultatCercles>>> = computed(() =>
+    cerclesCourants(this._cercles(), this._zoneId(), this.cible()));
 
   /**
    * Le bilan de chaque plateforme pour son choix COURANT, sans requête (`bilanDe`). Une plateforme absente : rien de
@@ -182,7 +176,7 @@ export class JeuZonesService {
 
   /** Lit le registre des plateformes, une fois par page, à l'arrivée d'une zone ou d'un jeu (effet du constructeur). */
   private chargerPlateformes(): void {
-    if (!this.detruit) this.lecturePlateformes.chargerUneFois(() => this.api.plateformes().pipe(map((r) => r.plateformes)));
+    if (!this.detruit) this.lecturePlateformes.chargerUneFois(() => this.api.plateformes());
   }
 
   /**
@@ -269,31 +263,37 @@ export class JeuZonesService {
   }
 
   /**
-   * Lance la conversion qu'il manque à la plateforme pour son choix courant : la couverture du découpage (forme pour
-   * une maille exacte) si elle n'est ni lue ni en file, ou le pavage en cercles s'il n'est pas à ce rayon et à ce
-   * seuil (un pavage en file pour un autre rayon est remplacé). À la demande de la colonne, et au relâchement d'une
-   * réglette de rayon.
+   * Lance la conversion qu'il manque à la plateforme pour son choix courant — et, à son DÉFAUT (ni jeu, ni choix
+   * explicite), pour les simulations qui le décident (`choixASimuler`, B9 ; une en échec n'est pas relancée) : la
+   * couverture du découpage (forme pour une maille exacte) si elle n'est ni lue ni en file, ou le pavage en cercles
+   * s'il n'est pas à ce rayon et à ce seuil (un pavage en file pour un autre rayon est remplacé). À la demande de la
+   * colonne, et au relâchement d'une réglette de rayon.
    */
   valider(plateforme: Plateforme): void {
     const zone = this._zoneId();
-    const c = this.choix()[plateforme];
-    const ligne = c ? this.regle(plateforme, c.maille) : undefined;
-    if (this.detruit || !zone || !c || !ligne || !this._recetteConnue()) return;
+    const actuel = this.choix()[plateforme];
+    if (this.detruit || !zone || !actuel || !this._recetteConnue()) return;
     const cible = this.cible();
-    const besoin = lectureRequise(c, ligne, this._recette());
-    const tache = this.tache(plateforme, c, ligne);
-    if (besoin !== 'cercles') {
-      if (this._couvertures().has(this.cleCouv(besoin)) || this.taches.contient(tache)) return;
-      // La clé se calcule à l'ARRIVÉE : une date adoptée pendant le vol range la lecture sous la clé datée.
-      this.taches.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, besoin),
-        (r) => this.ranger(zone, cleCouverture(zone, this._maj(), cible, besoin), r));
-      return;
+    const simulations = this.jeu() || this._reglages()[plateforme] ? [] : choixASimuler(this.plateformes(), plateforme, this._recette())
+      .filter((s) => !this.taches.erreur(this.tache(plateforme, s.choix, s.ligne))).map((s) => s.choix);
+    for (const c of [actuel, ...simulations]) {
+      const ligne = this.regle(plateforme, c.maille);
+      if (!ligne) continue;
+      const besoin = lectureRequise(c, ligne, this._recette());
+      const tache = this.tache(plateforme, c, ligne);
+      if (besoin !== 'cercles') {
+        if (this._couvertures().has(this.cleCouv(besoin)) || this.taches.contient(tache)) continue;
+        // La clé se calcule à l'ARRIVÉE : une date adoptée pendant le vol range la lecture sous la clé datée.
+        this.taches.ajouter(tache, () => this.couvertureApi.couverture(zone, cible, besoin),
+          (r) => this.ranger(zone, cleCouverture(zone, this._maj(), cible, besoin), r));
+        continue;
+      }
+      const rayon = c.rayon_m;
+      // Déjà lu : rien ; déjà demandé à l'identique (double relâchement), `paver` n'en relance pas.
+      if (rayon === undefined || bilanDe(c, ligne, this._recette(), this.cercles()[plateforme])) continue;
+      this.taches.paver(plateforme, `${zone}|${cible}|${rayon}|${c.seuil}`, tache,
+        () => this.api.cercles(zone, { cible, rayon, seuil: c.seuil, plateforme }), (r) => this._cercles.update((avant) => ({ ...avant, [plateforme]: r })));
     }
-    const rayon = c.rayon_m;
-    // Déjà lu : rien ; déjà demandé à l'identique (double relâchement), `paver` n'en relance pas.
-    if (rayon === undefined || bilanDe(c, ligne, this._recette(), this.cercles()[plateforme])) return;
-    this.taches.paver(plateforme, `${zone}|${cible}|${rayon}|${c.seuil}`, tache,
-      () => this.api.cercles(zone, { cible, rayon, seuil: c.seuil, plateforme }), (r) => this._cercles.update((avant) => ({ ...avant, [plateforme]: r })));
   }
 
   /** La ligne de `plateformes_geo` d'un couple, s'il est au registre. */

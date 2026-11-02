@@ -10,7 +10,7 @@ import { estExacte } from '../../logique/jeu/bilan';
 import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
-  texteChevauchement, texteDiffusionInconnue, texteUnitePays,
+  texteChevauchement, texteDefaut, texteDiffusionInconnue, texteUnitePays,
 } from '../../logique/jeu/ecran';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
@@ -62,6 +62,7 @@ import { ChoixMailleComponent } from './choix-maille.component';
               }
             </div>
           }
+          @if (defautTexte(); as t) { <p data-defaut class="m-0 text-[11px] text-secondary">{{ t }}</p> }
         }
 
         @if (choix(); as c) {
@@ -203,6 +204,11 @@ export class ColonnePlateformeComponent {
     if (!l?.a_verifier && !pays) return null;
     const notes = [l?.a_verifier ? l.note : null, pays ? NOTE_PAYS_A_VERIFIER : null].filter((n): n is string => !!n);
     return { note: notes.length ? notes.join(' ') : null };
+  });
+  /** B9 (ARB-7, Q7 = A) : la ligne qui explique la maille par défaut, tant que c'est elle qui est choisie ; sinon `null`. */
+  protected readonly defautTexte = computed(() => {
+    const d = this.jeu.defauts()[this.plateforme()];
+    return d && d.maille === this.choix()?.maille ? texteDefaut(d) : null;
   });
   /** Les codes ciblés par une plateforme au pays (« FR, GP, MQ… ») ; `null` pour une autre maille. */
   protected readonly codesPays = computed(() => this.bilan()?.pays?.map((u) => u.code).join(', ') || null);

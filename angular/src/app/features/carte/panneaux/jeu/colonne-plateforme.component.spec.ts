@@ -2,7 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { JeuCarteService } from '../../couches/jeu-carte.service';
 import type { PlateformeGeo } from '../../logique/jeu/plateformes';
-import { REGISTRE, Z1, couvertureCp, monterJeu, regle, urlCouverture } from '../../testing/jeu-factice';
+import { REGISTRE, Z1, couvertureCp, monterJeu, pavageMoinsBon, regle, urlCouverture, urlSimulationCercles } from '../../testing/jeu-factice';
 import { ColonnePlateformeComponent } from './colonne-plateforme.component';
 
 const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
@@ -41,6 +41,10 @@ describe('mg-colonne-plateforme', () => {
     jeu.valider('dv360');
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
     await stable();
+    // B9 : le pavage que DV360 simule pour décider de son défaut, moins bon : le CP reste, et la ligne le dit.
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
+    await stable();
+    expect(texte(el, '[data-defaut]')).toBe('Codes postaux par défaut : couverture 90 %, taux utile 45 %, contre 90 % / 30 % en cercles.');
     expect(texte(el, '[data-unites]')).toBe('2 / 3');
     expect(texte(el, '[data-taux]')).toBe('45,0 %');
     expect(texte(el, '[data-manques]')).toBe('100 (10,0 % de la zone)');

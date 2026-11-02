@@ -5696,6 +5696,24 @@ export type Database = {
         }
         Relationships: []
       }
+      reglages_conversion: {
+        Row: {
+          cle: string
+          description: string
+          valeur: number
+        }
+        Insert: {
+          cle: string
+          description: string
+          valeur: number
+        }
+        Update: {
+          cle?: string
+          description?: string
+          valeur?: number
+        }
+        Relationships: []
+      }
       saved_maps: {
         Row: {
           carreaux_config: Json | null

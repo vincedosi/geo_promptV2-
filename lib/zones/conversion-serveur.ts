@@ -16,6 +16,7 @@ import { formaterNombre } from '@/lib/format/nombre';
 import {
   MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PlateformeGeoSchema, PlateformePoidsSchema, type PlateformeGeo, type PlateformePoids,
 } from './plateformes';
+import { REGLAGES_DEFAUT_REPLI, type ReglagesDefaut } from './conversion-defaut';
 
 type ClientAdmin = ReturnType<typeof createAdminClient>;
 
@@ -61,6 +62,35 @@ export async function lirePoids(
   if (error) throw new Error(`lecture de plateformes_poids : ${error.message}`);
   if ((data ?? []).length > MAX_PLATEFORMES_POIDS) throw new Error('plateformes_poids : borne de lecture dépassée');
   return z.array(PlateformePoidsSchema).parse(data ?? []);
+}
+
+/** B9 : la clé de `reglages_conversion` (sql/315) de chaque réglage de la maille par défaut. */
+const CLES_REGLAGES_DEFAUT: Readonly<Record<keyof ReglagesDefaut, string>> = {
+  couverture_cible: 'couverture_cible_defaut',
+  ecart_departage: 'ecart_departage_defaut',
+};
+
+/**
+ * B9 (ARB-7) : la couverture cible et l'écart de départage de la maille par défaut, lus dans `reglages_conversion`
+ * (sql/315) — UNE lecture de deux lignes (clé primaire). Ne lève pas : une lecture en échec ou une clé absente (ou
+ * illisible) prend la valeur de `REGLAGES_DEFAUT_REPLI`, les mêmes que la migration, et le dit au journal — le
+ * registre des plateformes reste servi, le défaut reste calculable.
+ */
+export async function lireReglagesDefaut(supabase: ClientAdmin): Promise<ReglagesDefaut> {
+  const reglages: ReglagesDefaut = { ...REGLAGES_DEFAUT_REPLI };
+  const { data, error } = await supabase.from('reglages_conversion').select('cle, valeur').in('cle', Object.values(CLES_REGLAGES_DEFAUT));
+  if (error) {
+    console.error('[reglages_conversion] lecture impossible, repli REGLAGES_DEFAUT_REPLI :', error.message);
+    return reglages;
+  }
+  const manquantes: string[] = [];
+  for (const [champ, cle] of Object.entries(CLES_REGLAGES_DEFAUT) as [keyof ReglagesDefaut, string][]) {
+    const valeur = Number((data ?? []).find((l) => l.cle === cle)?.valeur);
+    if (Number.isFinite(valeur)) reglages[champ] = valeur;
+    else manquantes.push(cle);
+  }
+  if (manquantes.length > 0) console.error(`[reglages_conversion] ${manquantes.join(', ')} absente(s), repli REGLAGES_DEFAUT_REPLI`);
+  return reglages;
 }
 
 /** Ce qu'un choix de plateforme demande : la maille et, pour un cercle, le rayon. */

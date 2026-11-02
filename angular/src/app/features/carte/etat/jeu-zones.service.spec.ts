@@ -8,6 +8,7 @@ import { ConfigService } from '../../../core/config/config.service';
 import { CouvertureApi } from '../data/couverture.api';
 import { JeuxApi } from '../data/jeux.api';
 import type { PlateformeGeo } from '../logique/jeu/plateformes';
+import { pavageMoinsBon, urlSimulationCercles } from '../testing/jeu-factice';
 import { JeuZonesService } from './jeu-zones.service';
 import { ParcoursService } from './parcours.service';
 
@@ -131,6 +132,7 @@ describe('JeuZonesService — la conversion', () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp);
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1)); // B9 : la simulation du défaut, le CP reste
     expect(hote.jeu.resumes().dv360?.resume).toMatchObject({ n_unites: 2, couverte: 900, achetee: 2000, manques: 100 });
     hote.jeu.regler('dv360', { seuil: 50 });
     http.expectNone(() => true);
@@ -155,9 +157,13 @@ describe('JeuZonesService — la conversion', () => {
     http.expectNone(couverture(Z1, 'departement'));
     expect(hote.jeu.enCours()).toEqual({ dv360: true, meta: true, tiktok: true });
     cp.flush(couvertureCp);
+    // B9 : les simulations des défauts passent dans la MÊME file, une à la fois — les cercles de DV360, puis les
+    // communes de TikTok après son département (Meta, réglée explicitement, n'en demande aucune).
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
     http.expectOne(couverture(Z1, 'departement')).flush({ ...couvertureCp, decoupage: 'departement' });
     expect(hote.jeu.enCours()).toEqual({});
     expect(Object.keys(hote.jeu.couvertures()).sort()).toEqual(['cp', 'departement']);
+    http.expectOne(couverture(Z1, 'commune')).flush({ ...couvertureCp, decoupage: 'commune' });
     http.verify();
   });
   it('rayon : une requête au valider, rien au réglage ; deux rayons rapides → seule la seconde réponse compte', async () => {
@@ -186,6 +192,7 @@ describe('JeuZonesService — la conversion', () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('meta');
     http.expectOne((r) => r.url.includes('/cercles')).flush(cercles(10000, 20));
+    http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp); // B9 : la simulation du défaut de Meta, les cercles restent
     expect(hote.jeu.resumes().meta).toBeDefined();
     hote.jeu.regler('meta', { seuil: 40 });
     http.expectNone(() => true);
@@ -213,12 +220,14 @@ describe('JeuZonesService — la conversion', () => {
     hote.jeu.valider('meta');
     http.expectOne((r) => r.url.includes('/cercles')).flush(cercles(10000, 20));
     expect(Object.keys(hote.jeu.resumes()).sort()).toEqual(['meta', 'ttd']);
-    // La zone a été recalculée en ③ (même id) : la couverture CP arrive sur la nouvelle forme.
+    // La zone a été recalculée en ③ (même id) : la couverture CP (la simulation du défaut de Meta, B9, la même lecture
+    // que le CP de DV360) arrive sur la nouvelle forme.
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z1, 'cp')).flush({ ...couvertureCp, zone_maj: 'v2' });
     expect(Object.keys(hote.jeu.couvertures())).toEqual(['cp']);
     expect(hote.jeu.cercles()).toEqual({});
     expect(Object.keys(hote.jeu.resumes())).toEqual(['dv360']);
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1)); // B9 : la simulation du défaut de DV360
     // Les deux autres se relisent sur la nouvelle forme.
     hote.jeu.valider('ttd');
     http.expectOne(couverture(Z1, 'forme'));
@@ -265,6 +274,7 @@ describe('JeuZonesService — la conversion', () => {
     hote.jeu.valider('dv360');
     expect(enVol.cancelled).toBe(false);
     enVol.flush(couvertureCp);
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1)); // B9 : la simulation du défaut
     expect(hote.jeu.resumes().dv360).toBeDefined();
     hote.jeu.valider('dv360');
     http.verify();
@@ -273,13 +283,17 @@ describe('JeuZonesService — la conversion', () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp);
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1)); // B9 : la simulation du défaut
     hote.jeu.choisirCible('csp_plus');
     expect(hote.jeu.cible()).toBe('csp_plus');
     expect(hote.jeu.resumes()).toEqual({});
     hote.jeu.valider('dv360');
     http.expectOne(couverture(Z1, 'cp', 'csp_plus')).flush({ ...couvertureCp, cible: 'csp_plus' });
+    http.expectOne(urlSimulationCercles(Z1, 'dv360', 'csp_plus')).flush(pavageMoinsBon(Z1, 'csp_plus'));
     hote.jeu.choisirCible('ind');
     hote.jeu.valider('dv360');
+    // La couverture n'est pas relue ; le pavage simulé, si : un seul pavage en mémoire par plateforme (B9, dit au rapport).
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
     http.verify();
     expect(hote.jeu.resumes().dv360).toBeDefined();
   });
@@ -287,6 +301,7 @@ describe('JeuZonesService — la conversion', () => {
     const { hote, http } = await ouvrirAvecZone();
     hote.jeu.valider('meta');
     http.expectOne((r) => r.url.includes('/cercles') && r.url.includes('cible=ind')).flush(cercles(10000, 20));
+    http.expectOne(couverture(Z1, 'cp')).flush(couvertureCp); // B9 : la simulation du défaut de Meta
     expect(hote.jeu.resumes().meta).toBeDefined();
     hote.jeu.choisirCible('csp_plus');
     expect(hote.jeu.resumes().meta).toBeUndefined();

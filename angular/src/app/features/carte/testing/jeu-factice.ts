@@ -67,6 +67,18 @@ export const couvertureCp = {
 
 export const urlCouverture = (zone: string, decoupage: string, cible = 'ind') => `/api/zones/${zone}/couverture?cible=${cible}&decoupage=${decoupage}`;
 
+/**
+ * B9 (ARB-7) : le pavage qu'une plateforme à son défaut SIMULE pour le décider — cercles de 10 km (le rayon par défaut
+ * d'un dessin) au seuil par défaut. DV360 le demande dès que sa colonne se chiffre (CP et cercles, sûrs, à départager).
+ */
+export const urlSimulationCercles = (zone: string, plateforme = 'dv360', cible = 'ind') =>
+  `/api/zones/${zone}/cercles?cible=${cible}&rayon=10000&seuil=20&plateforme=${plateforme}`;
+/** Un pavage simulé MOINS bon que `couvertureCp` (90 % / 45 %) : couverture 90 %, taux utile 30 % — le défaut reste au CP. */
+export const pavageMoinsBon = (zone: string, cible = 'ind') => ({
+  zone_id: zone, cible, rayon_m: 10000, seuil: 20, n_candidates: 9, n_cercles: 3, cercles: [], population: 1000, couverte: 900,
+  manques: 100, hors_zone: 2100, achetee: 3000, taux_utile: 30, n_carreaux: 5, motif_vide: null,
+});
+
 @Component({ selector: 'mg-vide-jeu', template: '' })
 export class VideJeu {}
 

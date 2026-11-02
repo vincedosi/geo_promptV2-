@@ -6,7 +6,10 @@
  * Ordre : session (401 / 403, rien en base) → UNE lecture de table par `lireRegles` (la lecture commune du serveur) :
  * triée par `ordre`, bornée à `MAX_PLATEFORMES_GEO + 1` lignes (au-delà : 500 dit, jamais une liste coupée), chaque
  * ligne passée au schéma.
- * Pas de quota : une lecture de ≤ 24 lignes, gardée 5 minutes par le navigateur
+ * B9 (ARB-7) : puis les deux réglages de la maille par défaut (`reglages_conversion`, sql/315 : couverture cible,
+ * écart de départage) par `lireReglagesDefaut`, rendus sous `reglages_defaut` — qui ne fait jamais échouer la route
+ * (repli `REGLAGES_DEFAUT_REPLI`, dit au journal).
+ * Pas de quota : une lecture de ≤ 24 lignes et une de 2, gardées 5 minutes par le navigateur
  * (`private` : réservée à un utilisateur connecté). La table n'appartient à aucun espace ; l'espace actif n'est exigé
  * que par cohérence avec les autres routes de ⑤.
  */
@@ -15,7 +18,7 @@ import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone } from '@/lib/zones/session-zones';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
-import { lireRegles } from '@/lib/zones/conversion-serveur';
+import { lireRegles, lireReglagesDefaut } from '@/lib/zones/conversion-serveur';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,12 +33,14 @@ export async function GET(req: NextRequest) {
   const s = espaceDeZone(await requireAuth(req));
   if (!s.ok) return s.reponse;
 
+  const supabase = createAdminClient();
   let plateformes: PlateformeGeo[];
   try {
-    plateformes = await lireRegles(createAdminClient());
+    plateformes = await lireRegles(supabase);
   } catch (e) {
     // Erreur Postgres, borne dépassée ou ligne hors schéma : le détail reste dans le journal.
     return echec('lecture', e);
   }
-  return NextResponse.json({ plateformes }, { headers: { 'Cache-Control': 'private, max-age=300' } });
+  const reglages_defaut = await lireReglagesDefaut(supabase);
+  return NextResponse.json({ plateformes, reglages_defaut }, { headers: { 'Cache-Control': 'private, max-age=300' } });
 }

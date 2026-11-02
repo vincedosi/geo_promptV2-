@@ -1,6 +1,7 @@
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ResultatCercles } from './bilan';
 import type { Avertissement, Resume } from './conversion';
+import type { DefautExplique, Simulation } from './conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
 
 /**
@@ -45,6 +46,26 @@ export const UNITE_MAILLE: Readonly<Record<Maille, UniteMaille>> = {
   cercle: { un: 'cercle', plusieurs: 'cercles', titre: 'Dilution au cercle', sujet: 'Un cercle', accord: '', complement: 'son cercle' },
   pays: { un: 'pays', plusieurs: 'pays', titre: 'Dilution au pays', sujet: 'Un pays', accord: '', complement: 'son pays' },
 };
+
+/** Un pourcentage de la ligne du défaut : tel que calculé (au dixième), « — » sans valeur. */
+const pourcent = (v: number | null) => (v === null ? '—' : `${formaterNombre(v)} %`);
+
+/**
+ * B9 (ARB-7, Q7 = A) : la ligne qui explique le défaut retenu, avec SES deux chiffres et ceux de la meilleure autre
+ * maille simulée — « Cercles par défaut : couverture 91 %, taux utile 71 %, contre 10 % / 95 % en codes postaux. »
+ * (couverture / taux utile). Sous la cible : la raison le dit. Provisoire ou sans simulation : la phrase le dit.
+ */
+export function texteDefaut(d: DefautExplique): string {
+  const nom = UNITE_MAILLE[d.maille].plusieurs;
+  const Nom = nom.charAt(0).toUpperCase() + nom.slice(1);
+  if (d.critere === 'en_attente') return `${Nom} par défaut, provisoirement : simulation des autres mailles en cours.`;
+  if (d.critere === 'sans_simulation' || !d.simulation) return `${Nom} par défaut, par ordre de finesse : aucune autre maille n’a pu être simulée.`;
+  const chiffres = (s: Simulation) => `couverture ${pourcent(s.couverture)}, taux utile ${pourcent(s.taux_utile)}`;
+  const c = d.comparee;
+  const contre = c ? `, contre ${pourcent(c.simulation.couverture)} / ${pourcent(c.simulation.taux_utile)} en ${UNITE_MAILLE[c.maille].plusieurs}` : '';
+  const raison = d.critere === 'couverture_max' ? ` (aucune maille n’atteint ${pourcent(d.couverture_cible)} de couverture)` : '';
+  return `${Nom} par défaut : ${chiffres(d.simulation)}${contre}${raison}.`;
+}
 
 /** Le libellé accessible de la réglette de seuil d'une maille. */
 export function libelleCurseurSeuil(maille: Maille): string {

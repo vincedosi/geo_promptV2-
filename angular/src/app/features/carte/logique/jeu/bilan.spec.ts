@@ -1,6 +1,9 @@
 import type { ResultatCouverture } from '../analyses/couverture';
-import { type ResultatCercles, bilanDe, choixDeBase, cleCouverture, daterCouvertures, lectureRequise, parPlateforme, rangerCouverture } from './bilan';
-import { texteAvertissement, texteChevauchement } from './ecran';
+import {
+  type ResultatCercles, bilanDe, choixASimuler, choixDeBase, cleCouverture, daterCouvertures, defautsDe, lectureRequise, parPlateforme, rangerCouverture,
+} from './bilan';
+import { REGLAGES_DEFAUT_REPLI } from './conversion-defaut';
+import { texteAvertissement, texteChevauchement, texteDefaut } from './ecran';
 import type { PlateformeGeo } from './plateformes';
 
 const ligne = (p: Partial<PlateformeGeo> & Pick<PlateformeGeo, 'plateforme' | 'maille'>): PlateformeGeo => ({
@@ -157,5 +160,29 @@ describe('bilan d’une zone pays (⑤ finitions, T4)', () => {
   });
   it('une autre maille n’a pas d’unités pays', () => {
     expect(bilanDe({ maille: 'cp', seuil: 20 }, ligne({ plateforme: 'dv360', maille: 'cp' }), metro, couverture('cp', 'v1'))?.pays).toBeUndefined();
+  });
+});
+
+describe('B9 (ARB-7) — la maille par défaut sur les simulations en mémoire', () => {
+  const regles = [ligne({ plateforme: 'dv360', maille: 'cp' }), ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1500 } })];
+  const anneau = { v: 1, type: 'combinaison', operation: 'difference', zones: ['a', 'b'] } as const;
+  // Un anneau de 1 km : aucun CP n'atteint 20 % (couverture nulle), les cercles de 10 km couvrent 90 % à 75 %.
+  const cpVide = { ...couverture('cp', 'v1'), lignes: [{ code: 'a', nom: null, commune: null, n_carreaux: 1, pop_en_zone: 100, pop_totale: 9000, part: 1.1, part_brute: 1.1 }] } as unknown as ResultatCouverture;
+  const pavage10 = { ...pavage, rayon_m: 10_000 } as ResultatCercles;
+  it('choixASimuler : chaque maille requise telle que le défaut la deviendrait (seuil par défaut, rayon par défaut)', () => {
+    expect(choixASimuler(regles, 'dv360', anneau).map((s) => s.choix)).toEqual([{ maille: 'cp', seuil: 20 }, { maille: 'cercle', seuil: 20, rayon_m: 10_000 }]);
+  });
+  it('anneau de 1 km sur DV360 : provisoire au CP, puis cercles une fois les deux simulations lues ; la ligne le dit', () => {
+    const rien = () => undefined;
+    const attente = defautsDe(regles, anneau, undefined, (_p, c) => (c.maille === 'cp' ? cpVide : undefined), () => false).dv360!;
+    expect(attente).toMatchObject({ maille: 'cp', critere: 'en_attente' });
+    expect(texteDefaut(attente)).toBe('Codes postaux par défaut, provisoirement : simulation des autres mailles en cours.');
+    const d = defautsDe(regles, anneau, undefined, (_p, c) => (c.maille === 'cp' ? cpVide : pavage10), () => false).dv360!;
+    expect(d).toMatchObject({ maille: 'cercle', critere: 'couverture_cible', simulation: { couverture: 90, taux_utile: 75 } });
+    expect(texteDefaut(d)).toBe('Cercles par défaut : couverture 90 %, taux utile 75 %, contre 0 % / — en codes postaux.');
+    expect(choixDeBase(null, regles, anneau, { dv360: d })).toEqual({ dv360: { maille: 'cercle', seuil: 20, rayon_m: 10_000 } });
+    // Le pavage refusé : la maille sort de la course, les CP restent, sous la cible.
+    const refus = defautsDe(regles, anneau, REGLAGES_DEFAUT_REPLI, (_p, c) => (c.maille === 'cp' ? cpVide : rien()), (_p, c) => c.maille === 'cercle').dv360!;
+    expect(texteDefaut(refus)).toBe('Codes postaux par défaut : couverture 0 %, taux utile — (aucune maille n’atteint 80 % de couverture).');
   });
 });

@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
-  MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude, mailleParDefaut,
+  MESSAGES_CONVERSION, MESSAGES_MAILLE_SANS_OBJET, NOMS_PAYS, appliquerSeuil, estRetenue, exactitude,
   NOTE_PAYS_A_VERIFIER, avertissementsDisque, mailleSansObjet, paysAVerifier, resumeExact, unitesPays, verifierLimites,
   LIBELLE_POPULATION_INCONNUE, resumePays,
 } from '@/lib/zones/conversion';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/zones/polygone-extraction';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
 import { avertissementsRayon } from '@/lib/zones/conversion-rayon';
+import { mailleParDefaut } from '@/lib/zones/conversion-defaut';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 import type { Recette } from '@/lib/zones/recette';
@@ -377,7 +378,7 @@ describe('B8 (ARB-5) — le rayon de la recette hors des bornes de la plateforme
   });
 });
 
-describe('mailleParDefaut (A-4)', () => {
+describe('mailleParDefaut — l’ordre de finesse, défaut provisoire tant que les simulations manquent (A-4, B9)', () => {
   const lignes: PlateformeGeo[] = [
     ligne({ plateforme: 'dv360', maille: 'cp' }),
     ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 2_500 } }),
@@ -583,7 +584,8 @@ describe('les règles des plateformes vivent dans plateformes_geo', () => {
   // Le code seul (commentaires retirés) : une limite écrite en dur est un nombre de la seed comparé, affecté ou pris
   // par défaut — pas l'arrondi `* 1000` du taux d'utile.
   // `conversion.ts` (pur) et `conversion-serveur.ts` (lecture des règles et appel de `paver_cercles`, T8).
-  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/polygone-extraction.ts']
+  const code = ['lib/zones/conversion.ts', 'lib/zones/conversion-serveur.ts', 'lib/zones/conversion-rayon.ts', 'lib/zones/conversion-defaut.ts',
+    'lib/zones/polygone-extraction.ts']
     .map((f) => readFileSync(f, 'utf8')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const OP = String.raw`(?:<=?|>=?|===?|!==?|\?\?|\|\||:|=)`;
   const enContexte = (n: string) => new RegExp(String.raw`${OP}\s*${n}(?![\d_])|(?<![\d_])${n}\s*${OP}`);

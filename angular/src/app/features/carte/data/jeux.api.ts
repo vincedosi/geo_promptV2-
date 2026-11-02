@@ -5,6 +5,7 @@ import type { Extraction } from '../../risques/data/jeux-zones.api';
 import type { MODES_PLAN } from '../../risques/logique/jeu';
 import type { ResultatCercles } from '../logique/jeu/bilan';
 import type { Avertissement } from '../logique/jeu/conversion';
+import type { ReglagesDefaut } from '../logique/jeu/conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 
@@ -157,14 +158,21 @@ export interface ExtractionCreee {
   version: number;
 }
 
+/** `GET /api/zones/plateformes` : le registre `plateformes_geo` et les réglages de la maille par défaut (sql/315). */
+export interface ReponsePlateformes {
+  plateformes: PlateformeGeo[];
+  reglages_defaut?: ReglagesDefaut;
+}
+
 @Injectable()
 export class JeuxApi extends HttpBaseService {
   private jeu(id: string, suite = ''): string {
     return `${this.baseUrl}/zones/jeux/${encodeURIComponent(id)}${suite}`;
   }
 
-  plateformes(): Observable<{ plateformes: PlateformeGeo[] }> {
-    return this.httpClient.get<{ plateformes: PlateformeGeo[] }>(`${this.baseUrl}/zones/plateformes`);
+  /** Le registre, et (B9) les réglages de la maille par défaut — absents d'une réponse d'avant sql/315 : le repli. */
+  plateformes(): Observable<ReponsePlateformes> {
+    return this.httpClient.get<ReponsePlateformes>(`${this.baseUrl}/zones/plateformes`);
   }
 
   /** `?type=tous` : sans paramètre, la route ne rend que les jeux RISQUE (la liste que ses anciens lecteurs attendent). */

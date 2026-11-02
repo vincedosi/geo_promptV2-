@@ -2,7 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import type { ZoneCustomResume } from '../../data/zones-custom.api';
-import { REGISTRE, Z1, Z2, couvertureCp, monterJeu, urlCouverture } from '../../testing/jeu-factice';
+import { REGISTRE, Z1, Z2, couvertureCp, monterJeu, pavageMoinsBon, urlCouverture, urlSimulationCercles } from '../../testing/jeu-factice';
 import { PanneauJeuComponent } from './panneau-jeu.component';
 
 const BANC = { TestBed, HttpTestingController, provideHttpClientTesting };
@@ -38,6 +38,9 @@ describe('mg-panneau-jeu', () => {
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
     await stable();
+    // B9 : puis la simulation qui décide du défaut de DV360 (ses cercles), dans la même file.
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
+    await stable();
     http.verify();
     expect(el.querySelectorAll('mg-colonne-plateforme')).toHaveLength(4);
     expect(el.querySelectorAll('[data-corps-colonne]')).toHaveLength(1);
@@ -62,6 +65,8 @@ describe('mg-panneau-jeu', () => {
     expect(el.querySelector('[data-colonnes]')!.classList).toContain('grid-cols-4');
     expect(el.querySelectorAll('[data-corps-colonne]')).toHaveLength(4);
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+    await stable();
+    http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1)); // B9 : la simulation du défaut de DV360
     await stable();
     http.expectOne(urlCouverture(Z1, 'forme'));
   });

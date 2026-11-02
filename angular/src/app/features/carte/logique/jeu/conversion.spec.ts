@@ -1,4 +1,5 @@
-import { MESSAGES_MAILLE_SANS_OBJET, appliquerSeuil, estRetenue, exactitude, mailleParDefaut, mailleSansObjet, resumeExact, verifierLimites } from './conversion';
+import { MESSAGES_MAILLE_SANS_OBJET, appliquerSeuil, estRetenue, exactitude, mailleSansObjet, resumeExact, verifierLimites } from './conversion';
+import { mailleParDefaut } from './conversion-defaut';
 import type { PlateformeGeo } from './plateformes';
 
 /**
