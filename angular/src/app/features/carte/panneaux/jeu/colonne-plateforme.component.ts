@@ -8,7 +8,8 @@ import { MAX_CODES_CONTOURS } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { estExacte } from '../../logique/jeu/bilan';
 import { rayonDefautExplique } from '../../logique/jeu/mailles-url';
-import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, mailleSansObjet, paysAVerifier } from '../../logique/jeu/conversion';
+import { LIBELLE_POPULATION_INCONNUE, NOTE_PAYS_A_VERIFIER, paysAVerifier } from '../../logique/jeu/conversion';
+import { phraseSansObjet } from '../../logique/jeu/sans-objet';
 import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
   texteChevauchement, texteDefaut, texteDiffusionInconnue, texteRayonDefaut, texteUnitePays,
@@ -192,16 +193,16 @@ export class ColonnePlateformeComponent {
   protected readonly nom = computed(() => NOM_PLATEFORME[this.plateforme()]);
   protected readonly lignes = computed(() => this.jeu.plateformes().filter((l) => l.plateforme === this.plateforme()));
   /**
-   * Les mailles offertes au choix (⑤ finitions, A-3, Q-4) : une maille SANS OBJET pour la recette (`mailleSansObjet`)
-   * est grisée avec sa phrase sur une zone pays (cercles, communes, IRIS) ; sur toute autre zone, la seule maille sans
-   * objet est le pays, qui ne s'affiche pas.
+   * Les mailles offertes au choix (⑤ finitions, A-3, Q-4) : une maille SANS OBJET pour la recette est grisée avec sa
+   * phrase (`phraseSansObjet` : les mailles de la plateforme qui restent, revue T6 I-1) sur une zone pays ou nationale
+   * moins des zones locales (cercles, communes, IRIS) ; la maille pays sans objet ne s'affiche pas.
    */
   protected readonly lignesChoix = computed(() => {
     const recette = this.jeu.recette();
     return this.lignes().flatMap((l) => {
-      const raison = mailleSansObjet(recette, l.maille);
+      const raison = phraseSansObjet(l.maille, this.lignes(), recette, this.jeu.nationaleMoins());
       if (!raison) return [l];
-      return recette?.type === 'pays' ? [{ ...l, disponible: false, note: raison }] : [];
+      return l.maille !== 'pays' ? [{ ...l, disponible: false, note: raison }] : [];
     });
   });
   protected readonly choix = computed(() => this.jeu.choix()[this.plateforme()]);

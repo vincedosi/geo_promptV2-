@@ -6,8 +6,8 @@ import { MODE_PLAN_DEFAUT_ZONE } from '../../risques/logique/jeu';
 import { CIBLE_PAR_DEFAUT, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
-  type BilanPlateforme, type ResultatCercles, bilanDe, cerclesCourants, choixDeBase, choixNeuf, cleCouverture, couverturesCourantes,
-  daterCouvertures, lectureRequise, parPlateforme, rangerCouverture,
+  type BilanPlateforme, type ResultatCercles, bilanDe, cerclesCourants, choixCourant, choixDeBase, choixNeuf, cleCouverture,
+  couverturesCourantes, daterCouvertures, jeuModifie, lectureRequise, parPlateforme, rangerCouverture,
 } from '../logique/jeu/bilan';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
@@ -15,7 +15,8 @@ import {
 } from '../logique/jeu/mailles-url';
 import { mailleSansObjet } from '../logique/jeu/conversion';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
-import type { Recette } from '../logique/zones/recette';
+import { estNationaleMoins } from '../logique/jeu/sans-objet';
+import type { Recette, ZoneConnue } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
 import { jeuPerdu, lireJeuDeZone } from './jeu-zones-lecture';
 import { RegistrePlateformes } from './jeu-zones-registre';
@@ -63,13 +64,14 @@ export class JeuZonesService {
   private readonly _cibleChoisie = signal<string | null>(null);
   private readonly _modeChoisi = signal<ModePlan | null>(null);
   private readonly _categorieChoisie = signal<boolean | null>(null);  // C29 : la case « catégorie spéciale », hors URL
+  private readonly _sources = signal<ReadonlyMap<string, ZoneConnue>>(new Map());  // les zones de l'espace (revue T6, I-2)
   /** La date de mise à jour de la zone que le sélecteur connaît : elle entre dans la clé des couvertures (recalcul en ③). */
   private readonly _maj = signal<string | null>(null);
   /** Incrémenté quand la zone courante (non enregistrée) vient d'être recalculée : le sélecteur relit sa date. */
   private readonly _relectureZone = signal(0);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
-  private readonly registre = new RegistrePlateformes(() => this.categorieSpeciale());
+  private readonly registre = new RegistrePlateformes(() => this.categorieSpeciale(), () => this.nationaleMoins());
   /** La file des conversions et leurs échecs (T0 des finitions) ; une zone introuvable la retire, message gardé. */
   private readonly taches = new TachesJeu((message) => {
     this.choisirZone(null);
@@ -95,6 +97,8 @@ export class JeuZonesService {
   readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODE_PLAN_DEFAUT_ZONE);
   /** C29 : la case cochée, sinon celle du jeu, sinon non ; le registre en tire le rayon minimal (`regleCategorieSpeciale`). */
   readonly categorieSpeciale: Signal<boolean> = computed(() => this._categorieChoisie() ?? this.jeu()?.jeu.categorie_speciale ?? false);
+  /** Revue T6 (I-2) : zone nationale moins des zones locales (C21), lue dans les zones de l'espace (`choisirSources`). */
+  readonly nationaleMoins: Signal<boolean> = computed(() => estNationaleMoins(this._recette(), this._sources()));
   /** Le registre `plateformes_geo`, lu une fois par page. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = this.registre.plateformes;
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */
@@ -106,25 +110,11 @@ export class JeuZonesService {
   /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (`defauts`), seuil 20 %. */
   private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts(), this._surface()));
 
-  /**
-   * Le choix courant de chaque plateforme : la base, et par-dessus les choix explicites. Vide sans zone. Un choix
-   * explicite SANS OBJET pour la recette (`mailleSansObjet` : cercles sur une zone pays, pays sur une zone locale) est
-   * ignoré, sans être effacé — la plateforme garde son défaut et ne lance aucune lecture (⑤ finitions, T4).
-   */
-  readonly choix: Signal<ChoixParPlateforme> = computed(() => {
-    if (!this._zoneId() || !this._recetteConnue()) return {};
-    const recette = this._recette();
-    const explicites = Object.entries(this._reglages()).filter(([, c]) => mailleSansObjet(recette, c.maille) === null);
-    return { ...this.base(), ...Object.fromEntries(explicites) };
-  });
-  /**
-   * Un jeu ouvert dont l'écran ne montre plus l'enregistré : des choix ou un mode qui en diffèrent. Une extraction fige
-   * l'ENREGISTRÉ (A-11) : tant que c'est vrai, l'écran fait d'abord enregistrer les réglages (relecture T10-12).
-   */
-  readonly modifie: Signal<boolean> = computed(() => {
-    const jeu = this.jeu();
-    return !!jeu && (ecrireMailles(this.choix()) !== ecrireMailles(this.base()) || this.modePlan() !== jeu.jeu.mode_plan || this.categorieSpeciale() !== (jeu.jeu.categorie_speciale ?? false));
-  });
+  /** Le choix courant de chaque plateforme (`choixCourant` : les choix sans objet ignorés) ; vide sans zone ni recette connue. */
+  readonly choix: Signal<ChoixParPlateforme> = computed(() => (!this._zoneId() || !this._recetteConnue() ? {}
+    : choixCourant(this.base(), this._reglages(), this._recette(), this.nationaleMoins())));
+  /** Un jeu ouvert modifié à l'écran (`jeuModifie`) : une extraction fige l'ENREGISTRÉ (A-11), on enregistre d'abord. */
+  readonly modifie: Signal<boolean> = computed(() => jeuModifie(this.jeu(), this.choix(), this.base(), this.modePlan(), this.categorieSpeciale()));
 
   /** Les couvertures lues pour la zone et la cible COURANTES, par découpage. */
   readonly couvertures: Signal<Partial<Record<Decoupage, ResultatCouverture>>> = computed(() =>
@@ -220,6 +210,7 @@ export class JeuZonesService {
 
   choisirMode(mode: ModePlan): void { this._modeChoisi.set(mode); }
   choisirCategorieSpeciale(oui: boolean): void { this._categorieChoisie.set(oui); }
+  choisirSources(sources: ReadonlyMap<string, ZoneConnue>): void { this._sources.set(sources); }
 
   /**
    * Zone recalculée (« Mes zones ») : la courante, sans jeu ouvert (sa zone ne se recalcule pas, 409), fait relire sa
@@ -257,7 +248,7 @@ export class JeuZonesService {
     if (!this._zoneId() || !this._recetteConnue()) return;
     const actuel = this.choix()[plateforme];
     const maille = r.maille ?? actuel?.maille;
-    if (!maille || mailleSansObjet(this._recette(), maille)) return;
+    if (!maille || mailleSansObjet(this._recette(), maille, this.nationaleMoins())) return;
     const suivant = choixNeuf(maille, r.seuil ?? actuel?.seuil ?? SEUIL_PAR_DEFAUT, r.rayon ?? actuel?.rayon_m, this.regle(plateforme, maille), this._recette(), this._surface(), this.plateformes());
     if (actuel && ecrireMailles({ [plateforme]: actuel }) === ecrireMailles({ [plateforme]: suivant })) return;
     this._reglages.update((avant) => ({ ...avant, [plateforme]: suivant }));

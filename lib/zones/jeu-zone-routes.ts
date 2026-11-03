@@ -20,6 +20,7 @@ import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { regleCategorieSpeciale } from '@/lib/zones/conversion-rayon';
 import { mailleSansObjet } from '@/lib/zones/conversion';
+import { estNationaleMoins } from '@/lib/zones/couverture';
 import { lireRecette, recetteVue } from '@/lib/zones/recette-schema';
 import { refusActivationServeur } from '@/lib/zones/activation-serveur';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
@@ -129,11 +130,14 @@ async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[], ca
  * zone locale) → 400 `{ error: « <plateforme> — <phrase> », refus: 'maille_sans_objet', plateforme }`, comme le 422
  * de l'extraction (relecture 1) ; la phrase est celle de `mailleSansObjet`, la même règle que l'écran et
  * l'extraction. `recette` : brute de `custom_geo_zones` ; illisible, seule la maille pays est refusée. `null` = admis.
+ * Revue T6 (I-2) : une zone nationale moins des zones locales (C21, `estNationaleMoins` : une lecture, pour une
+ * différence seulement) refuse aussi cercles, communes et IRIS — le pavage serait refusé `zone_trop_vaste`.
  */
-function refusSansObjet(recette: unknown, choix: ChoixPlateforme[]): NextResponse | null {
+async function refusSansObjet(supabase: ClientAdmin, zoneId: string, orgId: string, recette: unknown, choix: ChoixPlateforme[]): Promise<NextResponse | null> {
   const lue = lireRecette(recette);
+  const nationaleMoins = await estNationaleMoins(supabase, zoneId, orgId, recette);
   for (const c of choix) {
-    const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille);
+    const phrase = mailleSansObjet(lue.ok ? lue.recette : null, c.maille, nationaleMoins);
     if (phrase) {
       return NextResponse.json({ error: `${c.plateforme} — ${phrase}`, refus: 'maille_sans_objet', plateforme: c.plateforme }, { status: 400 });
     }
@@ -181,7 +185,7 @@ export async function enregistrerJeuZone(
   if (cible.error) return panne('cible', cible.error.message);
   if (!cible.data) return erreur(`Cible inconnue : ${jeu.cible}.`, 400);
   if (refus) return refus;
-  const sansObjet = refusSansObjet(zone.data.recette, jeu.plateformes);
+  const sansObjet = await refusSansObjet(supabase, jeu.zone_id, espace.orgId, zone.data.recette, jeu.plateformes);
   if (sansObjet) return sansObjet;
   const tropFin = await refusTropFin(supabase, espace.orgId, zone.data.recette, ECHEC_ENREGISTREMENT);
   if (tropFin) return tropFin;
@@ -270,7 +274,7 @@ export async function reglerJeuZone(
     if (refus) return refus;
     // La zone ne peut manquer (clé étrangère `on delete restrict`) : son absence est une anomalie.
     if (zone.error || !zone.data) return panne('zone du jeu', zone.error?.message ?? 'absente', 'Modification impossible.');
-    const sansObjet = refusSansObjet(zone.data.recette, corps.plateformes);
+    const sansObjet = await refusSansObjet(supabase, jeu.custom_geo_zone_id ?? '', jeu.org_id, zone.data.recette, corps.plateformes);
     if (sansObjet) return sansObjet;
     const tropFin = await refusTropFin(supabase, jeu.org_id, zone.data.recette, 'Modification impossible.');
     if (tropFin) return tropFin;

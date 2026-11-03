@@ -646,10 +646,21 @@ describe('zone pays (⑤ finitions, T2) : le ciblage pays des plateformes, sans 
     const r = await extraire();
     expect(r.status).toBe(422);
     expect(await r.json()).toEqual({
-      error: 'meta — Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays. Réglez à nouveau le jeu avant d’extraire.',
+      error: 'meta — Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez une maille plus large. Réglez à nouveau le jeu avant d’extraire.',
       refus: 'maille_sans_objet', plateforme: 'meta',
     });
     expect(etat.rpcs).toEqual([]);
+  });
+
+  it('revue T6 (I-2) : Meta en cercles sur une zone nationale moins des zones locales → 422 sans objet, aucun pavage', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 10000 }],
+      { v: 1, type: 'combinaison', operation: 'difference', zones: [ZONE, ORG] }, [regle('meta', 'cercle')]);
+    etat.tables.custom_geo_zones = (f) => ({ data: f.some((x) => x[0] === 'in') ? [] : { recette: { v: 1, type: 'combinaison', operation: 'difference', zones: [ZONE, ORG] }, unites_constitutives: null }, error: null });
+    etat.reponses.zone_pays_moins_base = { data: 'METRO', error: null };
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    expect((await r.json()).refus).toBe('maille_sans_objet');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('paver_cercles');
   });
 
   it('la maille pays sur une zone qui n’est pas nationale : 422, rien calculé', async () => {

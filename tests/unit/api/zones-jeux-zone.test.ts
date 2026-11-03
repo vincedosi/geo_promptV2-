@@ -69,7 +69,11 @@ vi.mock('@/lib/api/rate-limit', () => ({
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
     from: (table: string) => requete(table),
-    rpc(nom: string) { throw new Error(`RPC inattendue : ${nom}`); },
+    // Revue T6 (I-2) : seule la lecture « nationale moins des zones locales » (C21) est attendue, pour une différence.
+    rpc(nom: string) {
+      if (nom === 'zone_pays_moins_base') return Promise.resolve({ data: h.donnees['rpc:zone_pays_moins_base'] ?? null, error: null });
+      throw new Error(`RPC inattendue : ${nom}`);
+    },
   }),
 }));
 
@@ -427,7 +431,7 @@ describe('DELETE /api/zones/jeux/[id] — jeu de zone', () => {
 describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant toute écriture', () => {
   const PAYS = { v: 1, type: 'pays', code: 'METRO' };
   const zonePays = () => { h.donnees['custom_geo_zones:select1'] = { id: h.ZONE, name: 'France', recette: PAYS }; };
-  const CERCLES_PAYS = 'Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.';
+  const CERCLES_PAYS = 'Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez une maille plus large.';
 
   it('POST : Meta en cercles sur une zone nationale → 400 avec sa phrase, rien écrit, la recette lue dans l’espace', async () => {
     zonePays();
@@ -462,6 +466,20 @@ describe('la garde « maille sans objet » (⑤ finitions, T2, A-3) : avant tout
     expect(await r.json()).toEqual({ error: `meta — ${CERCLES_PAYS}`, refus: 'maille_sans_objet', plateforme: 'meta' });
     expect(h.ecritures).toEqual([]);
     expect(h.lectures).toContain(`custom_geo_zones:id=${h.ZONE},org_id=${h.ORG}`);
+  });
+
+  it('revue T6 (I-2) : POST, Meta en cercles sur une zone nationale moins des zones locales → 400, rien écrit', async () => {
+    h.donnees['custom_geo_zones:select1'] = {
+      id: h.ZONE, name: 'France sauf Lyon', recette: { v: 1, type: 'combinaison', operation: 'difference', zones: [h.JEU, h.ORG] },
+    };
+    h.donnees['rpc:zone_pays_moins_base'] = 'METRO';
+    const r = await poster({ nom: 'France sauf Lyon', jeu: jeuZone() });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toEqual({ error: `meta — ${CERCLES_PAYS}`, refus: 'maille_sans_objet', plateforme: 'meta' });
+    expect(h.ecritures).toEqual([]);
+    // Une différence qui n'est pas nationale : admise.
+    h.donnees['rpc:zone_pays_moins_base'] = null;
+    expect((await poster({ nom: 'France sauf Lyon', jeu: jeuZone() })).status).toBe(201);
   });
 
   it('PATCH sans plateformes : aucune lecture de la zone avant l’écriture', async () => {

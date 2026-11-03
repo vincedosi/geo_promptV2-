@@ -1,8 +1,8 @@
 import { DECOUPAGES, type Decoupage, type ResultatCouverture } from '../analyses/couverture';
 import type { Recette } from '../zones/recette';
 import {
-  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, resumeExact, resumePays, unitesPays,
-  verifierLimites,
+  type Avertissement, type Resume, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, mailleSansObjet, resumeExact, resumePays,
+  unitesPays, verifierLimites,
 } from './conversion';
 import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
@@ -11,7 +11,7 @@ import {
 } from './conversion-defaut';
 import { avertissementsRayon } from './conversion-rayon';
 import { avertissementsComposition, unitesConstitutives } from './exactitude-composition';
-import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, rayonParDefaut } from './mailles-url';
+import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, ecrireMailles, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
 
 /**
@@ -110,6 +110,30 @@ export function choixDeBase(
     if (maille) choix[p] = choixNeuf(maille, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2, regles);
   }
   return choix;
+}
+
+/**
+ * Le choix courant de chaque plateforme (sorti de `JeuZonesService`, plafond de 400 lignes, revue T6) : la base, et
+ * par-dessus les choix explicites. Un choix explicite SANS OBJET pour la recette (`mailleSansObjet` : cercles sur une
+ * zone pays ou nationale moins des zones locales, pays sur une zone locale) est ignoré, sans être effacé — la
+ * plateforme garde son défaut et ne lance aucune lecture (⑤ finitions, T4 ; revue T6, I-2).
+ */
+export function choixCourant(
+  base: ChoixParPlateforme, reglages: ChoixParPlateforme, recette: Recette | null, nationaleMoins: boolean,
+): ChoixParPlateforme {
+  const explicites = Object.entries(reglages).filter(([, c]) => mailleSansObjet(recette, c.maille, nationaleMoins) === null);
+  return { ...base, ...Object.fromEntries(explicites) };
+}
+
+/**
+ * Un jeu ouvert dont l'écran ne montre plus l'enregistré : des choix, un mode ou une case « catégorie spéciale » qui en
+ * diffèrent (sorti de `JeuZonesService`, revue T6). Faux sans jeu.
+ */
+export function jeuModifie(
+  jeu: { jeu: { mode_plan: string; categorie_speciale?: boolean | null } } | null, choix: ChoixParPlateforme, base: ChoixParPlateforme,
+  mode: string, categorieSpeciale: boolean,
+): boolean {
+  return !!jeu && (ecrireMailles(choix) !== ecrireMailles(base) || mode !== jeu.jeu.mode_plan || categorieSpeciale !== (jeu.jeu.categorie_speciale ?? false));
 }
 
 /**

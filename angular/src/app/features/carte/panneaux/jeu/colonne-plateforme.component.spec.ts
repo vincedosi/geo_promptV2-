@@ -264,8 +264,9 @@ describe('mg-colonne-plateforme — une zone pays (⑤ finitions, T4)', () => {
     const commune = el.querySelector<HTMLButtonElement>('[data-maille="commune"]')!;
     expect([cercle.disabled, commune.disabled]).toEqual([true, true]);
     const raisons = [...el.querySelectorAll('[data-raison]')].map((r) => r.textContent?.trim());
-    expect(raisons).toContain('Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.');
-    expect(raisons.some((r) => r?.startsWith('Sur toute la France, le découpage par IRIS'))).toBe(true);
+    // Revue T6 (I-1) : le conseil nomme les mailles de CETTE plateforme qui restent.
+    expect(raisons).toContain('Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez le pays.');
+    expect(raisons).toContain('Sur une zone nationale, le découpage par commune (34 918) est trop fin : choisissez le pays.');
     cercle.click();
     http.verify();
   });
@@ -282,6 +283,20 @@ describe('mg-colonne-plateforme — une zone pays (⑤ finitions, T4)', () => {
     expect(unites).toContain('La Réunion (RE) · 800 000 habitants');
     expect(texte(el, '[data-a-verifier]')).toBe('À vérifier');
     http.verify();
+  });
+  it('revue T6 (I-2) : nationale moins des zones locales — cercles grisés (conseil : le CP), aucune pastille « Pays », aucune lecture', async () => {
+    const o = await colonne('meta', [...REGISTRE_PAYS, regle({ plateforme: 'meta', maille: 'cp', libelle: 'Codes postaux', ordre: 70 })]);
+    o.jeu.choisirSources(new Map([['f', { name: 'France', recette: { v: 1, type: 'pays', code: 'METRO' } }]]));
+    o.jeu.choisirZone(Z1, { v: 1, type: 'combinaison', operation: 'difference', zones: ['f', 'l'] });
+    await o.stable();
+    const cercle = o.el.querySelector<HTMLButtonElement>('[data-maille="cercle"]')!;
+    expect(cercle.disabled).toBe(true);
+    expect([...o.el.querySelectorAll('[data-raison]')].map((r) => r.textContent?.trim()))
+      .toContain('Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez le code postal.');
+    expect(o.el.querySelector('[data-maille="pays"]')).toBeNull();
+    expect(o.jeu.choix().meta?.maille).toBe('cp');
+    o.jeu.valider('meta');
+    expect(o.http.match((r) => r.url.includes('/cercles'))).toEqual([]);
   });
   it('une zone qui n’est pas nationale : aucune pastille « Pays »', async () => {
     const { el } = await colonne('meta', REGISTRE_PAYS);

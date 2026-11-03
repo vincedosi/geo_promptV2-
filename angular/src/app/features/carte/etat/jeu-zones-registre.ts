@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 import type { ReponsePlateformes } from '../data/jeux.api';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import { choixASimuler, defautsDe } from '../logique/jeu/bilan';
+import { mailleSansObjet } from '../logique/jeu/conversion';
 import { regleCategorieSpeciale } from '../logique/jeu/conversion-rayon';
 import type { Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
@@ -22,8 +23,10 @@ export class RegistrePlateformes {
   /**
    * @param categorieSpeciale C29 : la case « catégorie spéciale » du jeu — lue par le registre, pour que TOUTE règle
    *   (bornes, réglette, rayon par défaut, exactitude, défauts) voie le rayon minimal qu'elle impose.
+   * @param nationaleMoins Revue T6 (I-2) : la zone est nationale moins des zones locales (C21) — ses mailles sans objet
+   *   (cercles, communes, IRIS) sortent des candidates au défaut et des simulations, comme sur une zone pays.
    */
-  constructor(private readonly categorieSpeciale: () => boolean = () => false) {}
+  constructor(private readonly categorieSpeciale: () => boolean = () => false, private readonly nationaleMoins: () => boolean = () => false) {}
 
   /** Le registre `plateformes_geo`, vide tant qu'il n'est pas lu ; C29 : ses lignes lues par `regleCategorieSpeciale`. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() =>
@@ -41,11 +44,17 @@ export class RegistrePlateformes {
     recette: Recette | null, lu: Parameters<typeof defautsDe>[3], echec: Parameters<typeof defautsDe>[4], surface_km2: number | null,
   ): ReturnType<typeof defautsDe> {
     const r = this.lecture.resultat();
-    return defautsDe(this.plateformes(), recette, r?.reglages_defaut, lu, echec, surface_km2, r?.poids ?? []);
+    return defautsDe(this.candidates(recette), recette, r?.reglages_defaut, lu, echec, surface_km2, r?.poids ?? []);
   }
 
   /** `choixASimuler` sur le registre lu : les simulations qui décident du défaut de la plateforme. */
   aSimuler(p: Plateforme, recette: Recette | null, surface_km2: number | null): ReturnType<typeof choixASimuler> {
-    return choixASimuler(this.plateformes(), p, recette, surface_km2, this.lecture.resultat()?.poids ?? []);
+    return choixASimuler(this.candidates(recette), p, recette, surface_km2, this.lecture.resultat()?.poids ?? []);
+  }
+
+  /** Le registre sans les mailles sans objet d'une zone nationale moins des zones locales (le pays : `mailleSansObjet`). */
+  private candidates(recette: Recette | null): readonly PlateformeGeo[] {
+    if (!this.nationaleMoins()) return this.plateformes();
+    return this.plateformes().filter((l) => l.maille === 'pays' || mailleSansObjet(recette, l.maille, true) === null);
   }
 }

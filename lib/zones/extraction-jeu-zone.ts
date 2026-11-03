@@ -38,7 +38,7 @@ import type { createAdminClient } from '@/lib/auth';
 import type { Tables } from '@/types/database.types';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { formaterNombre } from '@/lib/format/nombre';
-import { MESSAGES_REFUS_COUVERTURE, repondreCouverture, type LigneCouverture } from './couverture';
+import { MESSAGES_REFUS_COUVERTURE, estNationaleMoins, repondreCouverture, type LigneCouverture } from './couverture';
 import {
   MESSAGES_CONVERSION, appliquerSeuil, avertissementsDisque, estRetenue, exactitude, mailleSansObjet, paysAVerifier, resumeExact,
   resumePays, unitesPays, verifierLimites,
@@ -184,6 +184,8 @@ const aucuneUnite = (c: Choix) =>
 /** Le contexte d'une conversion : le jeu, la recette de sa zone (pour l'exactitude), les lectures mémorisées. */
 interface Contexte {
   supabase: ClientAdmin; jeu: LigneJeu; recette: Recette | null;
+  /** Revue T6 (I-2) : zone nationale moins des zones locales (C21) — cercles, communes, IRIS sans objet. */
+  nationaleMoins: boolean;
   /** Un découpage lu pour une plateforme sert les suivantes (et le plan CP). */
   couvertures: Map<string, Couverture>;
 }
@@ -449,7 +451,7 @@ function convertir(ctx: Contexte, c: Choix, regles: readonly PlateformeGeo[]): P
   const refus = refusDuChoix(c, regle);
   if (refus || !regle) return erreur(`${refus} Réglez à nouveau le jeu avant d’extraire.`, 422);
   // Un choix enregistré avant la règle « maille sans objet » (⑤ finitions, A-3) : refusé avant toute lecture.
-  const sansObjet = mailleSansObjet(ctx.recette, regle.maille);
+  const sansObjet = mailleSansObjet(ctx.recette, regle.maille, ctx.nationaleMoins);
   if (sansObjet) {
     return {
       ok: false,
@@ -557,7 +559,9 @@ export async function extraireJeuZone(
   } catch (e) {
     return panne('règles', e).reponse;
   }
-  const ctx: Contexte = { supabase, jeu, recette: lue.ok ? lue.recette : null, couvertures: new Map() };
+  // Revue T6 (I-2) : une lecture (`zone_pays_moins_base`), pour une différence seulement ; en échec, VRAI (refus prudent).
+  const nationaleMoins = await estNationaleMoins(supabase, jeu.custom_geo_zone_id ?? '', jeu.org_id, zoneLue.data.recette);
+  const ctx: Contexte = { supabase, jeu, recette: lue.ok ? lue.recette : null, nationaleMoins, couvertures: new Map() };
 
   const unites: Unite[] = [];
   const resumes: ResumePlateforme[] = [];

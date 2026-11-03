@@ -1,6 +1,6 @@
 import { formaterNombre } from '../../../../core/format/nombre';
 import type { ResultatCercles } from './bilan';
-import type { Avertissement, Resume } from './conversion';
+import { type Avertissement, NOMS_PAYS, type Resume } from './conversion';
 import type { DefautExplique, ModePoussee, Simulation } from './conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
 import { DIVISEUR_RAYON_SURFACE, PAS_RAYON_M, type RayonDefaut, bornesDeReglette } from './mailles-url';
@@ -112,7 +112,9 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     // A3 : avant (le cercle se disait exact, 100 % du disque compté) → après (la part en France, la perte calculée).
     return `Disque partiellement hors de France : ${formaterNombre(a.valeur)} % de sa surface est en France, `
       + `${formaterNombre(Math.round((a.limite - a.valeur) * 10) / 10)} % en mer ou à l’étranger, achetés par la plateforme sans être comptés. `
-      + 'Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.';
+      // Revue T6 (I-4) : un DROM est ciblé comme un pays distinct (Q-2) — « FR » couperait l'audience d'un rayon à La Réunion.
+      + 'Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays du territoire : FR en métropole, '
+      + `sinon le DROM, ciblé comme un pays distinct (${Object.keys(NOMS_PAYS).filter((k) => k !== 'FR').join(', ')}).`;
   }
   if (a.code === 'rayon_min' || a.code === 'rayon_max') {
     // B8 (ARB-5) : le rayon de la recette hors des bornes de la plateforme — avant, après, la borne ; la recette, elle,

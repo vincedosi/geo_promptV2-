@@ -254,14 +254,14 @@ export function avertissementsDisque(recette: Recette | null, maille: Maille): A
 /**
  * Les phrases d'une maille SANS OBJET pour la recette (⑤ finitions, A-3), refus `maille_sans_objet`.
  *
- * ⚠ COPIE DÉCLARÉE : `decoupage_pays` recopie `MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays`
- * (`lib/zones/couverture.ts`) — ce module n'importe que des types, il est recopié côté Angular.
- * `tests/unit/zones/conversion.test.ts` verrouille l'égalité.
+ * Revue T6 (I-1, I-2) : `decoupage_pays` n'est plus la copie de `decoupage_trop_fin_pays` (④ : « choisissez le code
+ * postal », faux chez TikTok et sur une zone nationale moins des zones locales). Ce sont les refus du SERVEUR ; l'écran
+ * de ⑤ nomme les mailles de la plateforme qui restent (`phraseSansObjet`, côté Angular).
  */
 export const MESSAGES_MAILLE_SANS_OBJET = {
-  cercles_pays: 'Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.',
-  decoupage_pays: 'Sur toute la France, le découpage par IRIS (48 872) ou par commune (34 918) est trop fin : '
-    + 'choisissez le découpage par code postal.',
+  cercles_pays: 'Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez une maille plus large.',
+  decoupage_pays: 'Sur une zone nationale, le découpage par IRIS (48 872) ou par commune (34 918) est trop fin : '
+    + 'choisissez une maille plus large.',
   pays_hors_zone_nationale: 'La maille pays ne s’achète que pour une zone nationale.',
 } as const;
 
@@ -272,9 +272,11 @@ export const MESSAGES_MAILLE_SANS_OBJET = {
  *   sens ; CP, département, polygone et pays en ont (DV360 au CP reste le choix de l'utilisateur, § 16.1).
  * - Toute autre zone, et une recette illisible : seule la maille pays est sans objet — une campagne nationale passe
  *   par une zone nationale (Q-4 : on paierait 99 % de diffusion hors zone). L'écran ne l'affiche même pas.
+ * - `nationaleMoins` (C21, revue T6 I-2 : ≈ 545 000 km²) : cercle et découpages trop fins sans objet, pays aussi.
  */
-export function mailleSansObjet(recette: Recette | null, maille: Maille): string | null {
-  if (recette?.type !== 'pays') return maille === 'pays' ? MESSAGES_MAILLE_SANS_OBJET.pays_hors_zone_nationale : null;
+export function mailleSansObjet(recette: Recette | null, maille: Maille, nationaleMoins = false): string | null {
+  if (maille === 'pays') return recette?.type === 'pays' ? null : MESSAGES_MAILLE_SANS_OBJET.pays_hors_zone_nationale;
+  if (recette?.type !== 'pays' && !nationaleMoins) return null;
   if (maille === 'cercle') return MESSAGES_MAILLE_SANS_OBJET.cercles_pays;
   if (maille === 'commune' || maille === 'iris') return MESSAGES_MAILLE_SANS_OBJET.decoupage_pays;
   return null;

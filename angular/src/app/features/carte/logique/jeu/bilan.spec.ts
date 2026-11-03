@@ -66,7 +66,9 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     expect(b?.avertissements).toEqual([{ code: 'max_unites', limite: 2, valeur: 3 }, { code: 'disque_hors_france', limite: 100, valeur: 65.9 }]);
     expect(texteAvertissement(b!.avertissements[1], 'cercle')).toBe(
       'Disque partiellement hors de France : 65,9 % de sa surface est en France, 34,1 % en mer ou à l’étranger, '
-      + 'achetés par la plateforme sans être comptés. Cercle exact → non exact : la perte est calculée. Restreignez la campagne au pays FR.');
+      + 'achetés par la plateforme sans être comptés. Cercle exact → non exact : la perte est calculée. '
+      // Revue T6 (I-4) : un DROM est ciblé comme un pays distinct (Q-2) — « FR » couperait toute l'audience de La Réunion.
+      + 'Restreignez la campagne au pays du territoire : FR en métropole, sinon le DROM, ciblé comme un pays distinct (GP, MQ, GF, RE, YT).');
     // Une autre maille : ses unités sont françaises, rien à dire.
     expect(bilanDe({ maille: 'cp', seuil: 20 }, cp, strasbourg, couverture('cp', 'v1'))?.avertissements).toEqual([]);
   });

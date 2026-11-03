@@ -261,10 +261,14 @@ describe('MESSAGES_CONVERSION — les refus de paver_cercles en français', () =
 });
 
 describe('MESSAGES_MAILLE_SANS_OBJET — le refus « maille_sans_objet » a ses phrases (E8)', () => {
-  it('trois phrases, en français ; celle du découpage trop fin est celle de la couverture (copie verrouillée)', () => {
+  it('trois phrases, en français ; aucune ne conseille une maille qu’une plateforme n’a pas (revue T6, I-1)', () => {
     expect(Object.keys(MESSAGES_MAILLE_SANS_OBJET).sort()).toEqual(['cercles_pays', 'decoupage_pays', 'pays_hors_zone_nationale']);
     for (const m of Object.values(MESSAGES_MAILLE_SANS_OBJET)) expect(m).toMatch(/^[A-ZÉ].+\.$/);
-    expect(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+    // La phrase de ④ conseille le CP : fausse chez TikTok (aucun CP) et sur une zone nationale moins des zones locales.
+    expect(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays).not.toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+    for (const m of [MESSAGES_MAILLE_SANS_OBJET.cercles_pays, MESSAGES_MAILLE_SANS_OBJET.decoupage_pays]) {
+      expect(m).not.toMatch(/code postal|choisissez le pays/);
+    }
   });
 });
 
@@ -483,11 +487,21 @@ describe('mailleParDefaut — l’ordre de finesse, défaut provisoire tant que 
 describe('mailleSansObjet — une seule règle, serveur et écran (⑤ finitions, A-3)', () => {
   const PAYS = RECETTES.pays;
   it('zone pays : cercles et découpages trop fins sans objet, avec leur phrase ; le reste a un sens', () => {
-    expect(mailleSansObjet(PAYS, 'cercle')).toBe('Sur toute la France, le ciblage par cercles n’a pas de sens : choisissez le pays.');
-    expect(mailleSansObjet(PAYS, 'commune')).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
-    expect(mailleSansObjet(PAYS, 'iris')).toBe(MESSAGES_REFUS_COUVERTURE.decoupage_trop_fin_pays);
+    expect(mailleSansObjet(PAYS, 'cercle')).toBe('Sur une zone nationale, le ciblage par cercles n’a pas de sens : choisissez une maille plus large.');
+    expect(mailleSansObjet(PAYS, 'commune')).toBe(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays);
+    expect(mailleSansObjet(PAYS, 'iris')).toBe(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays);
     for (const m of ['cp', 'departement', 'polygone', 'pays'] as const) expect(mailleSansObjet(PAYS, m), m).toBeNull();
     expect(mailleSansObjet({ v: 1, type: 'pays', code: 'FR' }, 'cercle')).toBe(MESSAGES_MAILLE_SANS_OBJET.cercles_pays);
+  });
+  it('revue T6 (I-2) : nationale moins des zones locales — cercles, communes, IRIS et pays sans objet ; CP, département, polygone admis', () => {
+    const moins = RECETTES.combinaison;
+    expect(mailleSansObjet(moins, 'cercle', true)).toBe(MESSAGES_MAILLE_SANS_OBJET.cercles_pays);
+    expect(mailleSansObjet(moins, 'commune', true)).toBe(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays);
+    expect(mailleSansObjet(moins, 'iris', true)).toBe(MESSAGES_MAILLE_SANS_OBJET.decoupage_pays);
+    expect(mailleSansObjet(moins, 'pays', true)).toBe(MESSAGES_MAILLE_SANS_OBJET.pays_hors_zone_nationale);
+    for (const m of ['cp', 'departement', 'polygone'] as const) expect(mailleSansObjet(moins, m, true), m).toBeNull();
+    // Sans l'information, une différence reste une zone locale.
+    expect(mailleSansObjet(moins, 'cercle')).toBeNull();
   });
   it('toute autre recette (et une recette illisible) : seule la maille pays est sans objet', () => {
     for (const recette of [...Object.values(RECETTES).filter((r) => r.type !== 'pays'), null]) {

@@ -62,7 +62,7 @@ const LARGEUR_COLONNES = 900;
   template: `
     <mg-entete-section libelle="Source" />
     <div class="flex flex-col gap-3 px-4 py-3">
-      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" [revision]="outils.revisionZones()" (choisie)="jeu.choisirZone($event)" (sources)="sources.set($event)" (lue)="zoneLue($event)" />
+      <mg-choix-zone-analysee libelle="Zone" [zoneId]="jeu.zoneId()" [proposee]="proposee()" [relire]="jeu.relectureZone()" [revision]="outils.revisionZones()" (choisie)="jeu.choisirZone($event)" (sources)="sources.set($event); jeu.choisirSources($event)" (lue)="zoneLue($event)" />
       @if (jeu.zoneId() && (population() !== null || surface() !== null)) {
         <div data-forme class="font-mono text-[11px] text-secondary">{{ formeTexte() }}</div>
       }
