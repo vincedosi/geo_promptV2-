@@ -250,3 +250,102 @@ Six notes de bas de page ajoutées (sources sql/075, 256, 325, 326, 328, 329, 33
 - **§ 2.6, CP de la France entière** : « 6 074 unités CP, dont 65 inconnues » date d'avant C25. Le CP 29259 a reçu son premier carreau ; le compte n'est pas remesuré.
 - **Ligne de datation et « L'essentiel »** : elles disent encore « lots 1 et 2 » et ne citent pas DV360 parmi les capacités non confirmées. Non modifiées (consigne : rien d'autre).
 - **Lyon 30 km (C21)** : 60 625 743 est le chiffre d'avant C25 ; non repris dans le Word.
+
+---
+
+# Lot 4 : décisions du 03/11
+
+Réponses de Vincent du 03/11 aux questions ouvertes des lots 1 à 3 (D30 à D37). Commits `7d526545..6ecf24bf` : 10 commits, 9 migrations (sql/333 à sql/341). Mesures en base locale, le 03/11, après C25.
+
+## Tickets livrés
+
+| Ticket | Objet | Commits | Migration | Avant → après |
+|---|---|---|---|---|
+| D30 | Communes non irisées dans « par seuil » | `7d526545`, `cd11f6e3` | sql/333, 335 | Plus de filtre `is_true_iris` : les 33 044 communes non découpées (27 316 564 hab.) entrent en « commune entière ». Indicateur sans valeur = unité « non évaluable » : jamais retenue, comptée et affichée. Mention C19 retirée. Région 84 : 3 766-7 371 → 3 457 buffers (index `idx_iris_code_region`). Plafond 5 000 → 7 000 unités : région 44 entière, 6 109 unités, 0,56 s à chaud, 2,4 s à froid, 130 Ko. Refus chiffré (`retenues`, `plafond`), « relevez » ou « baissez le seuil » selon l'opérateur |
+| D31 | Intersection de 3 zones et plus | — | — | Fermé sans commit : fait en C20 (`zone_intersection_toutes`, sql/325 ; vide → 409 `intersection_vide`, rien d'enregistré). `zones-recette` 32/32 |
+| D32 | Plan commun déprécié | `10a56cec` | sql/334 | Commentaires seuls : `zone_set_extraction_cp` déprécié pour un jeu de zone (pas pour un jeu risque), `@deprecated PlansCp.commun`, ARCHITECTURE.md. 9 190 lignes, md5 identique avant/après ; 0 extraction de jeu de zone en base (4 risque) |
+| D33 | Simulations de maille | `2ab039d1` | sql/338 | Simulations à l'ouverture de ⑤ seulement : 1 appel + file en ③/④ → 0. Cache des pavages de cercles (`pavage_cercles_cache`). 2e ouverture : rayon 5 km DV360 0,70 s → 1 ms ; composite 2,7 s → 1 ms. « Simulation des autres mailles en cours » après 1 s. Territoires déjà en cache (sql/270), cercles déjà au seul rayon par défaut |
+| D34 | Mécanisme TTD | `56d55525` | sql/336 | TTD au CP en multiplicateur ; `valeur_min`, `valeur_max`, `nb_max_entrees` à null « à vérifier ». `budget_ligne` gardé dans l'énumération. Effet mesuré nul : défaut et écrêtage inchangés (TTD non branché) |
+| D35 | Volume HORS_ZONE | `ba6e0cda` | sql/337 | Volume restreint à l'univers de la zone (`volumes_attendus_cp_univers`) : une zone de métropole ne compte plus les 1 190 909,5 hab. carroyés des DROM. Toulouse 6 km, seuil 10, mode national : 63 286 585 → 62 095 675,5 hab., part prévue 96,69 % → 96,63 %. Composite (touche 971-974, univers FR) inchangée : 46 056 075,5 hab., 41,98 %. 1 093 buffers, 3,9 ms. Modes strict et national déjà conformes |
+| D36 | Contours DROM | `55379710` | sql/339 | Communes et CP inconnus découpés au contour du référentiel de leur département. Retenus à 0,95 : communes 971 18/32 → 32/32, 973 21/22 → 22/22, 976 8/17 → 17/17 ; CP 18/32 → 32/32, 21/22 → 22/22, 6/11 → 11/11. « Surface du référentiel » affichée en ⑤, et en ④ depuis `6ecf24bf` |
+| D37 | Polygone simplifié à 50 m | `3a23b6cd` | sql/340 | Remplace les paliers 5/10/25/50 m d'A7 : 50 m toujours, à l'extraction seulement ; morceaux < 0,04 km² retirés et comptés dans la perte ; tout retiré → 422 `morceaux_tous_retires`. CIRFA `f001b479` : non simplifiée (2 792 sommets) → 2 470, perte 0,017 % (sous 0,1 %, non affichée). Composite `919ca65d` : 19 574 sommets / 565 morceaux / 0,251 % → 19 542 / 558 (7 retirés) / 0,254 %, 0,62 s. Disque de 500 m : inchangé (18 000 / 2 000 / 8,38 %) |
+| Relecture | Corrections de la relecture finale | `6ecf24bf` | sql/341 | Cache des pavages vérifié aussi sur `min_menages` (I-1) ; empreinte `paver_cercles_md5` étendue aux 7 fonctions appelées ; commentaire de la route cercles corrigé (I-2) ; fixtures d'extraction ; `morceaux_retires` = morceaux < 0,04 km² seulement |
+| Tests C25 | Attendus après C25 | `41092bdb` | — | Tests seuls. Caches de fixtures datés par `base_couverture_e7_le()` ; France au CP 6 115 / 6 009 → 6 116 / 6 010 (CP 29259, 2 hab., premier carreau reçu par C25) |
+
+## Décisions du chef de projet (à relire)
+
+- **D30** : plafond de « par seuil » relevé de 5 000 à 7 000 unités (6 régions dépassaient 5 000). Si faux : géométrie plus lourde, bornée (130 Ko pour la région 44).
+- **D30** : `part_couples_avec_enfants`, vide sur 49 448 lignes, passé `active = false` au registre (réversible). Si faux : un indicateur masqué alors qu'il aurait une donnée.
+- **D33** : un seuil autre que celui par défaut repave les cercles (le cache est par paramètres, union exacte). Si faux : un pavage de plus à chaque seuil changé.
+- **D35** : univers FR dès qu'une unité CP de la zone est en 97, METRO sinon ; univers figé sur la ligne HORS_ZONE. Si faux : une zone de métropole qui touche un DROM compte le volume des DROM.
+- **D37** : tous les morceaux sous 0,04 km² → refus 422 chiffré plutôt qu'une forme vide. Si faux : une micro-zone refusée au lieu d'être achetée en cercle.
+- **Fixtures** : `fichier-extraction` et `activation-extraction` lisent un jeu créé par fixture (`_jeu-zone-fixture.ts`) au lieu du jeu 66061937 supprimé le 28/10. Si faux : rien, aucune donnée existante touchée.
+- **sql/341** : l'empreinte de `paver_cercles` couvre un niveau d'appel ; une fonction appelée par une fonction appelée n'invalide pas le cache (angle mort écrit). Si faux : un pavage périmé servi après une migration profonde.
+
+## Tests ajoutés
+
+Intégration, nouveaux : `pavage-cercles-cache` (2 tests rouges avant sql/341), fixture partagée `_jeu-zone-fixture.ts`.
+
+Cas ajoutés en intégration : `zone-seuil-territoire`, `plateformes-poids`, `part-prevue`, `population-inconnue`, `polygone-sommets-morceaux`, `jeux-de-zone-schema`, `jeux-de-zone-routes` (`surface_km2` de B10), `fichier-extraction`, `activation-extraction`, `unite-groupe-cp`, `seuil-part-non-arrondie`. Unitaires : `recette`, `recette-schema`, `executer-recette`, `recette-paritaire`, `conversion-defaut`, `extraction-jeu-zone`, `plan-jeu-zone`, `part-prevue`, `cercles-route`. Angular : `recette-seuil-territoire`, `pied-recette`, `panneau-jeu`, `colonne-plateforme`, `extractions-jeu`, `jeu-zones-pays`, `tableau-couverture-zone`.
+
+Dernière passe (`6ecf24bf`) : `tsc` 0 (racine et Angular) ; unitaires 3 320/3 320 ; intégration lancée fichier par fichier, verte sur les fichiers touchés ; Angular : `panneaux/jeu` 52/52, `jeu-zones-*` 47/47. `fichier-extraction` et `activation-extraction` ne sont plus rouges. Rouges étrangers au découpage : `indicateurs-rls` et `indicateurs-privables` (abstention passée « privée » en base partagée par une autre branche).
+
+## Mineurs parqués
+
+- D33 : l'extraction ne lit pas le cache des pavages ; une zone composite est refusée `zone_trop_vaste` au rayon par défaut (B10).
+- D37 : la mesure de simplification relit la bande, pas le cache de couverture ; `texteSimplification` n'existe qu'en Angular (pas de copie `lib`).
+- D30 : `CRITERE_VRAIS_IRIS` (C19) reste documentaire.
+- Les mineurs des lots 1 à 3 restent dans leurs sections et dans le journal.
+
+## Passation à l'équipe dentsu
+
+- **Plan commun (D32)** : déprécié. À retirer dans le commit qui fait lire `zone_set_extraction_cp_plateforme` à ⑥ et ⑦. Les extractions déjà produites gardent leur plan commun figé, en lecture seule. Pas deux sources de vérité au-delà de cette transition.
+- **TTD (D34)** : plage du multiplicateur et nombre maximal d'entrées inconnus, « à vérifier ». Tant que ⑥/⑦ lisent le plan commun, un poids écrêté à 10 (borne DV360) part chez TTD sans que l'écran le dise. À trancher quand la plage TTD est relevée.
+- **Part observée = taux de fuite (D35)** : définie (`docs/rebid-v2.md`), sans code. À câbler dans le noyau d'optimisation (`lib/optimisation`) ou en ⑧.
+
+## Document de méthodologie
+
+`C:\GENESIS\methodologie-decoupage-zones-dentsu-explore.docx` (hors dépôt). Copie avant modification : `methodologie-decoupage-zones-dentsu-explore.avant-lot4.docx`. Validation XSD passée (435 paragraphes, inchangé), rendu PDF par Word relu (19 pages).
+
+| Ticket | Sections du Word |
+|---|---|
+| D30 | § 1.2, ligne « Seuil sur territoires » : communes entières, non évaluables, couples avec enfants retiré ; plafond 7 000 et refus chiffré |
+| D32 | § 2.7 : plan commun déprécié, retiré avec ⑥/⑦, écrêté à la plage DV360 et transmis tel quel à TTD |
+| D33 | § 3.3 : simulations à l'ouverture de ⑤, caches, « simulation des autres mailles en cours » |
+| D34 | § 2.7 : TTD en multiplicateur, plage et nombre d'entrées « à vérifier » ; § 3.5, puce TTD |
+| D35 | § 2.7 : volume HORS_ZONE restreint à l'univers, taux de fuite non calculé, Toulouse 96,63 % |
+| D36 | § 2.3 : contours du référentiel, 32/32, 22/22, 17/17 |
+| D37 | § 2.4 (tableau et exactitude), § 3.4 (refus, paragraphe Polygone), § 4.2 |
+| Restes du lot 3 | Datation « lots 1 à 4 » ; « L'essentiel » cite les bornes DV360 ; § 2.6 remesuré ; § 3.5 CP Meta en catégorie spéciale réécrit (« à vérifier par dentsu », maille CP laissée ouverte) |
+
+Notes de bas de page : 7 mises à jour, 2 ajoutées (sql/333 à sql/341).
+
+### Écarts trouvés
+
+- **§ 2.6** : France entière au CP = **6 075** unités (et non 6 074), dont 65 inconnues (69 codes), mesuré le 03/11 par `couverture_pays_jsonb('FR','ind','cp')` en lecture seule. L'unité en plus est vraisemblablement le CP 29259, qui a reçu son premier carreau avec C25 (non vérifié code par code).
+- **Lyon 30 km (C21)** : toujours le chiffre d'avant C25, toujours absent du Word.
+
+---
+
+# Bilan du plan
+
+38 tickets : lot 1 (A1 à A8, B11), lot 2 (B8 à B16), lot 3 (C17 à C29), lot 4 (D30 à D37). Un seul fermé sans commit : D31, déjà fait par C20. Migrations sql/303 à sql/341. Branche `feat/carte-finitions`, non poussée, non mergée.
+
+## Ce qui reste ouvert
+
+- **Valeurs de plateforme non sourcées**, toutes « à vérifier » par dentsu : plage DV360 (0,1 à 10), bornes CP et cercles DV360 ; plage et plafond TTD ; bornes de polygone TTD (20 000 sommets, 2 000 morceaux) ; Meta 15 000 m en catégorie spéciale et CP Meta en catégorie spéciale (maille laissée ouverte) ; `poussee_branchee`.
+- **⑥ / ⑦ / ⑧ (dentsu)** : lire le plan par plateforme, puis retirer le plan commun ; blocs (B14) ; garde < 250 m sur `dv360/zones/push` ; part observée = taux de fuite ; ligne « population inconnue » au suivi.
+- **Mineurs parqués** des quatre lots, listés dans leurs sections.
+
+## Dettes à fusionner au merge
+
+- **C25** : reconstruire `carreau_couverture` et ses dénominateurs avec la règle E7, puis retirer les colonnes `_e7` (`code_commune_e7`, `code_departement_e7`, `code_postal_e7`, `distance_cp_e7_m`), la vue `carreau_couverture_e7`, les jumeaux `unite_population_totale_e7`, `cp_population_totale_e7`, `denominateur_menages_min_e7`, le journal `carreau_couverture_e7_lots` et `base_couverture_e7_le`. `carreau_risque_distance.code_postal` garde l'ancien rattachement.
+- **B15** : refusionner `custom_geo_zones.unites_constitutives` (sql/321) dans le JSON `recette` quand plus aucune branche ne relit `recette` en `.strict()`.
+- **D32** : retirer `zone_set_extraction_cp` pour les jeux de zone, avec ⑥/⑦.
+
+## Branches dont les tests attendent les anciens chiffres
+
+Base partagée : les fonctions basculées par C25 et D35 changent pour toutes les branches. `git grep` du 03/11 sur les branches locales :
+
+- `wip/A1-plan-cp` : `analyse-finitions` (5 956 CP, 62 528 975 hab.) et `jeu-zone-extraction` (`n_cp` = 5 956), en intégration. À passer à 5 957 et 62 592 659.
+- Aucune autre branche n'attend en intégration les anciens chiffres de C25 (6 115 / 6 009 au CP France) ni de D35 (63 286 585 ; 96,69 %). Les fixtures unitaires `couverture-composite-cp.json` des branches `feat/carte-*` ne lisent pas la base.
