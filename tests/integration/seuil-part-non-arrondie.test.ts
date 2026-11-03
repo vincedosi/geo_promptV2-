@@ -38,7 +38,7 @@ describe('couverture_zone_en_cache — un chiffrage sans part_brute n’est plus
   it('ligne de cache sans la clé : NULL ; la même avec la clé : servie (transaction annulée)', () => {
     const ecrire = (ligne: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
-      select g.id, 'ind', 'iris', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+      select g.id, 'ind', 'iris', g.updated_at, public.base_couverture_e7_le(),  -- C25 (sql/332) : bandes ET lots E7
              -- A5 (sql/310) : un chiffrage porte le minimum de ménages de sa cible (0 pour \`ind\`), sinon il n'est plus servi.
              jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb), 'min_menages', 0), now()
         from public.custom_geo_zones g where g.id = '${COMPOSITE}'

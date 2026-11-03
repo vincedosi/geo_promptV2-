@@ -33,7 +33,13 @@ const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sq
   // C24 : sql/327 redéfinit `couverture_geometrie` ; C29 : sql/329 `plateformes_geo_parametres_valides` — en dernier.
   '327_diffusion_population_totale.sql', '329_categorie_speciale.sql',
   // C24 round 1 : sql/330 redéfinit `couverture_geometrie`, `paver_cercles` et `couverture_zone`.
-  '330_minimums_population_totale.sql']
+  '330_minimums_population_totale.sql',
+  // C29 round 1 : sql/331 met à jour `plateformes_geo` (borne Meta de catégorie spéciale « à vérifier »).
+  '331_categorie_speciale_a_verifier.sql',
+  // C25 : sql/332 redéfinit `couverture_geometrie` et `couverture_zone_en_cache` (vue E7, base_couverture_e7_le).
+  '332_carreau_couverture_e7.sql',
+  // D36 : sql/339 redéfinit `couverture_geometrie` (contours du référentiel) et `couverture_zone_en_cache` — en dernier.
+  '339_contours_drom_referentiel.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
@@ -70,7 +76,7 @@ describe('couverture_geometrie — une ligne par unité CP, qui nomme ses membre
 });
 
 describe('couverture_pays_jsonb — membres sur chaque ligne CP (sql/304)', () => {
-  it('France entière par CP : toutes les lignes portent membres, 67 groupes, 6 115 codes pour 6 009 unités', () => {
+  it('France entière par CP : toutes les lignes portent membres, 67 groupes, 6 116 codes pour 6 010 unités', () => {
     // A4 (sql/308) : les unités à population inconnue (971, 973, 976) s'ajoutent aux lignes ; elles portent `membres`
     // aussi (premier chiffre, sur TOUTES les lignes), les autres chiffres restent ceux des lignes chiffrées d'A2.
     const r = psql(`
@@ -80,7 +86,9 @@ describe('couverture_pays_jsonb — membres sur chaque ligne CP (sql/304)', () =
              count(*) filter (where e->'pop_totale' <> 'null') || '|' ||
              count(*) filter (where not (e->'membres') ? (e->>'code'))
         from jsonb_array_elements(public.couverture_pays_jsonb('FR', 'ind', 'cp')->'lignes') e;`);
-    expect(r).toBe('0|67|6115|6009|0');
+    // C25 (sql/332) : les carreaux sans contour CP vont au CP le plus proche — 29259 (2 hab.) gagne une population,
+    // d'où une unité et un code de plus (6 115 / 6 009 avant).
+    expect(r).toBe('0|67|6116|6010|0');
   }, LONG);
 });
 
@@ -91,7 +99,7 @@ describe('couverture_zone_en_cache — un chiffrage CP sans membres n’est plus
     // A5 (sql/310) : de même `min_menages` (0 pour `ind`), prouvé dans minimum-menages-conversion.test.ts.
     const ecrire = (ligne: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
-      select g.id, 'ind', 'cp', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+      select g.id, 'ind', 'cp', g.updated_at, public.base_couverture_e7_le(),  -- C25 (sql/332) : bandes ET lots E7
              jsonb_build_object('lignes', jsonb_build_array('${ligne}'::jsonb), 'n_inconnues', 0, 'min_menages', 0), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
       on conflict (zone_id, cible, decoupage) do update
