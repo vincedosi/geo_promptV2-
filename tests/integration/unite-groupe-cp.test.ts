@@ -115,10 +115,10 @@ describe('plateformes_geo — poids d’un groupe de CP, « à vérifier » par 
                   where maille = 'cp' and poids_groupe_cp = 'meme' and parametres_a_verifier @> '{poids_groupe_cp}';`)).toBe('4');
     // A7 (sql/312) : la ligne TTD polygone déclare ses deux bornes « à vérifier » ; B13 (sql/318) : la ligne DV360
     // cercle, le comportement de son minimum par cercle ; C28 (sql/328) : ses cercles par liste et son rayon maximal,
-    // non relevés — les seuls paramètres hors CP.
+    // non relevés ; C29 round 1 (sql/331) : la borne Meta de catégorie spéciale — les seuls paramètres hors CP.
     expect(psql(`select count(*) from public.plateformes_geo
                   where maille <> 'cp' and (poids_groupe_cp is not null
-                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max,pop_min_unite_comportement,max_unites,rayon_max_m}');`)).toBe('0');
+                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max,pop_min_unite_comportement,max_unites,rayon_max_m,rayon_min_categorie_speciale}');`)).toBe('0');
   });
 
   it('les listes de lib/zones/plateformes.ts sont celles des CHECK de la base', () => {

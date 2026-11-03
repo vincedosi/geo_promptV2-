@@ -292,10 +292,11 @@ describe('sql/328 (C28) — DV360 : les bornes non relevées sont dites « à v�
 });
 
 describe('sql/329 (C29) — Meta, catégorie d’annonces spéciale : une borne au registre, une case sur le jeu', () => {
-  it('Meta cercle porte rayon_min_categorie_speciale = 15 000 m (tiré de sa note du 24/10), non « à vérifier » ; la note y renvoie', () => {
+  // C29 round 1 : « à vérifier » — la source est une note, pas un relevé fait dans un compte (sql/331, règle de C28).
+  it('Meta cercle porte rayon_min_categorie_speciale = 15 000 m (tiré de sa note du 24/10), « à vérifier » ; la note y renvoie', () => {
     expect(psql(`select (limites->>'rayon_min_categorie_speciale') || '|' || ('rayon_min_categorie_speciale' = any (parametres_a_verifier))
                         || '|' || (note like '%rayon_min_categorie_speciale%')
-                   from public.plateformes_geo where plateforme = 'meta' and maille = 'cercle';`)).toBe('15000|false|true');
+                   from public.plateformes_geo where plateforme = 'meta' and maille = 'cercle';`)).toBe('15000|true|true');
   });
   it('la clé et le paramètre sont admis par les CHECK ; une valeur non entière est refusée', () => {
     expect(psql(`select public.plateformes_geo_limites_valides('{"rayon_min_categorie_speciale": 15000}')::text
@@ -305,6 +306,19 @@ describe('sql/329 (C29) — Meta, catégorie d’annonces spéciale : une borne 
   it('zone_sets.categorie_speciale : booléen non nul, faux par défaut', () => {
     expect(psql(`select data_type || '|' || is_nullable || '|' || column_default from information_schema.columns
                   where table_schema = 'public' and table_name = 'zone_sets' and column_name = 'categorie_speciale';`)).toBe('boolean|NO|false');
+  });
+  it('sql/331 se rejoue à l’identique (transaction annulée)', () => {
+    const migration = readFileSync(join(process.cwd(), 'sql', '331_categorie_speciale_a_verifier.sql'), 'utf8');
+    const base = psql(EMPREINTE);
+    const lignes = psqlLignes(`begin;
+${migration}
+${EMPREINTE}
+${migration}
+${EMPREINTE}
+rollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
   });
   it('la migration se rejoue à l’identique (transaction annulée)', () => {
     const migration = readFileSync(join(process.cwd(), 'sql', '329_categorie_speciale.sql'), 'utf8');

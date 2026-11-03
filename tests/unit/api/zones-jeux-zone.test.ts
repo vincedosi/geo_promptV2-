@@ -258,6 +258,17 @@ describe('C29 — la case « catégorie spéciale » du jeu de zone', () => {
     expect(h.ecritures.find((e) => e.table === 'zone_sets')?.valeur).toMatchObject({ categorie_speciale: false });
   });
 
+  it('round 1 : PATCH de la seule case — les choix ENREGISTRÉS se revérifient avec elle (Meta à 10 km → 400, rien écrit)', async () => {
+    h.donnees['zone_set_plateformes:select'] = [{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 10000 }];
+    const r = await patcher({ categorie_speciale: true });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error.replace(/\s/g, ' ')).toBe('Rayon de 10 000 m hors des bornes de meta (15 000 à 80 000 m, catégorie d’annonces spéciale).');
+    expect(h.ecritures).toEqual([]);
+    h.donnees['zone_set_plateformes:select'] = [{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 15000 }];
+    expect((await patcher({ categorie_speciale: true })).status).toBe(200);
+    expect(h.ecritures.map((e) => `${e.table}:${e.op}`)).toEqual(['zone_sets:update']);
+  });
+
   it('PATCH : la case se règle, et les choix se vérifient avec elle', async () => {
     const r = await patcher({ categorie_speciale: true, plateformes: [{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 10000 }] });
     expect(r.status).toBe(400);

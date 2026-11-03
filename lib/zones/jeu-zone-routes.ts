@@ -252,6 +252,15 @@ export async function reglerJeuZone(
   corps: z.infer<typeof CorpsReglageZoneSchema>,
   relire: () => Promise<{ ok: true; jeu: LigneJeu } | { ok: false; reponse: NextResponse }>,
 ): Promise<NextResponse> {
+  // C29 round 1 : la case changée SANS nouveaux choix — les choix ENREGISTRÉS se revérifient avec elle (une lecture
+  // de plus, bornée aux 4 plateformes du jeu) ; un choix que la case rend hors bornes refuse le PATCH, valeurs dites.
+  if (corps.categorie_speciale !== undefined && !corps.plateformes) {
+    const { data: enregistres, error } = await supabase.from('zone_set_plateformes').select(COLONNES_CHOIX).eq('zone_set_id', jeu.id);
+    if (error) return panne('choix des plateformes', error.message, 'Modification impossible.');
+    const choix = (enregistres ?? []).map((c) => ({ ...c, rayon_m: c.rayon_m ?? undefined })) as ChoixPlateforme[];
+    const refus = choix.length > 0 ? await refusDesChoix(supabase, choix, corps.categorie_speciale) : null;
+    if (refus) return refus;
+  }
   if (corps.plateformes) {
     // Deux lectures légères en parallèle (≤ 3, `CLAUDE.md`) : les règles, la recette de la zone du jeu (A-3).
     const [refus, zone] = await Promise.all([

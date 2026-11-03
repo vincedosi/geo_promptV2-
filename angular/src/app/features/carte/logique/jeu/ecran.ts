@@ -340,7 +340,9 @@ export const M_PAR_KM = 1e3;
  */
 export function texteCategorieSpeciale(registre: readonly PlateformeGeo[]): string | null {
   const bornes = registre.filter((l) => l.limites.rayon_min_categorie_speciale !== undefined)
-    .map((l) => `${NOM_PLATEFORME[l.plateforme]} ${distance(l.limites.rayon_min_categorie_speciale as number)}`);
+    .map((l) => `${NOM_PLATEFORME[l.plateforme]} ${distance(l.limites.rayon_min_categorie_speciale as number)}`
+      // C29 round 1 : « à vérifier » à côté de la valeur (amendement E9) — la source est une note, pas un relevé.
+      + ((l.parametres_a_verifier ?? []).includes('rayon_min_categorie_speciale') ? ' (à vérifier)' : ''));
   return bornes.length ? `Rayon minimal des cercles en catégorie spéciale : ${bornes.join(', ')}.` : null;
 }
 
