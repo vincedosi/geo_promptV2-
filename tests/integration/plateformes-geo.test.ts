@@ -268,3 +268,22 @@ describe('sql/318 (B13) — les minimums de population, chacun avec son comporte
     expect(seconde).toBe(base);
   });
 });
+
+describe('sql/328 (C28) — DV360 : les bornes non relevées sont dites « à vérifier », sans valeur inventée', () => {
+  it('CP : nombre maximal de CP par liste ; cercle : cercles par liste de proximité et rayon maximal — aucune valeur, à vérifier', () => {
+    expect(psqlLignes(`select maille || '|' || coalesce(limites->>'max_unites', '-') || '|' || coalesce(limites->>'rayon_max_m', '-')
+                              || '|' || ('max_unites' = any (parametres_a_verifier))
+                              || '|' || ('rayon_max_m' = any (parametres_a_verifier)) || '|' || (note like '%C28%')
+                         from public.plateformes_geo where plateforme = 'dv360' and maille in ('cp', 'cercle')
+                        order by maille;`)).toEqual(['cercle|-|-|true|true|true', 'cp|-|-|true|false|true']);
+  });
+
+  it('la migration se rejoue à l’identique (transaction annulée)', () => {
+    const migration = readFileSync(join(process.cwd(), 'sql', '328_dv360_bornes_a_verifier.sql'), 'utf8');
+    const base = psql(EMPREINTE);
+    const lignes = psqlLignes(`begin;\n${migration}\n${EMPREINTE}\n${migration}\n${EMPREINTE}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
+  });
+});

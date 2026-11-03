@@ -45,6 +45,16 @@ describe('mg-colonne-plateforme', () => {
     expect(texte(el, '[data-chiffres]')).toContain('Diffusion achetée, population totale');
     expect(texte(el, '[data-diffusion-totale]')).toBe('11 000');
   });
+  it('C28 : une borne de la ligne choisie « à vérifier » se dit à côté de sa valeur — non relevée chez DV360 au CP', async () => {
+    // Comme en base (sql/328) : CP ET cercle à vérifier — aucun des deux n'est « sûr », le CP reste le défaut.
+    const registre = REGISTRE.map((l) => (l.plateforme === 'dv360' && (l.maille === 'cp' || l.maille === 'cercle')
+      ? { ...l, parametres_a_verifier: [...(l.parametres_a_verifier ?? []), 'max_unites' as const] } : l));
+    const { el, http, jeu, stable } = await colonne('dv360', registre);
+    jeu.valider('dv360');
+    http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+    await stable();
+    expect(texte(el, '[data-parametres-a-verifier]')).toBe('À vérifier : codes postaux par liste, non relevé.');
+  });
   it('C24 : population totale — pas de ligne de diffusion en population totale (elle serait un doublon)', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');

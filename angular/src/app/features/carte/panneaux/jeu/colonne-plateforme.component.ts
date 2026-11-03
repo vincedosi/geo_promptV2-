@@ -16,6 +16,7 @@ import {
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
 import { PALIERS_CSS } from '../analyse/tableau-couverture-zone.component';
+import { texteParametresAVerifier } from '../../logique/jeu/parametres-a-verifier';
 import { ChoixMailleComponent } from './choix-maille.component';
 
 /**
@@ -63,6 +64,7 @@ import { ChoixMailleComponent } from './choix-maille.component';
               }
             </div>
           }
+          @if (parametresAVerifier(); as t) { <p data-parametres-a-verifier class="m-0 text-[11px] text-tertiary">{{ t }}</p> }
           @if (defautTexte(); as t) { <p data-defaut class="m-0 text-[11px] text-secondary">{{ t }}</p> }
         }
 
@@ -215,6 +217,8 @@ export class ColonnePlateformeComponent {
     const notes = [l?.a_verifier ? l.note : null, pays ? NOTE_PAYS_A_VERIFIER : null].filter((n): n is string => !!n);
     return { note: notes.length ? notes.join(' ') : null };
   });
+  /** C28 (amendement E9) : les bornes « à vérifier » de la ligne choisie, chacune avec sa valeur ou « non relevé ». */
+  protected readonly parametresAVerifier = computed(() => texteParametresAVerifier(this.ligne()));
   /** B9 (ARB-7, Q7 = A) : la ligne qui explique la maille par défaut, tant que c'est elle qui est choisie ; sinon `null`. */
   protected readonly defautTexte = computed(() => {
     const d = this.jeu.defauts()[this.plateforme()];
