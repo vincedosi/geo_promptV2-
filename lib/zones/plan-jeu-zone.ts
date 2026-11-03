@@ -19,6 +19,8 @@
  * est gardé tel quel dans `zone_set_extraction_cp` : c'est lui que lisent ⑥ Plan campagne, le rattachement, l'export et
  * la simulation (rétrocompatibilité, hors périmètre de B12). Ce que chaque plateforme reçoit est dit, par mécanisme, par
  * `sortiesPoids`, à partir de SON plan.
+ * ⚠ D32 (sql/334) : le plan commun est DÉPRÉCIÉ (`PlansCp.commun`, `extraction-jeu-zone.ts`), retiré quand ⑥/⑦ liront
+ * le plan par plateforme.
  *
  * ⚠ Duplication DÉCLARÉE : la règle « populations sur le canonique, `null` sur un membre » recopie le chemin risque de
  * `app/api/zones/jeux/[id]/extractions/route.ts`, non factorisé pour ne pas toucher au moteur risque (contrainte du

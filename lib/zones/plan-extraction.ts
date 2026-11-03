@@ -11,6 +11,10 @@
  * CP (Meta seul en cercles, TikTok seul aux communes) n'en a pas. Son extraction se rattache QUAND MÊME (lot 6, T6) :
  * la V1 contrôle les impressions et le budget PAR PLATEFORME (spec § 19), le plan CP n'en est que la répartition pour
  * les plateformes qui achètent au CP. La stratégie naît alors sans `bidding_zone_configs` (0 CP).
+ *
+ * ⚠ D32 (sql/334) : pour un jeu de ZONE, ce plan est le plan COMMUN (seuil le plus bas des plateformes au CP),
+ * DÉPRÉCIÉ — la source de vérité est le plan de chaque plateforme (`zone_set_extraction_cp_plateforme`, B12). Ces
+ * lecteurs basculeront sur lui dans le commit qui retire le plan commun (côté dentsu). Un jeu RISQUE n'a que ce plan.
  */
 import { NextResponse } from 'next/server';
 import type { createAdminClient } from '@/lib/auth';

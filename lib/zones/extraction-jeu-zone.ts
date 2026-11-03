@@ -27,6 +27,8 @@
  * (`plansParPlateforme`), figé dans `zone_set_extraction_cp_plateforme` (sql/317, unités retenues seulement) et son
  * bilan dans le résumé de la plateforme (`plan_cp`). Le plan COMMUN de `zone_set_extraction_cp` reste calculé au seuil
  * le PLUS BAS des plateformes au CP (décision du contrôleur, sql/278) : ⑥/⑦ le lisent encore. Exacte au CP (B15), la liste fait chaque plan.
+ * ⚠ D32 (sql/334) : ce plan commun est DÉPRÉCIÉ — retiré dans le commit qui fait lire le plan par plateforme à ⑥ et ⑦
+ * (côté dentsu) ; les extractions déjà produites gardent le leur, figé, en lecture seule.
  *
  * Une plateforme calculée qui ne retient AUCUNE unité refuse l'extraction (422) : un plan figé qui n'achète rien pour
  * une plateforme choisie se lirait comme un plan valable.
@@ -453,7 +455,17 @@ const MESSAGES_RPC: Record<string, string> = {
 };
 
 /** Les plans CP d'une extraction : le plan commun (⑥/⑦) et celui de chaque plateforme au CP (B12). */
-interface PlansCp { commun: ReturnType<typeof planCpDeZone>; parPlateforme: PlanPlateforme[] }
+interface PlansCp {
+  /**
+   * Le plan COMMUN (seuil le plus bas des plateformes au CP), écrit dans `zone_set_extraction_cp`.
+   *
+   * @deprecated D32 (sql/334) : la source de vérité est `parPlateforme` (`zone_set_extraction_cp_plateforme`, B12).
+   * Gardé tant que ⑥/⑦ le lisent ; retiré dans le commit qui leur fait lire le plan par plateforme (côté dentsu).
+   * Les extractions déjà produites gardent leur plan commun figé, en lecture seule.
+   */
+  commun: ReturnType<typeof planCpDeZone>;
+  parPlateforme: PlanPlateforme[];
+}
 
 /**
  * Les plans CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle, et le
