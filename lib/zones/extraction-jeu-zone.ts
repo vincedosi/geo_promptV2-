@@ -42,7 +42,7 @@ import {
   resumePays, unitesPays, verifierLimites,
   type Avertissement, type Resume,
 } from './conversion';
-import { avertissementsRayon } from './conversion-rayon';
+import { avertissementsRayon, regleCategorieSpeciale } from './conversion-rayon';
 import { avertissementsComposition, unitesConstitutives } from './exactitude-composition';
 import { dansLOrdreDesBlocs, decouperEnBlocs, type Decoupage } from './decoupage-blocs';
 import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
@@ -501,7 +501,8 @@ export async function extraireJeuZone(
 
   let regles: PlateformeGeo[];
   try {
-    regles = await lireRegles(supabase, choix.map((c) => c.plateforme));
+    // C29 : un jeu coché « catégorie spéciale » lit le rayon minimal spécial de la plateforme (`regleCategorieSpeciale`).
+    regles = (await lireRegles(supabase, choix.map((c) => c.plateforme))).map((l) => regleCategorieSpeciale(l, jeu.categorie_speciale === true));
   } catch (e) {
     return panne('règles', e).reponse;
   }

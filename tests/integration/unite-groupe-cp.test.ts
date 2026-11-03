@@ -29,7 +29,9 @@ const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.s
 // `couverture_pays_moins_jsonb` — rejouées à la fin.
 const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql',
   '312_polygone_sommets_morceaux.sql', '318_minimums_population.sql', '323_arrondi_plus_fort_reste.sql',
-  '324_arrondi_plus_fort_reste_pays.sql', '326_zone_pays_moins.sql']
+  '324_arrondi_plus_fort_reste_pays.sql', '326_zone_pays_moins.sql',
+  // C24 : sql/327 redéfinit `couverture_geometrie` ; C29 : sql/329 `plateformes_geo_parametres_valides` — en dernier.
+  '327_diffusion_population_totale.sql', '329_categorie_speciale.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */
@@ -110,10 +112,11 @@ describe('plateformes_geo — poids d’un groupe de CP, « à vérifier » par 
     expect(psql(`select count(*) from public.plateformes_geo
                   where maille = 'cp' and poids_groupe_cp = 'meme' and parametres_a_verifier @> '{poids_groupe_cp}';`)).toBe('4');
     // A7 (sql/312) : la ligne TTD polygone déclare ses deux bornes « à vérifier » ; B13 (sql/318) : la ligne DV360
-    // cercle, le comportement de son minimum par cercle — les seuls paramètres hors CP.
+    // cercle, le comportement de son minimum par cercle ; C28 (sql/328) : ses cercles par liste et son rayon maximal,
+    // non relevés — les seuls paramètres hors CP.
     expect(psql(`select count(*) from public.plateformes_geo
                   where maille <> 'cp' and (poids_groupe_cp is not null
-                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max,pop_min_unite_comportement}');`)).toBe('0');
+                    or not parametres_a_verifier <@ '{polygone_sommets_max,polygone_morceaux_max,pop_min_unite_comportement,max_unites,rayon_max_m}');`)).toBe('0');
   });
 
   it('les listes de lib/zones/plateformes.ts sont celles des CHECK de la base', () => {

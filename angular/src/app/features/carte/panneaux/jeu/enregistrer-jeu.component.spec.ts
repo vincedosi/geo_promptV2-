@@ -27,7 +27,7 @@ describe('mg-enregistrer-jeu', () => {
     expect(post.request.body).toEqual({
       nom: 'Lycées 5 km',
       jeu: {
-        type: 'zone', zone_id: Z1, cible: 'ind', mode_plan: 'exclusif',
+        type: 'zone', zone_id: Z1, cible: 'ind', mode_plan: 'exclusif', categorie_speciale: false,
         plateformes: [
           { plateforme: 'dv360', maille: 'cp', seuil: 30 }, { plateforme: 'ttd', maille: 'polygone', seuil: 20 },
           { plateforme: 'meta', maille: 'cercle', seuil: 20, rayon_m: 10000 }, { plateforme: 'tiktok', maille: 'departement', seuil: 20 },
@@ -67,7 +67,7 @@ describe('mg-enregistrer-jeu', () => {
     el.querySelector<HTMLButtonElement>('[data-enregistrer]')!.click();
     await stable();
     const patch = http.expectOne((r) => r.method === 'PATCH');
-    expect(patch.request.body).toMatchObject({ nom: 'Lycées BdR', mode_plan: 'pondere' });
+    expect(patch.request.body).toMatchObject({ nom: 'Lycées BdR', mode_plan: 'pondere', categorie_speciale: false });
     patch.flush({ error: 'Ce jeu est rattaché à une campagne.' }, { status: 409, statusText: 'Conflict' });
     await stable();
     expect(el.querySelector('[data-erreur]')?.textContent?.trim()).toBe('Ce jeu est rattaché à une campagne.');

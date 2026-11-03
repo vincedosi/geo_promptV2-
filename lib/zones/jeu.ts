@@ -132,6 +132,8 @@ export const JeuZoneSchema = z.object({
   zone_id: z.string().uuid(),
   cible: CibleSchema,
   mode_plan: z.enum(MODES_PLAN),
+  /** C29 (sql/329) : annonces en catégorie spéciale — la règle de rayon minimum lit `rayon_min_categorie_speciale`. */
+  categorie_speciale: z.boolean().optional(),
   plateformes: z.array(ChoixPlateformeSchema)
     .min(1)
     .max(PLATEFORMES.length)

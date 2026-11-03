@@ -74,6 +74,26 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+describe('C29 — catégorie d’annonces spéciale : le jeu coché relève le rayon minimal de Meta', () => {
+  const META = regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000, rayon_min_categorie_speciale: 15000 });
+  const extraireCs = (cs: boolean) => extraireJeuZone(createAdminClient() as never, { ...JEU, categorie_speciale: cs } as Tables<'zone_sets'>,
+    { origine: 'initiale', commentaire: '' }, 'u1');
+
+  it('case cochée, cercles choisis à 5 km : 422, valeurs avant et après dites, rien de figé', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 5000 }], POINT, [META]);
+    const r = await extraireCs(true);
+    expect(r.status).toBe(422);
+    expect(((await r.json()).error as string).replace(/ /g, ' '))
+      .toBe('Rayon de 5 000 m hors des bornes de meta (15 000 à 80 000 m, catégorie d’annonces spéciale). Réglez à nouveau le jeu avant d’extraire.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('case décochée : le même jeu s’extrait (cercle exact de la recette, 5 km)', async () => {
+    jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 5000 }], POINT, [META]);
+    expect((await extraireCs(false)).status).toBe(201);
+  });
+});
+
 describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil', () => {
   it('rayon_point en cercle au MÊME rayon : UN cercle (centre et rayon de la recette), aucun pavage, zéro perte', async () => {
     jeuAvec([{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 5000 }], POINT,

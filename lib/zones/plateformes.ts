@@ -31,6 +31,7 @@ export const POIDS_GROUPE_CP = ['meme', 'divise'] as const;
 export const PARAMETRES_VERIFIABLES = [
   'poids_groupe_cp', 'max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'max_sommets',
   'polygone_sommets_max', 'polygone_morceaux_max', 'pop_min_unite_comportement', 'pop_min_groupe_comportement',
+  'rayon_min_categorie_speciale',
 ] as const;
 
 /**
@@ -71,6 +72,8 @@ export const PlateformeGeoSchema = z.object({
     pop_min_unite: limite,
     pop_min_groupe: limite,
     max_sommets: limite,
+    /** C29 (sql/329) : rayon minimal d'un jeu coché « catégorie spéciale » (Meta), lu par `regleCategorieSpeciale`. */
+    rayon_min_categorie_speciale: limite,
   }),
   doc_url: z.string().url().nullable(),
   releve_le: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -57,6 +57,25 @@ describe('mg-panneau-jeu', () => {
     http.verify();
   });
 
+  it('C29 : la case « catégorie d’annonces spéciale » relève le rayon minimal de Meta lu au registre, dit avec sa valeur', async () => {
+    const registre = REGISTRE.map((l) => (l.plateforme === 'meta' && l.maille === 'cercle'
+      ? { ...l, limites: { ...l.limites, rayon_min_categorie_speciale: 15000 } } : l));
+    const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
+    http.expectOne('/api/zones/plateformes').flush({ plateformes: registre });
+    await stable();
+    const meta = () => jeu.plateformes().find((l) => l.plateforme === 'meta' && l.maille === 'cercle')!;
+    const avant = meta().limites.rayon_min_m;
+    expect(avant).not.toBe(15000);
+    expect(el.querySelector('[data-categorie-speciale-texte]')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('Rayon minimal des cercles en catégorie spéciale : Meta 15 km.');
+    const caseCs = el.querySelector<HTMLInputElement>('[data-categorie-speciale]')!;
+    expect(caseCs.checked).toBe(false);
+    caseCs.click();
+    await stable();
+    expect(jeu.categorieSpeciale()).toBe(true);
+    expect(meta().limites.rayon_min_m).toBe(15000);
+  });
+
   it('900 px et plus : les quatre colonnes côte à côte, toutes ouvertes, chacune demande sa conversion (une à la fois)', async () => {
     largeurPanneau(1000);
     const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });

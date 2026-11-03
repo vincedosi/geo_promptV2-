@@ -12,11 +12,12 @@ import type { PlateformeGeo } from './plateformes';
 type Borne = keyof PlateformeGeo['limites'];
 
 /** Les bornes dites, dans l'ordre d'affichage ; `max_unites` prend le nom des unités de la maille. */
-const BORNES: readonly Borne[] = ['max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe'];
+const BORNES: readonly Borne[] = ['max_unites', 'rayon_min_m', 'rayon_max_m', 'pop_min_unite', 'pop_min_groupe', 'rayon_min_categorie_speciale'];
 
 const LIBELLES: Record<Exclude<Borne, 'max_unites'>, string> = {
   rayon_min_m: 'rayon minimal', rayon_max_m: 'rayon maximal', pop_min_unite: 'population minimale par unité',
   pop_min_groupe: 'population minimale par groupe', max_sommets: 'sommets maximaux',
+  rayon_min_categorie_speciale: 'rayon minimal en catégorie spéciale',
 };
 
 const UNITES_PAR_LISTE: Partial<Record<PlateformeGeo['maille'], string>> = {
@@ -26,7 +27,7 @@ const UNITES_PAR_LISTE: Partial<Record<PlateformeGeo['maille'], string>> = {
 
 function valeur(b: Borne, v: number | undefined): string {
   if (v === undefined) return 'non relevé';
-  return b === 'rayon_min_m' || b === 'rayon_max_m' ? `${formaterNombre(v / M_PAR_KM)} km` : formaterNombre(v);
+  return b === 'rayon_min_m' || b === 'rayon_max_m' || b === 'rayon_min_categorie_speciale' ? `${formaterNombre(v / M_PAR_KM)} km` : formaterNombre(v);
 }
 
 /** « À vérifier : cercles par liste, non relevé ; rayon maximal, non relevé. » ; `null` si aucune borne n'est à vérifier. */

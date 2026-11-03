@@ -209,7 +209,7 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
         table: 'zone_sets', op: 'insert', options: undefined, filtres: [],
         valeur: {
           type: 'zone', nom: 'Bretagne', description: 'CIRFA', org_id: h.ORG, created_by: 'u1', version: 3,
-          custom_geo_zone_id: h.ZONE, cible: 'ind', mode_plan: 'pondere', brouillon: false,
+          custom_geo_zone_id: h.ZONE, cible: 'ind', mode_plan: 'pondere', categorie_speciale: false, brouillon: false,
         },
       },
       {
@@ -234,6 +234,37 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
     const r = await poster({ jeu: { type: 'risque' } });
     expect(r.status).toBe(400);
     expect((await r.json()).error).toMatch(/^jeu\.profil : requis/);
+  });
+});
+
+describe('C29 — la case « catégorie spéciale » du jeu de zone', () => {
+  const CS = { ...regle({ plateforme: 'meta', maille: 'cercle', disponible: true,
+    limites: { rayon_min_m: 1000, rayon_max_m: 80000, rayon_min_categorie_speciale: 15000 }, note: null }) };
+  beforeEach(() => { h.donnees['plateformes_geo:select'] = [REGLES[0], CS]; });
+
+  it('POST coché, cercles Meta à 10 km : 400, la borne spéciale dite, rien écrit', async () => {
+    const r = await poster({ nom: 'J', jeu: jeuZone({ categorie_speciale: true }) });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error.replace(/\s/g, ' ')).toBe('Rayon de 10 000 m hors des bornes de meta (15 000 à 80 000 m, catégorie d’annonces spéciale).');
+    expect(h.ecritures).toEqual([]);
+  });
+
+  it('POST coché à 15 km : écrit categorie_speciale = true sur le jeu ; décoché par défaut', async () => {
+    const plateformes = [{ plateforme: 'dv360', maille: 'cp', seuil: 20 }, { plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 15000 }];
+    expect((await poster({ nom: 'J', jeu: jeuZone({ categorie_speciale: true, plateformes }) })).status).toBe(201);
+    expect(h.ecritures.find((e) => e.table === 'zone_sets')?.valeur).toMatchObject({ categorie_speciale: true });
+    h.ecritures.length = 0;
+    expect((await poster({ nom: 'J', jeu: jeuZone() })).status).toBe(201);
+    expect(h.ecritures.find((e) => e.table === 'zone_sets')?.valeur).toMatchObject({ categorie_speciale: false });
+  });
+
+  it('PATCH : la case se règle, et les choix se vérifient avec elle', async () => {
+    const r = await patcher({ categorie_speciale: true, plateformes: [{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 10000 }] });
+    expect(r.status).toBe(400);
+    expect(h.ecritures).toEqual([]);
+    const ok = await patcher({ categorie_speciale: true, plateformes: [{ plateforme: 'meta', maille: 'cercle', seuil: 30, rayon_m: 15000 }] });
+    expect(ok.status).toBe(200);
+    expect(h.ecritures.find((e) => e.table === 'zone_sets' && e.op === 'update')?.valeur).toEqual({ categorie_speciale: true });
   });
 });
 

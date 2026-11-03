@@ -9,7 +9,7 @@ import type { ZoneCustomResume } from '../../data/zones-custom.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
-import { NOM_PLATEFORME } from '../../logique/jeu/ecran';
+import { NOM_PLATEFORME, texteCategorieSpeciale } from '../../logique/jeu/ecran';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
 import { phraseMinimumMenages } from '../../logique/analyses/couverture';
@@ -75,6 +75,15 @@ const LARGEUR_COLONNES = 900;
         <mg-choix-cible [cible]="jeu.cible()" (choisie)="jeu.choisirCible($event)" />
       }
       <mg-mode-plan [mode]="jeu.modePlan()" (modeChange)="jeu.choisirMode($event)" />
+      @if (categorieTexte(); as t) {
+        <!-- C29 : la case lue par la règle de rayon minimum (registre, extraction, enregistrement). -->
+        <label class="flex items-start gap-2 text-[12px] text-primary">
+          <input type="checkbox" data-categorie-speciale class="mt-[2px] accent-teal" [checked]="jeu.categorieSpeciale()"
+            (change)="jeu.choisirCategorieSpeciale($any($event.target).checked)" />
+          <span class="flex flex-col gap-0.5">Catégorie d’annonces spéciale
+            <span data-categorie-speciale-texte class="text-[11px] text-tertiary">{{ t }}</span></span>
+        </label>
+      }
       @if (jeu.erreur(); as e) { <div data-erreur-jeu role="alert" [class]="encartErreur">{{ e }}</div> }
     </div>
 
@@ -118,6 +127,8 @@ export class PanneauJeuComponent {
   protected readonly plateformes = PLATEFORMES;
   protected readonly encartErreur = ENCART_ERREUR;
   /** Les colonnes tiennent côte à côte (mesure de l'hôte). */
+  /** C29 : la borne qu'impose la case « catégorie spéciale », lue au registre ; sans borne au registre, pas de case. */
+  protected readonly categorieTexte = computed(() => texteCategorieSpeciale(this.jeu.plateformes()));
   protected readonly large = signal(false);
   /** La colonne dépliée quand elles s'empilent. */
   protected readonly ouverte = signal<Plateforme>(PLATEFORMES[0]);

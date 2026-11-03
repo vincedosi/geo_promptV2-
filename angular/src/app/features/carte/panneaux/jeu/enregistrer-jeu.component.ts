@@ -79,19 +79,20 @@ export class EnregistrerJeuComponent {
     const quitte = () => this.jeu.zoneId() !== zone || this.jeu.jeuId() !== id;
     const fin = { error: (e: unknown) => this.terminer(quitte, null, messageErreurCouverture(e)) };
     if (id) {
-      this.envoi = this.api.regler(id, { nom, mode_plan: this.jeu.modePlan(), plateformes }).subscribe({
+      this.envoi = this.api.regler(id, { nom, mode_plan: this.jeu.modePlan(), categorie_speciale: this.jeu.categorieSpeciale(), plateformes }).subscribe({
         next: (r) => this.terminer(quitte, r, 'Réglages enregistrés.'), ...fin,
       });
       return;
     }
     const cible = this.jeu.cible();
     const modePlan = this.jeu.modePlan();
+    const categorie = this.jeu.categorieSpeciale();
     const ouvert = this.jeu.jeu();
-    this.envoi = this.api.enregistrer({ nom, jeu: { type: 'zone', zone_id: zone, cible, mode_plan: modePlan, plateformes } }).subscribe({
+    this.envoi = this.api.enregistrer({ nom, jeu: { type: 'zone', zone_id: zone, cible, mode_plan: modePlan, categorie_speciale: categorie, plateformes } }).subscribe({
       next: (r) => this.terminer(quitte, {
         jeu: {
           id: r.id, type: 'zone', nom, description: null, version: r.version, created_at: new Date().toISOString(),
-          custom_geo_zone_id: zone, cible, mode_plan: modePlan,
+          custom_geo_zone_id: zone, cible, mode_plan: modePlan, categorie_speciale: categorie,
         },
         zone: { id: zone, nom: ouvert?.zone.nom ?? this.nomPropose(), recette: this.jeu.recette() },
         plateformes: plateformes.map((c) => ({ ...c, rayon_m: c.rayon_m ?? null })),

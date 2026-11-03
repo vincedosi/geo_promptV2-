@@ -6548,6 +6548,7 @@ export type Database = {
       zone_sets: {
         Row: {
           brouillon: boolean
+          categorie_speciale: boolean
           cible: string
           construit_le: string | null
           created_at: string
@@ -6574,6 +6575,7 @@ export type Database = {
         }
         Insert: {
           brouillon?: boolean
+          categorie_speciale?: boolean
           cible?: string
           construit_le?: string | null
           created_at?: string
@@ -6600,6 +6602,7 @@ export type Database = {
         }
         Update: {
           brouillon?: boolean
+          categorie_speciale?: boolean
           cible?: string
           construit_le?: string | null
           created_at?: string

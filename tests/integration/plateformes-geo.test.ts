@@ -23,7 +23,9 @@ const MIGRATION = readFileSync(join(process.cwd(), 'sql', '274_plateformes_geo.s
 const MIGRATION_PAYS = ['300_maille_pays.sql', '311_cercle_population_disque.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 /** B13 : les minimums de population et leur comportement (et `paver_cercles`, recopié de sql/311). */
-const MIGRATION_MINIMUMS = readFileSync(join(process.cwd(), 'sql', '318_minimums_population.sql'), 'utf8');
+// C29 : sql/329 redéfinit `plateformes_geo_parametres_valides` après sql/318 — rejouée à sa suite.
+const MIGRATION_MINIMUMS = ['318_minimums_population.sql', '329_categorie_speciale.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Empreinte du contenu ET des contraintes de la table : un rejeu qui en changerait l'un ou l'autre la changerait. */
 const EMPREINTE = `select md5(
@@ -280,6 +282,31 @@ describe('sql/328 (C28) — DV360 : les bornes non relevées sont dites « à v�
 
   it('la migration se rejoue à l’identique (transaction annulée)', () => {
     const migration = readFileSync(join(process.cwd(), 'sql', '328_dv360_bornes_a_verifier.sql'), 'utf8');
+    const base = psql(EMPREINTE);
+    const lignes = psqlLignes(`begin;\n${migration}\n${EMPREINTE}\n${migration}\n${EMPREINTE}\nrollback;`);
+    const [premiere, seconde] = lignes.slice(-2);
+    expect(premiere).toBe(seconde);
+    expect(seconde).toBe(base);
+  });
+});
+
+describe('sql/329 (C29) — Meta, catégorie d’annonces spéciale : une borne au registre, une case sur le jeu', () => {
+  it('Meta cercle porte rayon_min_categorie_speciale = 15 000 m (tiré de sa note du 24/10), non « à vérifier » ; la note y renvoie', () => {
+    expect(psql(`select (limites->>'rayon_min_categorie_speciale') || '|' || ('rayon_min_categorie_speciale' = any (parametres_a_verifier))
+                        || '|' || (note like '%rayon_min_categorie_speciale%')
+                   from public.plateformes_geo where plateforme = 'meta' and maille = 'cercle';`)).toBe('15000|false|true');
+  });
+  it('la clé et le paramètre sont admis par les CHECK ; une valeur non entière est refusée', () => {
+    expect(psql(`select public.plateformes_geo_limites_valides('{"rayon_min_categorie_speciale": 15000}')::text
+                        || '|' || public.plateformes_geo_limites_valides('{"rayon_min_categorie_speciale": 1.5}')::text
+                        || '|' || public.plateformes_geo_parametres_valides(array['rayon_min_categorie_speciale'])::text;`)).toBe('true|false|true');
+  });
+  it('zone_sets.categorie_speciale : booléen non nul, faux par défaut', () => {
+    expect(psql(`select data_type || '|' || is_nullable || '|' || column_default from information_schema.columns
+                  where table_schema = 'public' and table_name = 'zone_sets' and column_name = 'categorie_speciale';`)).toBe('boolean|NO|false');
+  });
+  it('la migration se rejoue à l’identique (transaction annulée)', () => {
+    const migration = readFileSync(join(process.cwd(), 'sql', '329_categorie_speciale.sql'), 'utf8');
     const base = psql(EMPREINTE);
     const lignes = psqlLignes(`begin;\n${migration}\n${EMPREINTE}\n${migration}\n${EMPREINTE}\nrollback;`);
     const [premiere, seconde] = lignes.slice(-2);

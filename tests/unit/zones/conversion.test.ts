@@ -20,7 +20,7 @@ import {
   avertissementSimplification, depassementsPolygone, resumePolygoneSimplifie, type MesureSimplification,
 } from '@/lib/zones/polygone-extraction';
 import { MESSAGES_REFUS_COUVERTURE } from '@/lib/zones/couverture';
-import { avertissementsRayon } from '@/lib/zones/conversion-rayon';
+import { avertissementsRayon, regleCategorieSpeciale } from '@/lib/zones/conversion-rayon';
 import { mailleParDefaut } from '@/lib/zones/conversion-defaut';
 import { MAILLES, type PlateformeGeo } from '@/lib/zones/plateformes';
 import type { LigneCouverture } from '@/lib/zones/couverture';
@@ -403,6 +403,43 @@ describe('B8 (ARB-5) — le rayon de la recette hors des bornes de la plateforme
     expect(avertissementsRayon(RECETTES.dessin, 'cercle', dv360, 1_000)).toEqual([]);
     expect(avertissementsRayon(null, 'cercle', dv360, 1_000)).toEqual([]);
     expect(avertissementsRayon(point(500), 'cercle', undefined, 1_000)).toEqual([]);
+  });
+});
+
+describe('C29 — catégorie d’annonces spéciale : la borne du registre, lue par la règle de rayon minimum', () => {
+  // Bornes de test (jamais celles de la seed, lues en base).
+  const meta = ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 1_000, rayon_max_m: 80_000, rayon_min_categorie_speciale: 15_000 } });
+  const point = (rayon_m: number): Recette => ({ v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m, part_retenue: 1 });
+
+  it('regleCategorieSpeciale : case cochée → rayon minimal effectif = la borne spéciale ; décochée → la ligne telle quelle', () => {
+    expect(regleCategorieSpeciale(meta, true).limites.rayon_min_m).toBe(15_000);
+    expect(regleCategorieSpeciale(meta, false)).toBe(meta);
+    // Sans borne spéciale, ou borne spéciale sous le minimum ordinaire : rien ne change.
+    const dv360 = ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1_000 } });
+    expect(regleCategorieSpeciale(dv360, true)).toBe(dv360);
+    const basse = ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 20_000, rayon_min_categorie_speciale: 15_000 } });
+    expect(regleCategorieSpeciale(basse, true)).toBe(basse);
+  });
+
+  it('recette 5 km, case cochée : rayon ajusté 5 → 15 km, dit « catégorie spéciale », maille non exacte', () => {
+    const r = regleCategorieSpeciale(meta, true);
+    expect(avertissementsRayon(point(5_000), 'cercle', r)).toEqual([
+      { code: 'rayon_min', limite: 15_000, valeur: 5_000, rayon_m: 15_000, plateforme: 'meta', categorie_speciale: true },
+    ]);
+    expect(exactitude(point(5_000), 'cercle', r)).toBe('calculee');
+    expect(avertissementsRayon(point(5_000), 'cercle', meta)).toEqual([]);
+  });
+
+  it('« à vérifier » porté par le paramètre de la borne SPÉCIALE quand c’est elle qui joue', () => {
+    const douteuse = regleCategorieSpeciale({ ...meta, parametres_a_verifier: ['rayon_min_categorie_speciale'] }, true);
+    expect(avertissementsRayon(point(5_000), 'cercle', douteuse)[0].a_verifier).toBe(true);
+  });
+
+  it('un rayon CHOISI sous le minimum (zone dessinée pavée à 5 km, case cochée) : refus annoncé, avant 5 km, après 15 km', () => {
+    expect(avertissementsRayon(RECETTES.dessin, 'cercle', regleCategorieSpeciale(meta, true), 5_000)).toEqual([
+      { code: 'rayon_min', limite: 15_000, valeur: 5_000, rayon_m: 15_000, plateforme: 'meta', categorie_speciale: true, refus: true },
+    ]);
+    expect(avertissementsRayon(RECETTES.dessin, 'cercle', regleCategorieSpeciale(meta, true), 15_000)).toEqual([]);
   });
 });
 

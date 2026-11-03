@@ -38,9 +38,8 @@ import { LectureAnnulable } from './lecture-annulable';
  * en mémoire. Un pavage en cercles est calculé au SERVEUR pour un rayon ET un seuil : régler l'un ou l'autre le
  * périme (bilan absent, aucune requête) jusqu'au `valider` suivant — l'écran l'appelle au relâchement. Rien ne
  * se lit tant que la recette de la zone n'est pas CONNUE (`_recetteConnue`).
- * P-c : chaque lecture porte un jeton (`FileLectures`, `LectureAnnulable`) ; changer de zone vide la file et tout
- * résultat. P-e : fourni par la PAGE (`carte.fournisseurs.ts`), le jeu survit à ⑤ → ① → ⑤ ; détruit (changement
- * d'espace), tout est annulé et plus rien n'est écrit dans l'URL.
+ * P-c : chaque lecture porte un jeton (`FileLectures`, `LectureAnnulable`) ; changer de zone vide la file et tout résultat.
+ * P-e : fourni par la PAGE (`carte.fournisseurs.ts`), le jeu survit à ⑤ → ① → ⑤ ; détruit (changement d'espace), tout est annulé.
  */
 @Injectable()
 export class JeuZonesService {
@@ -63,13 +62,14 @@ export class JeuZonesService {
   /** La cible et le mode choisis AVANT enregistrement (`?cibleJeu=`, `?modeJeu=`, ⑤ finitions T5) ; un jeu ouvert porte les siens. */
   private readonly _cibleChoisie = signal<string | null>(null);
   private readonly _modeChoisi = signal<ModePlan | null>(null);
+  private readonly _categorieChoisie = signal<boolean | null>(null);  // C29 : la case « catégorie spéciale », hors URL
   /** La date de mise à jour de la zone que le sélecteur connaît : elle entre dans la clé des couvertures (recalcul en ③). */
   private readonly _maj = signal<string | null>(null);
   /** Incrémenté quand la zone courante (non enregistrée) vient d'être recalculée : le sélecteur relit sa date. */
   private readonly _relectureZone = signal(0);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
-  private readonly registre = new RegistrePlateformes();
+  private readonly registre = new RegistrePlateformes(() => this.categorieSpeciale());
   /** La file des conversions et leurs échecs (T0 des finitions) ; une zone introuvable la retire, message gardé. */
   private readonly taches = new TachesJeu((message) => {
     this.choisirZone(null);
@@ -93,6 +93,8 @@ export class JeuZonesService {
   readonly cible: Signal<string> = computed(() => this.jeu()?.jeu.cible ?? this._cibleChoisie() ?? CIBLE_PAR_DEFAUT);
   /** Le mode de plan : le choisi (enregistré par « Enregistrer les réglages »), sinon celui du jeu, sinon exclusif (ARB-2, A1). */
   readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODE_PLAN_DEFAUT_ZONE);
+  /** C29 : la case cochée, sinon celle du jeu, sinon non ; le registre en tire le rayon minimal (`regleCategorieSpeciale`). */
+  readonly categorieSpeciale: Signal<boolean> = computed(() => this._categorieChoisie() ?? this.jeu()?.jeu.categorie_speciale ?? false);
   /** Le registre `plateformes_geo`, lu une fois par page. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = this.registre.plateformes;
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */
@@ -121,7 +123,7 @@ export class JeuZonesService {
    */
   readonly modifie: Signal<boolean> = computed(() => {
     const jeu = this.jeu();
-    return !!jeu && (ecrireMailles(this.choix()) !== ecrireMailles(this.base()) || this.modePlan() !== jeu.jeu.mode_plan);
+    return !!jeu && (ecrireMailles(this.choix()) !== ecrireMailles(this.base()) || this.modePlan() !== jeu.jeu.mode_plan || this.categorieSpeciale() !== (jeu.jeu.categorie_speciale ?? false));
   });
 
   /** Les couvertures lues pour la zone et la cible COURANTES, par découpage. */
@@ -216,9 +218,8 @@ export class JeuZonesService {
     if (!this._jeuId()) this._cibleChoisie.set(code);
   }
 
-  choisirMode(mode: ModePlan): void {
-    this._modeChoisi.set(mode);
-  }
+  choisirMode(mode: ModePlan): void { this._modeChoisi.set(mode); }
+  choisirCategorieSpeciale(oui: boolean): void { this._categorieChoisie.set(oui); }
 
   /**
    * Zone recalculée (« Mes zones ») : la courante, sans jeu ouvert (sa zone ne se recalcule pas, 409), fait relire sa

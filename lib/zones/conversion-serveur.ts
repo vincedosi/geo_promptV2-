@@ -115,13 +115,16 @@ export function refusDuChoix(choix: ChoixDemande, regle: RegleChoix | undefined)
     return `La maille ${choix.maille} n’est pas disponible chez ${choix.plateforme}${regle.note ? ` : ${regle.note}` : '.'}`;
   }
   if (choix.rayon_m === undefined || choix.rayon_m === null) return null;
-  const { rayon_min_m: min, rayon_max_m: max } = (regle.limites ?? {}) as { rayon_min_m?: number; rayon_max_m?: number };
+  const { rayon_min_m: min, rayon_max_m: max, rayon_min_categorie_speciale: speciale } = (regle.limites ?? {}) as
+    { rayon_min_m?: number; rayon_max_m?: number; rayon_min_categorie_speciale?: number };
   if ((min === undefined || choix.rayon_m >= min) && (max === undefined || choix.rayon_m <= max)) return null;
   // Ici une borne au moins est posée (sinon le rayon serait admis).
   const bornes = min === undefined ? `au plus ${formaterNombre(max as number)} m`
     : max === undefined ? `au moins ${formaterNombre(min)} m`
     : `${formaterNombre(min)} à ${formaterNombre(max)} m`;
-  return `Rayon de ${formaterNombre(choix.rayon_m)} m hors des bornes de ${choix.plateforme} (${bornes}).`;
+  // C29 : le minimum est celui de la catégorie d'annonces spéciale (`regleCategorieSpeciale`) — dit.
+  const cs = min !== undefined && min === speciale ? ', catégorie d’annonces spéciale' : '';
+  return `Rayon de ${formaterNombre(choix.rayon_m)} m hors des bornes de ${choix.plateforme} (${bornes}${cs}).`;
 }
 
 /** Ce que `paver_cercles` reçoit : la zone de l'ESPACE de la session, la cible, le rayon, le seuil. */

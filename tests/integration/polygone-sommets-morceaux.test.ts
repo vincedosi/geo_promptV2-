@@ -29,7 +29,9 @@ const LONG = 180_000;
 // `plateformes_geo_parametres_valides` (comportements des minimums) — rejouées après 313, dans cet ordre. B14 : sql/319
 // porte la dernière définition de creer_extraction_jeu_zone (blocs), rejouée en dernier.
 const MIGRATION = ['312_polygone_sommets_morceaux.sql', '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql',
-  '318_minimums_population.sql', '319_decoupage_blocs.sql']
+  '318_minimums_population.sql', '319_decoupage_blocs.sql',
+  // C29 : sql/329 redéfinit `plateformes_geo_parametres_valides` (et les limites admises) — rejouée en dernier.
+  '329_categorie_speciale.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 let org = '';

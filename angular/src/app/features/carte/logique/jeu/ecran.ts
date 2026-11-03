@@ -118,8 +118,13 @@ export function texteAvertissement(a: Avertissement, maille: Maille): string {
     // B8 (ARB-5) : le rayon de la recette hors des bornes de la plateforme — avant, après, la borne ; la recette, elle,
     // n'est pas modifiée. Un rayon choisi autre que la borne se dit aussi (« sous le minimum… : cercles de 3 km »).
     const extreme = a.code === 'rayon_min' ? 'minimum' : 'maximum';
-    const qui = `${extreme} ${a.plateforme ? NOM_PLATEFORME[a.plateforme] : 'de la plateforme'}`;
+    // C29 : la borne de la catégorie d'annonces spéciale se nomme ; un rayon CHOISI hors bornes est un refus.
+    const qui = `${extreme} ${a.plateforme ? NOM_PLATEFORME[a.plateforme] : 'de la plateforme'}${a.categorie_speciale ? ' en catégorie d’annonces spéciale' : ''}`;
     const apres = a.rayon_m ?? a.limite;
+    if (a.refus) {
+      return `Rayon choisi de ${distance(a.valeur)} hors des bornes (${qui} ${distance(a.limite)}${a.a_verifier ? ', à vérifier' : ''}) : `
+        + `l’extraction le refuse ; passez à ${distance(apres)}.`;
+    }
     const suite = 'maille non exacte, perte calculée.';
     return apres === a.limite
       ? `Rayon ajusté de ${distance(a.valeur)} à ${distance(apres)} (${qui}${a.a_verifier ? ', à vérifier' : ''}) : ${suite}`
@@ -329,6 +334,16 @@ export const MESSAGE_MOTIF_VIDE: Readonly<Record<NonNullable<ResultatCercles['mo
 export const M_PAR_KM = 1e3;
 
 /** « 500 m », « 1 km », « 2,5 km » : un rayon en mètres, dit dans un avertissement (B8). */
+/**
+ * C29 : ce que la case « catégorie d'annonces spéciale » impose, lu au registre (`rayon_min_categorie_speciale`) —
+ * « Rayon minimal des cercles en catégorie spéciale : Meta 15 km. » ; `null` si aucune plateforme n'en porte.
+ */
+export function texteCategorieSpeciale(registre: readonly PlateformeGeo[]): string | null {
+  const bornes = registre.filter((l) => l.limites.rayon_min_categorie_speciale !== undefined)
+    .map((l) => `${NOM_PLATEFORME[l.plateforme]} ${distance(l.limites.rayon_min_categorie_speciale as number)}`);
+  return bornes.length ? `Rayon minimal des cercles en catégorie spéciale : ${bornes.join(', ')}.` : null;
+}
+
 function distance(m: number): string {
   return m >= M_PAR_KM ? `${formaterNombre(m / M_PAR_KM)} km` : `${formaterNombre(m)} m`;
 }

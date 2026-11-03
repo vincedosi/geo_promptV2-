@@ -18,6 +18,7 @@ import type { Tables } from '@/types/database.types';
 import { zoneIntrouvable } from '@/lib/zones/session-zones';
 import { JeuZoneSchema, type ChoixPlateforme } from '@/lib/zones/jeu';
 import { lireRegles, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { regleCategorieSpeciale } from '@/lib/zones/conversion-rayon';
 import { mailleSansObjet } from '@/lib/zones/conversion';
 import { lireRecette, recetteVue } from '@/lib/zones/recette-schema';
 import { refusActivationServeur } from '@/lib/zones/activation-serveur';
@@ -48,6 +49,7 @@ export const CorpsReglageZoneSchema = z.object({
   nom: NOM.optional(),
   description: DESCRIPTION.nullable().optional(),
   mode_plan: JeuZoneSchema.shape.mode_plan.optional(),
+  categorie_speciale: z.boolean().optional(),
   plateformes: JeuZoneSchema.shape.plateformes.optional(),
 }).strict();
 
@@ -60,6 +62,7 @@ export function estCorpsDeZone(brut: unknown): boolean {
 /** Les champs d'un jeu de zone rendus au client : ni l'espace (`org_id`), ni l'auteur, ni les colonnes du risque. */
 const CHAMPS_JEU_ZONE = [
   'id', 'type', 'nom', 'description', 'version', 'created_at', 'custom_geo_zone_id', 'cible', 'mode_plan',
+  'categorie_speciale',
 ] as const satisfies readonly (keyof LigneJeu)[];
 
 const COLONNES_CHOIX = 'plateforme, maille, seuil, rayon_m';
@@ -105,10 +108,11 @@ export async function prochaineVersion(supabase: ClientAdmin, orgId: string, nom
  * Vérifie chaque choix contre `plateformes_geo` : couple connu, maille `disponible`, rayon dans les bornes de la
  * plateforme. La lecture commune `lireRegles` (bornée, validée). `null` = admis.
  */
-async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[]): Promise<NextResponse | null> {
+async function refusDesChoix(supabase: ClientAdmin, choix: ChoixPlateforme[], categorieSpeciale: boolean): Promise<NextResponse | null> {
   let regles: PlateformeGeo[];
   try {
-    regles = await lireRegles(supabase, choix.map((c) => c.plateforme));
+    // C29 : la règle telle que l'extraction la lira (`regleCategorieSpeciale`) — un choix refusé là l'est ici.
+    regles = (await lireRegles(supabase, choix.map((c) => c.plateforme))).map((l) => regleCategorieSpeciale(l, categorieSpeciale));
   } catch (e) {
     return panne('plateformes_geo', e instanceof Error ? e.message : String(e));
   }
@@ -170,7 +174,7 @@ export async function enregistrerJeuZone(
   const [zone, cible, refus] = await Promise.all([
     supabase.from('custom_geo_zones').select('id, recette').eq('id', jeu.zone_id).eq('org_id', espace.orgId).maybeSingle(),
     supabase.from('cibles_exposition').select('code').eq('code', jeu.cible).eq('actif', true).maybeSingle(),
-    refusDesChoix(supabase, jeu.plateformes),
+    refusDesChoix(supabase, jeu.plateformes, jeu.categorie_speciale === true),
   ]);
   if (zone.error) return panne('zone', zone.error.message);
   if (!zone.data) return zoneIntrouvable();
@@ -190,7 +194,7 @@ export async function enregistrerJeuZone(
     .insert({
       type: 'zone', nom: corps.nom, description: corps.description ?? null, org_id: espace.orgId,
       created_by: espace.userId, version, custom_geo_zone_id: jeu.zone_id, cible: jeu.cible,
-      mode_plan: jeu.mode_plan, brouillon: false,
+      mode_plan: jeu.mode_plan, categorie_speciale: jeu.categorie_speciale === true, brouillon: false,
     })
     .select('id')
     .single();
@@ -251,7 +255,7 @@ export async function reglerJeuZone(
   if (corps.plateformes) {
     // Deux lectures légères en parallèle (≤ 3, `CLAUDE.md`) : les règles, la recette de la zone du jeu (A-3).
     const [refus, zone] = await Promise.all([
-      refusDesChoix(supabase, corps.plateformes),
+      refusDesChoix(supabase, corps.plateformes, corps.categorie_speciale ?? jeu.categorie_speciale === true),
       supabase.from('custom_geo_zones').select('recette').eq('id', jeu.custom_geo_zone_id ?? '').eq('org_id', jeu.org_id).maybeSingle(),
     ]);
     if (refus) return refus;
@@ -283,6 +287,7 @@ export async function reglerJeuZone(
   if (corps.nom !== undefined) maj.nom = corps.nom;
   if (corps.description !== undefined) maj.description = corps.description;
   if (corps.mode_plan !== undefined) maj.mode_plan = corps.mode_plan;
+  if (corps.categorie_speciale !== undefined) maj.categorie_speciale = corps.categorie_speciale;
   if (Object.keys(maj).length > 0) {
     const { error } = await supabase.from('zone_sets').update(maj).eq('id', jeu.id).eq('org_id', jeu.org_id);
     // 23505 : (espace, nom, version) existe déjà — un renommage vers un jeu existant, pas une panne.

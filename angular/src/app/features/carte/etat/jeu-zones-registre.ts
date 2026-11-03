@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 import type { ReponsePlateformes } from '../data/jeux.api';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import { choixASimuler, defautsDe } from '../logique/jeu/bilan';
+import { regleCategorieSpeciale } from '../logique/jeu/conversion-rayon';
 import type { Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 import { LectureAnnulable } from './lecture-annulable';
@@ -18,8 +19,15 @@ import { LectureAnnulable } from './lecture-annulable';
 export class RegistrePlateformes {
   private readonly lecture = new LectureAnnulable<ReponsePlateformes>(messageErreurCouverture);
 
-  /** Le registre `plateformes_geo`, vide tant qu'il n'est pas lu. */
-  readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() => this.lecture.resultat()?.plateformes ?? []);
+  /**
+   * @param categorieSpeciale C29 : la case « catégorie spéciale » du jeu — lue par le registre, pour que TOUTE règle
+   *   (bornes, réglette, rayon par défaut, exactitude, défauts) voie le rayon minimal qu'elle impose.
+   */
+  constructor(private readonly categorieSpeciale: () => boolean = () => false) {}
+
+  /** Le registre `plateformes_geo`, vide tant qu'il n'est pas lu ; C29 : ses lignes lues par `regleCategorieSpeciale`. */
+  readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() =>
+    (this.lecture.resultat()?.plateformes ?? []).map((l) => regleCategorieSpeciale(l, this.categorieSpeciale())));
   /** Le message d'une lecture du registre en échec ; `null` sinon. */
   readonly erreur: Signal<string | null> = this.lecture.erreur.asReadonly();
 

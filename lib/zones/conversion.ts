@@ -128,6 +128,8 @@ export interface Avertissement {
   non_verifiable?: true;
   /** B14 round 1 (I-1) : `pop_min_groupe` d'UN bloc du découpage (ARB-6), son numéro. */
   bloc?: number;
+  /** C29 : `rayon_min` — la borne franchie est celle de la catégorie d'annonces spéciale (`regleCategorieSpeciale`). */
+  categorie_speciale?: true;
 }
 
 /**
