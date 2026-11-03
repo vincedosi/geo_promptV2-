@@ -145,6 +145,22 @@ describe('appliquerSeuil — cas limites', () => {
   });
 });
 
+describe('C24 — la diffusion achetée reste en population totale quand la part est calculée sur une cible', () => {
+  it('cible ≠ ind : diffusion_population_totale = Σ pop_totale_ind des SEULES unités retenues ; le reste en cible', () => {
+    const r = appliquerSeuil([
+      { pop_en_zone: 300, pop_totale: 1000, pop_totale_ind: 8000, part: 30, part_brute: 30 },
+      { pop_en_zone: 50, pop_totale: 1000, pop_totale_ind: 9000, part: 5, part_brute: 5 },
+      { pop_en_zone: null, pop_totale: null, part: null, part_brute: null, incluse: true },
+    ], 350, 20);
+    expect(r).toMatchObject({ n_unites: 2, couverte: 300, achetee: 1000, hors_zone: 700, taux_utile: 30, diffusion_population_totale: 8000 });
+  });
+
+  it('cible ind (aucune ligne ne porte pop_totale_ind) : pas de champ, achetee EST la population totale', () => {
+    const r = appliquerSeuil([{ pop_en_zone: 300, pop_totale: 1000, part: 30, part_brute: 30 }], 300, 20);
+    expect(r).not.toHaveProperty('diffusion_population_totale');
+  });
+});
+
 describe('resumeExact — une maille exacte ne calcule rien', () => {
   it('zéro perte, tout acheté est dans la zone', () => {
     expect(resumeExact(12_345, 67.8)).toEqual({

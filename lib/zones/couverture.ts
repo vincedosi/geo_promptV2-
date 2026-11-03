@@ -56,6 +56,8 @@ export interface LigneCouverture {
   /** A4 (sql/308) : NULL, jamais 0, pour un territoire non carroyé (population inconnue, `pop_totale` NULL aussi). */
   pop_en_zone: number | null;
   pop_totale: number | null;
+  /** C24 (sql/327), cible ≠ `ind` seulement : la population TOTALE de l'unité, la diffusion qu'achète la plateforme. */
+  pop_totale_ind?: number | null;
   /** En %, arrondie au dixième : l'AFFICHAGE. */
   part: number | null;
   /** B11 (sql/303) : la même part SANS arrondi, la seule que compare le seuil (`estRetenue`) ; NULL comme `part`. */

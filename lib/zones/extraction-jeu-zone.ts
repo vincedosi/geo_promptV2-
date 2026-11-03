@@ -107,6 +107,8 @@ interface ResumePlateforme {
   plan_cp?: { seuil: number; poids: SortiePoids[]; avertissements: Avertissement[] } & PlanPlateforme['plan']['resume'];
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
+  /** C24 (sql/327) : maille territoriale, cible ≠ `ind` — la diffusion achetée en population totale ; absent sinon. */
+  diffusion_population_totale?: number;
   /**
    * A6 (sql/311) : cercles calculés — somme des populations des DISQUES retenus (les `pop_totale` des unités), qui
    * dépasse `achetee` (union dédoublonnée) dès que des disques se chevauchent ; absent pour une autre maille.

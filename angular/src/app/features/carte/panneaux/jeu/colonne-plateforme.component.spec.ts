@@ -36,6 +36,22 @@ describe('mg-colonne-plateforme', () => {
     await stable();
     expect(el.querySelector('[data-population-inconnue]')).toBeNull();
   });
+  it('C24 : cible ≠ population totale — la diffusion achetée se dit AUSSI en population totale (retenues seules)', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    const ind = [5000, 6000, 7000];
+    http.expectOne(urlCouverture(Z1, 'cp')).flush({ ...couvertureCp, lignes: couvertureCp.lignes.map((l, i) => ({ ...l, pop_totale_ind: ind[i] })) });
+    await stable();
+    expect(texte(el, '[data-chiffres]')).toContain('Diffusion achetée, population totale');
+    expect(texte(el, '[data-diffusion-totale]')).toBe('11 000');
+  });
+  it('C24 : population totale — pas de ligne de diffusion en population totale (elle serait un doublon)', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+    await stable();
+    expect(el.querySelector('[data-diffusion-totale]')).toBeNull();
+  });
   it('seuil déplacé (relâché) : les chiffres suivent SANS requête — unités, taux d’utile, manqués et leur part, hors zone', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');

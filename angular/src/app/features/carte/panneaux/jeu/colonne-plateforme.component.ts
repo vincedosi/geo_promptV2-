@@ -116,6 +116,10 @@ import { ChoixMailleComponent } from './choix-maille.component';
               <dd data-manques class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.manques) }} <span class="text-tertiary">({{ partManquee() }} de la zone)</span></dd>
               <dt class="text-secondary">Diffusion hors zone</dt>
               <dd data-hors-zone class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.hors_zone) }}</dd>
+              @if (diffusionTotale(); as d) {
+                <dt class="text-secondary">Diffusion achetée, population totale</dt>
+                <dd data-diffusion-totale class="m-0 text-right font-mono text-primary">{{ nombre(d) }}</dd>
+              }
               @if (diffusionInconnue(); as d) {
                 <dt class="text-secondary">{{ libellePopulationInconnue }}</dt>
                 <dd data-population-inconnue class="m-0 text-right font-mono text-primary">{{ d }}</dd>
@@ -226,6 +230,11 @@ export class ColonnePlateformeComponent {
   /** A4 (ARB-3) : la ligne séparée « Diffusion à population inconnue », quand une telle unité est retenue ; sinon `null`. */
   protected readonly libellePopulationInconnue = LIBELLE_POPULATION_INCONNUE;
   protected readonly diffusionInconnue = computed(() => texteDiffusionInconnue(this.bilan()?.resume.n_inconnues, this.choix()?.maille ?? 'cp'));
+  /** C24 (sql/327) : cible ≠ `ind`, la diffusion achetée en population totale — les autres chiffres sont dans la cible. */
+  protected readonly diffusionTotale = computed(() => {
+    const r = this.bilan()?.resume;
+    return r && !r.exacte ? r.diffusion_population_totale ?? null : null;
+  });
   /** A6 (sql/311) : cercles — la somme des disques dépasse la diffusion achetée (chevauchements) ; sinon `null`. */
   protected readonly chevauchement = computed(() => {
     const b = this.bilan();

@@ -16,7 +16,7 @@ type Maille = PlateformeGeo['maille'];
 type Plateforme = PlateformeGeo['plateforme'];
 
 /** Ce que le seuil lit d'une ligne de `couverture_geometrie` — rien d'autre, pour accepter aussi une ligne figée. */
-export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'part' | 'part_brute' | 'membres' | 'incluse'>;
+export type LigneSeuil = Pick<LigneCouverture, 'pop_en_zone' | 'pop_totale' | 'pop_totale_ind' | 'part' | 'part_brute' | 'membres' | 'incluse'>;
 
 /**
  * A4 (ARB-3) : le libellé de la ligne SÉPARÉE du bilan quand une unité à population inconnue est retenue (`n_inconnues`)
@@ -60,6 +60,8 @@ export interface ResumeMaille {
    * (`texteChevauchement`). Absent pour une autre maille.
    */
   somme_disques?: number;
+  /** C24 (sql/327) : cible ≠ `ind`, la diffusion achetée en POPULATION TOTALE (Σ `pop_totale_ind` des retenues). */
+  diffusion_population_totale?: number;
 }
 
 /** Une maille exacte pour la recette (A-6) : zéro perte par construction, aucun calcul. */
@@ -165,6 +167,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
   let n_inconnues = 0;
   let couverte = 0;
   let achetee = 0;
+  let diffusion = 0;
   for (const l of lignes) {
     if (!estRetenue(l, seuil)) continue;
     n_unites += 1;
@@ -173,6 +176,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     if (l.pop_totale === null) n_inconnues += 1;
     couverte += l.pop_en_zone ?? 0;
     achetee += l.pop_totale ?? 0;
+    diffusion += l.pop_totale_ind ?? 0;
   }
   return {
     exacte: false,
@@ -188,6 +192,7 @@ export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number
     // Angular sans dépendance, et `tauxUtile` (non exporté) lit des `CpZone` du moteur risque.
     taux_utile: achetee > 0 ? Math.round((couverte / achetee) * 1000) / 10 : null,
     ...(n_inconnues > 0 ? { n_inconnues } : {}),
+    ...(lignes.some((l) => l.pop_totale_ind !== undefined) ? { diffusion_population_totale: diffusion } : {}),
   };
 }
 
