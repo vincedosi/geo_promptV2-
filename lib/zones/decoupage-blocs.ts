@@ -23,6 +23,8 @@ export interface LigneBloc {
   part_brute?: number | null;
   pop_en_zone: number | null;
   pop_totale: number | null;
+  /** C24 (sql/327) : cible ≠ `ind`, la population totale de l'unité. */
+  pop_totale_ind?: number | null;
 }
 
 /** Le bilan d'un bloc : ses unités et ses habitants, comptés comme le bilan de la maille. */
@@ -40,6 +42,8 @@ interface BilanBloc {
   part_min: number | null;
   /** A4 : unités du bloc à population inconnue ; absent s'il n'y en a pas. */
   n_inconnues?: number;
+  /** C24 round 1 : cible ≠ `ind`, la diffusion du bloc en population totale (son minimum par groupe la compare). */
+  diffusion_population_totale?: number;
 }
 
 /** Le découpage figé dans le résumé de la plateforme : la limite lue dans le registre, et chaque bloc. */
@@ -66,9 +70,11 @@ function bilan(numero: number, lignes: readonly LigneBloc[]): BilanBloc {
   let couverte = 0;
   let achetee = 0;
   let n_inconnues = 0;
+  let diffusion = 0;
   const parts: number[] = [];
   for (const l of lignes) {
     if (l.pop_totale === null) n_inconnues += 1;
+    diffusion += l.pop_totale_ind ?? 0;
     couverte += l.pop_en_zone ?? 0;
     achetee += l.pop_totale ?? 0;
     if (l.part !== null) parts.push(l.part);
@@ -79,6 +85,7 @@ function bilan(numero: number, lignes: readonly LigneBloc[]): BilanBloc {
     part_max: parts.length ? Math.max(...parts) : null,
     part_min: parts.length ? Math.min(...parts) : null,
     ...(n_inconnues > 0 ? { n_inconnues } : {}),
+    ...(lignes.some((l) => l.pop_totale_ind !== undefined) ? { diffusion_population_totale: diffusion } : {}),
   };
 }
 

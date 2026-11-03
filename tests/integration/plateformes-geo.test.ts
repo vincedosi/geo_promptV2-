@@ -24,7 +24,8 @@ const MIGRATION_PAYS = ['300_maille_pays.sql', '311_cercle_population_disque.sql
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 /** B13 : les minimums de population et leur comportement (et `paver_cercles`, recopié de sql/311). */
 // C29 : sql/329 redéfinit `plateformes_geo_parametres_valides` après sql/318 — rejouée à sa suite.
-const MIGRATION_MINIMUMS = ['318_minimums_population.sql', '329_categorie_speciale.sql']
+// C24 round 1 : sql/330 redéfinit `paver_cercles` après sql/318.
+const MIGRATION_MINIMUMS = ['318_minimums_population.sql', '329_categorie_speciale.sql', '330_minimums_population_totale.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Empreinte du contenu ET des contraintes de la table : un rejeu qui en changerait l'un ou l'autre la changerait. */

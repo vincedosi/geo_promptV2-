@@ -101,7 +101,10 @@ import { ChoixMailleComponent } from './choix-maille.component';
           @if (b.resume.exacte) {
             <div data-exacte class="flex flex-col gap-1">
               <span class="text-[12px] text-primary">Exacte : aucune perte</span>
-              <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ nombre(b.resume.population) }} habitants carroyés</span>
+              <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ nombre(b.resume.population) }} {{ libellePopulation() }}</span>
+              @if (diffusionTotale(); as d) {
+                <span data-diffusion-totale class="text-[11px] text-secondary">Diffusion achetée, population totale : <span class="font-mono text-primary">{{ nombre(d) }}</span></span>
+              }
               @if (codesPays(); as codes) { <span data-codes-pays class="font-mono text-[11px] text-secondary">{{ codes }}</span> }
               @for (u of unitesPays(); track u.code) { <span data-unite-pays class="font-mono text-[11px] text-tertiary">{{ u.texte }}</span> }
               @if (diffusionInconnue(); as d) {
@@ -235,10 +238,9 @@ export class ColonnePlateformeComponent {
   protected readonly libellePopulationInconnue = LIBELLE_POPULATION_INCONNUE;
   protected readonly diffusionInconnue = computed(() => texteDiffusionInconnue(this.bilan()?.resume.n_inconnues, this.choix()?.maille ?? 'cp'));
   /** C24 (sql/327) : cible ≠ `ind`, la diffusion achetée en population totale — les autres chiffres sont dans la cible. */
-  protected readonly diffusionTotale = computed(() => {
-    const r = this.bilan()?.resume;
-    return r && !r.exacte ? r.diffusion_population_totale ?? null : null;
-  });
+  protected readonly diffusionTotale = computed(() => this.bilan()?.resume.diffusion_population_totale ?? null);
+  /** C24 round 1 : une maille exacte chiffre la CIBLE quand elle n'est pas la population totale — le libellé le dit. */
+  protected readonly libellePopulation = computed(() => (this.jeu.cible() === 'ind' ? 'habitants carroyés' : 'habitants carroyés de la cible'));
   /** A6 (sql/311) : cercles — la somme des disques dépasse la diffusion achetée (chevauchements) ; sinon `null`. */
   protected readonly chevauchement = computed(() => {
     const b = this.bilan();

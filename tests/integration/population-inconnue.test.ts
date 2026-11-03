@@ -317,7 +317,9 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
     const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql',
       '323_arrondi_plus_fort_reste.sql', '324_arrondi_plus_fort_reste_pays.sql', '326_zone_pays_moins.sql',
       // C24 : sql/327 porte la dernière définition de `couverture_geometrie` (pop_totale_ind).
-      '327_diffusion_population_totale.sql']
+      '327_diffusion_population_totale.sql',
+      // C24 round 1 : sql/330 redéfinit `couverture_geometrie` et `couverture_zone`.
+      '330_minimums_population_totale.sql']
       .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
     const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
                               || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p

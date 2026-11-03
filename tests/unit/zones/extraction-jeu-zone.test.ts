@@ -74,6 +74,34 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+describe('C24 round 1 (I-1) — DV360, cible 18-24 ans : le minimum par cercle se compare à la population TOTALE', () => {
+  const DV360 = { ...regle('dv360', 'cercle', { rayon_min_m: 1000, pop_min_unite: 1000 }), pop_min_unite_comportement: 'refus' };
+  const extraireCible = () => extraireJeuZone(createAdminClient() as never, { ...JEU, cible: 'ind_18_24' } as Tables<'zone_sets'>,
+    { origine: 'initiale', commentaire: '' }, 'u1');
+
+  it('cercle exact de 3 000 habitants (300 jeunes) : acheté, aucun refus ; la diffusion totale figée', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cercle', seuil: 30, rayon_m: 1000 }], { ...POINT, rayon_m: 1000 }, [DV360]);
+    etat.reponses.couverture_zone = { data: { population: 300, population_ind: 3000, surface_km2: 3.14, lignes: [] }, error: null };
+    const r = await extraireCible();
+    expect(r.status, JSON.stringify(await r.clone().json())).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ achetee: 300, diffusion_population_totale: 3000, avertissements: [] });
+  });
+
+  it('cercles pavés : un disque de 3 000 habitants (300 jeunes) passe le contrôle par unité', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cercle', seuil: 30, rayon_m: 2000 }], POINT, [DV360]);
+    etat.reponses.paver_cercles = {
+      data: {
+        n_candidates: 3, n_cercles: 1, population: 1_000, couverte: 300, manques: 700, hors_zone: 0, achetee: 300, taux_utile: 100,
+        cercles: [{ lon: 4.8, lat: 45.7, pop_en_zone: 300, pop_totale: 300, pop_totale_ind: 3000, part: 100 }],
+        ecartes_pop_min: { n_cercles: 0, population_max: null },
+      }, error: null,
+    };
+    const r = await extraireCible();
+    expect(r.status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0].avertissements).toEqual([]);
+  });
+});
+
 describe('C29 — catégorie d’annonces spéciale : le jeu coché relève le rayon minimal de Meta', () => {
   const META = regle('meta', 'cercle', { rayon_min_m: 1000, rayon_max_m: 80000, rayon_min_categorie_speciale: 15000 });
   const extraireCs = (cs: boolean) => extraireJeuZone(createAdminClient() as never, { ...JEU, categorie_speciale: cs } as Tables<'zone_sets'>,

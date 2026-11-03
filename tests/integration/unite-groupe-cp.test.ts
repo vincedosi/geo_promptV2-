@@ -31,7 +31,9 @@ const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sq
   '312_polygone_sommets_morceaux.sql', '318_minimums_population.sql', '323_arrondi_plus_fort_reste.sql',
   '324_arrondi_plus_fort_reste_pays.sql', '326_zone_pays_moins.sql',
   // C24 : sql/327 redéfinit `couverture_geometrie` ; C29 : sql/329 `plateformes_geo_parametres_valides` — en dernier.
-  '327_diffusion_population_totale.sql', '329_categorie_speciale.sql']
+  '327_diffusion_population_totale.sql', '329_categorie_speciale.sql',
+  // C24 round 1 : sql/330 redéfinit `couverture_geometrie`, `paver_cercles` et `couverture_zone`.
+  '330_minimums_population_totale.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */

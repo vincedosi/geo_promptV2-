@@ -91,6 +91,8 @@ export interface ResultatCouverture {
   surface_km2: number;
   n_carreaux: number;
   population: number;
+  /** C24 round 1 (sql/330) : cible ≠ `ind`, la population TOTALE de la forme (la diffusion d'une maille exacte). */
+  population_ind?: number;
   lignes: LigneCouverture[];
   hors_territoire: { n_carreaux: number; population: number };
   n_territoires: number;

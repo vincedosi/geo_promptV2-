@@ -49,7 +49,9 @@ export interface ControlePopulation { refus: Avertissement | null; avertissement
  *   sont dites en une fois : `n` unités, `valeur` la moins peuplée, `limite` le minimum. Une population INCONNUE
  *   (`null`, ARB-3 / A4 — territoire non carroyé) ne se compare pas : `non_verifiable`, `n` unités, toujours un
  *   avertissement (jamais un refus, ni un « 0 habitant », sur une donnée absente — relecture B13, I-1) ;
- * - par groupe : `achetee`, la diffusion achetée CONNUE. Avec des unités à population inconnue (`n_inconnues`), la
+ * C24 round 1 (I-1) : populations et diffusion en POPULATION TOTALE (l'audience réelle de la plateforme), jamais dans la
+ *   cible — l'appelant passe `pop_totale_ind` / `population_ind` quand ils existent.
+ * - par groupe : `achetee`, la diffusion achetée CONNUE (`diffusion_population_totale` si la part est sur une cible). Avec des unités à population inconnue (`n_inconnues`), la
  *   part connue qui atteint déjà le minimum le valide ; sinon `non_verifiable` (`valeur` la part connue, `n` les
  *   unités inconnues), toujours un avertissement (relecture B13, I-2 ; ruling du contrôleur).
  *   B14 round 1 (I-1) : une maille découpée en blocs (`decoupage`, ARB-6) envoie chaque BLOC comme un groupe — le
@@ -58,7 +60,10 @@ export interface ControlePopulation { refus: Avertissement | null; avertissement
  * `avertissement`.
  */
 export function controlerPopulation(
-  bilan: { achetee: number; n_inconnues?: number; decoupage?: { blocs: readonly { numero: number; achetee: number; n_inconnues?: number }[] } },
+  bilan: {
+    achetee: number; diffusion_population_totale?: number; n_inconnues?: number;
+    decoupage?: { blocs: readonly { numero: number; achetee: number; diffusion_population_totale?: number; n_inconnues?: number }[] };
+  },
   populations: readonly (number | null | undefined)[], ligne: PlateformeGeo,
 ): ControlePopulation {
   const sortie: ControlePopulation = { refus: null, avertissements: [] };
@@ -81,8 +86,10 @@ export function controlerPopulation(
   const groupe = minimumPopulation(ligne, 'groupe');
   const groupes = bilan.decoupage?.blocs ?? [{ ...bilan, numero: undefined }];
   for (const g of groupe ? groupes : []) {
-    if (!groupe || g.achetee >= groupe.limite) continue;
-    const a: Avertissement = { code: 'pop_min_groupe', limite: groupe.limite, valeur: g.achetee, ...(g.numero !== undefined ? { bloc: g.numero } : {}) };
+    // C24 round 1 (I-1) : l'audience RÉELLE — la diffusion en population totale quand la part est sur une cible.
+    const diffusion = g.diffusion_population_totale ?? g.achetee;
+    if (!groupe || diffusion >= groupe.limite) continue;
+    const a: Avertissement = { code: 'pop_min_groupe', limite: groupe.limite, valeur: diffusion, ...(g.numero !== undefined ? { bloc: g.numero } : {}) };
     if (g.n_inconnues) nonVerifiable({ ...a, n: g.n_inconnues }, groupe);
     else dire(a, groupe);
   }

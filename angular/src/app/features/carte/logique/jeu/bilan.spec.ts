@@ -108,6 +108,22 @@ describe('bilan d’un choix (logique pure de ⑤)', () => {
     // À 1 000 habitants, le cercle passe.
     expect(bilanDe(c, dv360, recette, couverture('forme', 'v1', 1000))?.avertissements).toEqual([]);
   });
+  it('C24 round 1 (I-1) : cible 18-24 ans — le minimum compare la population TOTALE (cercle exact, cercles pavés)', () => {
+    const dv360 = ligne({
+      plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1000, pop_min_unite: 1000 }, pop_min_unite_comportement: 'refus',
+    });
+    const recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 1000, part_retenue: 1 } as const;
+    const forme = { ...couverture('forme', 'v1', 300), population_ind: 3000 } as ResultatCouverture;
+    const b = bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 1000 }, dv360, recette, forme);
+    expect(b?.resume).toMatchObject({ exacte: true, achetee: 300, diffusion_population_totale: 3000 });
+    expect(b?.avertissements).toEqual([]);
+    const pavage = {
+      zone_id: 'z', cible: 'ind_18_24', rayon_m: 5000, seuil: 20, n_candidates: 2, n_cercles: 1, population: 300, couverte: 300,
+      manques: 0, hors_zone: 0, achetee: 300, taux_utile: 100, n_carreaux: 5, motif_vide: null,
+      cercles: [{ lon: 3, lat: 45, pop_en_zone: 300, pop_totale: 300, pop_totale_ind: 3000, part: 100 }],
+    };
+    expect(bilanDe({ maille: 'cercle', seuil: 20, rayon_m: 5000 }, dv360, null, pavage as never)?.avertissements).toEqual([]);
+  });
   it('B13 (relecture I-1) : cercle exact non carroyé (Mayotte) sur DV360 — population inconnue, minimum non vérifiable, aucun refus', () => {
     const dv360 = ligne({
       plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1000, pop_min_unite: 1000 }, pop_min_unite_comportement: 'refus',

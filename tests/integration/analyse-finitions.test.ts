@@ -246,7 +246,9 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     // `couverture_pays_moins_jsonb`, `couverture_zone` et `compter_zone_pays` redéfinies pour « nationale moins »).
     const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql', 'sql/303_seuil_part_non_arrondie.sql',
       'sql/304_unite_groupe_cp.sql', 'sql/308_population_inconnue.sql', 'sql/309_inclusion_tolerance.sql',
-      'sql/310_minimum_menages_conversion.sql', 'sql/324_arrondi_plus_fort_reste_pays.sql', 'sql/326_zone_pays_moins.sql']
+      'sql/310_minimum_menages_conversion.sql', 'sql/324_arrondi_plus_fort_reste_pays.sql', 'sql/326_zone_pays_moins.sql',
+      // C24 round 1 : sql/330 porte la dernière définition de `couverture_zone` — rejouée en dernier.
+      'sql/330_minimums_population_totale.sql']
       .map((f) => readFileSync(f, 'utf8')).join('\n');
     const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);

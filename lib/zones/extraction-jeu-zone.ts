@@ -130,11 +130,17 @@ interface ResumePlateforme {
 }
 
 type Echec = { ok: false; reponse: NextResponse };
-type Issue = { ok: true; unites: Unite[]; resume: ResumePlateforme } | Echec;
+/**
+ * `populations` (C24 round 1, I-1) : les populations TOTALES des unités retenues, celles que comparent les minimums de
+ * la plateforme (son audience réelle) ; absent = `pop_totale` des unités (cible `ind`, où elles sont égales).
+ */
+type Issue = { ok: true; unites: Unite[]; resume: ResumePlateforme; populations?: (number | null)[] } | Echec;
 
 /** Ce que `couverture_zone` rend d'utile ici (`lignes` vide pour le découpage `forme`). */
 interface Couverture {
   population: number; surface_km2: number; lignes: LigneCouverture[]; min_menages?: number;
+  /** C24 round 1 (sql/330) : cible ≠ `ind`, la population TOTALE de la forme. */
+  population_ind?: number;
   /** B13 (relecture, I-1) : lus pour `populationDeForme` — un territoire non carroyé rend la population inconnue. */
   motif_vide?: string | null; territoires_non_carroyes?: unknown[] | null;
 }
@@ -146,7 +152,8 @@ interface Pavage {
   /** A6 (sql/311) : somme des `pop_totale` des cercles (populations des disques), ≥ `achetee`. */
   somme_disques?: number;
   /** A6 : chaque cercle porte la population de son DISQUE (pas de sa cellule hexagonale). */
-  cercles: { lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }[];
+  /** `pop_totale_ind` (C24 round 1, sql/330) : cible ≠ `ind`, la population totale du disque. */
+  cercles: { lon: number; lat: number; pop_en_zone: number; pop_totale: number; pop_totale_ind?: number; part: number }[];
   /** B13 (sql/318) : les cellules au seuil écartées par le seul minimum par cercle (`p_pop_min`). */
   ecartes_pop_min?: { n_cercles: number; population_max: number | null };
 }
@@ -193,6 +200,7 @@ async function lireCouverture(ctx: Contexte, plateforme: string, decoupage: stri
   const couverture = {
     population: o.population, surface_km2: o.surface_km2, lignes: o.lignes, min_menages: o.min_menages,
     motif_vide: o.motif_vide ?? null, territoires_non_carroyes: o.territoires_non_carroyes ?? null,
+    ...(typeof o.population_ind === 'number' ? { population_ind: o.population_ind } : {}),  // C24 round 1
   };
   ctx.couvertures.set(decoupage, couverture);
   return couverture;
@@ -208,6 +216,9 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   const r = ctx.recette;
   // B13 (relecture, I-1) : un cercle exact en territoire non carroyé a une population INCONNUE (ARB-3), jamais 0.
   const popForme = populationDeForme(forme);
+  // C24 round 1 (I-1) : la population TOTALE de la forme (cible ≠ ind) — la diffusion, et ce que comparent les minimums.
+  const popTotaleForme = populationDeForme({ ...forme, population: forme.population_ind ?? forme.population });
+  const diffusion = forme.population_ind !== undefined ? { diffusion_population_totale: forme.population_ind } : {};
   const toute = { pop_en_zone: popForme, pop_totale: popForme, part: popForme === null ? null : 100, retenu: true };
   let unites: Unite[];
   if (c.maille === 'pays' && r?.type === 'pays') {
@@ -243,7 +254,7 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
     // Tour 1 (M-1) : une forme simplifiée n'est plus la zone — bilan calculé (perdue = manques, gagnée = hors zone),
     // et l'unité porte les mêmes chiffres. Sinon le bilan exact de la zone.
     const simplifie = resumePolygoneSimplifie(m, forme.population);
-    const bilanPolygone = simplifie ?? resumeExact(forme.population, forme.surface_km2, 1);
+    const bilanPolygone = { ...(simplifie ?? resumeExact(forme.population, forme.surface_km2, 1)), ...diffusion };
     unites = [{
       plateforme: c.plateforme, maille: 'polygone', retenu: true,
       ...(simplifie
@@ -256,7 +267,7 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
       morceaux: m.morceaux, perdue: m.perdue, gagnee: m.gagnee,
     };
     return {
-      ok: true, unites,
+      ok: true, unites, populations: [popTotaleForme],
       resume: {
         ...bilanPolygone, plateforme: c.plateforme, population: forme.population, surface_km2: forme.surface_km2,
         min_menages: forme.min_menages, simplification,
@@ -264,9 +275,9 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
       },
     };
   }
-  const bilan = { ...resumeExact(forme.population, forme.surface_km2, unites.length), ...(popForme === null ? { n_inconnues: unites.length } : {}) };
+  const bilan = { ...resumeExact(forme.population, forme.surface_km2, unites.length), ...(popForme === null ? { n_inconnues: unites.length } : {}), ...diffusion };
   const aVerifier = paysAVerifier(r, regle) ? { pays_a_verifier: true as const } : {};
-  return { ok: true, unites, resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
+  return { ok: true, unites, populations: unites.map(() => popTotaleForme), resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
 }
 
 /** Les refus de `simplification_polygone_plateforme` : ceux de la couverture, et la règle polygone absente du registre. */
@@ -322,6 +333,8 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
   if (estEchec(couverture)) return couverture;
   const bilan = appliquerSeuil(couverture.lignes, couverture.population, c.seuil);
   if (bilan.n_unites === 0) return aucuneUnite(c);
+  // C24 round 1 (I-1) : les minimums comparent la population TOTALE de chaque unité retenue.
+  const populations = couverture.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale_ind ?? l.pop_totale);
   // B14 (ARB-6) : au-delà de la limite d'unités, les retenues partent en blocs triés par part ; annoncé (`n` blocs).
   const d = decouperEnBlocs(couverture.lignes.filter((l) => estRetenue(l, c.seuil)), regle);
   const unites = couverture.lignes.map((l): Unite => ({
@@ -330,7 +343,7 @@ async function convertirTerritoire(ctx: Contexte, c: Choix, regle: PlateformeGeo
     ...(d?.blocs.has(l.code) ? { bloc: d.blocs.get(l.code) } : {}),
   }));
   return {
-    ok: true,
+    ok: true, populations,
     // Dans l'ordre des blocs (`ordinal` : bloc puis part décroissante), les non retenues ensuite.
     unites: d ? dansLOrdreDesBlocs(unites, d.blocs) : unites,
     resume: {
@@ -363,6 +376,7 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
   const bilan: Resume = { exacte: false, n_touchees: o.n_candidates, ...chiffres };
   return {
     ok: true,
+    populations: o.cercles.map((k) => k.pop_totale_ind ?? k.pop_totale),  // C24 round 1 : la population totale du disque
     unites: o.cercles.map((k) => ({
       plateforme: c.plateforme, maille: 'cercle', lon: k.lon, lat: k.lat, rayon_m,
       pop_en_zone: k.pop_en_zone, pop_totale: k.pop_totale, part: k.part, retenu: true,
@@ -390,7 +404,7 @@ async function convertirCercles(ctx: Contexte, c: Choix, regle: PlateformeGeo): 
 async function controler(issue: Promise<Issue>, c: Choix, regle: PlateformeGeo): Promise<Issue> {
   const r = await issue;
   if (!r.ok) return r;
-  const controle = controlerPopulation(r.resume, r.unites.filter((u) => u.retenu).map((u) => u.pop_totale), regle);
+  const controle = controlerPopulation(r.resume, r.populations ?? r.unites.filter((u) => u.retenu).map((u) => u.pop_totale), regle);
   if (controle.refus) {
     const { code, limite, valeur, n, bloc } = controle.refus;
     return {

@@ -55,6 +55,16 @@ describe('mg-colonne-plateforme', () => {
     await stable();
     expect(texte(el, '[data-parametres-a-verifier]')).toBe('À vérifier : codes postaux par liste, non relevé.');
   });
+  it('C24 round 1 : maille exacte sur une cible — « de la cible », et la diffusion en population totale', async () => {
+    const { el, http, jeu, stable } = await colonne('ttd');
+    jeu.choisirCible('ind_18_24');
+    jeu.valider('ttd');
+    http.expectOne(urlCouverture(Z1, 'forme', 'ind_18_24'))
+      .flush({ ...couvertureCp, cible: 'ind_18_24', decoupage: 'forme', lignes: [], population_ind: 3000 });
+    await stable();
+    expect(texte(el, '[data-exacte] span.font-mono')).toBe('1 polygone · 1 000 habitants carroyés de la cible');
+    expect(texte(el, '[data-diffusion-totale]')).toBe('Diffusion achetée, population totale : 3 000');
+  });
   it('C24 : population totale — pas de ligne de diffusion en population totale (elle serait un doublon)', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');

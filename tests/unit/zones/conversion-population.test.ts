@@ -98,6 +98,24 @@ describe('relecture B13, I-1 — cercle exact en territoire non carroyé : popul
   });
 });
 
+describe('C24 round 1 (I-1) — les minimums se comparent à la population TOTALE, jamais à la cible', () => {
+  it('groupe : 300 jeunes achetés sur 5 000 habitants — la diffusion réelle (5 000) passe le minimum de 1 000', () => {
+    const bilan = { ...appliquerSeuil([{ pop_en_zone: 300, pop_totale: 300, pop_totale_ind: 5_000, part: 100, part_brute: 100 }], 300, 20) };
+    expect(bilan.diffusion_population_totale).toBe(5_000);
+    expect(controlerPopulation(bilan, [5_000], TIKTOK_DEP)).toEqual({ refus: null, avertissements: [] });
+  });
+  it('groupe découpé en blocs : chaque bloc compare SA diffusion totale', () => {
+    const bilan = { achetee: 300, diffusion_population_totale: 5_000, decoupage: { blocs: [
+      { numero: 1, achetee: 200, diffusion_population_totale: 4_000 }, { numero: 2, achetee: 100, diffusion_population_totale: 900 },
+    ] } };
+    const r = controlerPopulation(bilan, [], TIKTOK_DEP);
+    expect(r.avertissements.map((a) => [a.bloc, a.valeur])).toEqual([[2, 900]]);
+  });
+  it('sans diffusion totale (cible ind, réponse d’avant) : la diffusion achetée, comme avant', () => {
+    expect(controlerPopulation({ achetee: 500 }, [], TIKTOK_DEP).avertissements[0]).toMatchObject({ code: 'pop_min_groupe', valeur: 500 });
+  });
+});
+
 describe('B13 — Meta : aucun minimum', () => {
   it('cinq habitants, ni refus ni avertissement', () => {
     expect(controlerPopulation(resumeExact(5, 3.14), [5], META_CERCLE)).toEqual({ refus: null, avertissements: [] });

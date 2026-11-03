@@ -30,7 +30,8 @@ export interface ResultatCercles {
   n_candidates: number;
   n_cercles: number;
   /** A6 (sql/311) : chiffres du DISQUE de chaque cercle (pas de sa cellule hexagonale) — population, part, seuil. */
-  cercles: Array<{ lon: number; lat: number; pop_en_zone: number; pop_totale: number; part: number }>;
+  /** `pop_totale_ind` (C24 round 1, sql/330) : cible ≠ `ind`, la population totale du disque. */
+  cercles: Array<{ lon: number; lat: number; pop_en_zone: number; pop_totale: number; pop_totale_ind?: number; part: number }>;
   population: number;
   couverte: number;
   manques: number;
@@ -252,7 +253,8 @@ export function bilanDe(
       ...(typeof k.somme_disques === 'number' ? { somme_disques: k.somme_disques } : {}),
     };
     // `?? []` : une réponse factice d'avant A6 peut ne pas porter les cercles ; la RPC les rend toujours.
-    populations = (k.cercles ?? []).map((x) => x.pop_totale);
+    // C24 round 1 (I-1) : la population TOTALE du disque, celle que compare le minimum (l'audience réelle).
+    populations = (k.cercles ?? []).map((x) => x.pop_totale_ind ?? x.pop_totale);
     // Tout écarté par le minimum : l'extraction le refuserait, l'écran le dit comme un refus.
     ecartes = avertissementsEcartes(k.ecartes_pop_min, ligne).map((a) => (k.n_cercles === 0 ? { ...a, refus: true as const } : a));
   } else {
@@ -273,11 +275,16 @@ export function bilanDe(
     const nCodes = liste ? new Set(u.codes).size : 1;
     // Relecture B13 (I-1) : le cercle exact en territoire non carroyé — population INCONNUE (ARB-3), comme à l'extraction.
     const popCercle = exacte && c.maille === 'cercle' ? populationDeForme(cv) : cv.population;
+    // C24 round 1 (I-1) : la population TOTALE de la forme (cible ≠ ind), diffusion et minimum d'une maille exacte.
+    const total = cv.population_ind;
+    const popTotale = total === undefined || popCercle === null ? popCercle : total;
     resume = exacte
-      ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popCercle === null ? { n_inconnues: 1 } : {}) }
+      ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popCercle === null ? { n_inconnues: 1 } : {}),
+          ...(total !== undefined ? { diffusion_population_totale: total } : {}) }
       : appliquerSeuil(cv.lignes, cv.population, c.seuil);
     // Des unités constitutives exactes ne disent pas la population de chaque code : aucune unité à comparer (le groupe, si).
-    populations = exacte ? (liste ? [] : [popCercle]) : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale);
+    populations = exacte ? (liste ? [] : [popTotale])
+      : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale_ind ?? l.pop_totale);
   }
   const p = controlerPopulation(resume, populations, ligne);
   // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.

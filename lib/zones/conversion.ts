@@ -83,6 +83,8 @@ export interface ResumeExact {
   taux_utile: 100;
   /** A4 (ARB-3) : maille pays, territoires ciblés à population inconnue (GP, GF, YT au 31/10) ; absent sinon. */
   n_inconnues?: number;
+  /** C24 round 1 (sql/330) : cible ≠ `ind`, la population TOTALE de la forme achetée. */
+  diffusion_population_totale?: number;
 }
 
 export type Resume = ResumeMaille | ResumeExact;

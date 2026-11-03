@@ -31,7 +31,9 @@ const LONG = 180_000;
 const MIGRATION = ['312_polygone_sommets_morceaux.sql', '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql',
   '318_minimums_population.sql', '319_decoupage_blocs.sql',
   // C29 : sql/329 redéfinit `plateformes_geo_parametres_valides` (et les limites admises) — rejouée en dernier.
-  '329_categorie_speciale.sql']
+  '329_categorie_speciale.sql',
+  // C24 round 1 : sql/330 redéfinit `paver_cercles` (après sql/318).
+  '330_minimums_population_totale.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 let org = '';
