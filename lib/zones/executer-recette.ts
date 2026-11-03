@@ -44,6 +44,8 @@ export type IssueRecette =
   | {
     ok: true; geometry: FormeZone; surface_km2: number | null; compte: number | null; part_retenue: number | null; population: number | null;
     unites?: UnitesConstitutives;
+    /** C21 : « zone nationale moins zones locales » — le code de la zone pays en première opérande (sql/326). */
+    base_pays?: 'METRO' | 'FR';
   }
   | { ok: false; statut: 400 | 404 | 409 | 422 | 500; refus: RefusRecette | null; message: string };
 
@@ -287,17 +289,45 @@ async function combiner(
     console.error('[zones/recette] opérandes :', error.message);
     return ECHEC;
   }
-  if ((data ?? []).length !== new Set(zones).size) return refuser('zone_introuvable', 404);
-  // Une zone pays (sql/296) en opérande ferait une forme quasi nationale, que la résolution des codes lirait IRIS par
-  // IRIS (2,1 s, 48 540 accès) : refusée avant tout calcul (relecture 1 du groupe A, ④ finitions).
-  if ((data ?? []).some((z) => estRecettePays(z.recette))) return refuser('operande_pays');
+  const lues = data ?? [];
+  if (lues.length !== new Set(zones).size) return refuser('zone_introuvable', 404);
+  // C21 : une zone pays (sql/296) n'entre dans une combinaison qu'en PREMIÈRE zone d'une différence (« la France moins
+  // ces zones »), seule : sa couverture se calcule alors par les agrégats nationaux moins les zones retirées
+  // (`couverture_pays_moins_jsonb`, sql/326), sans lire un carreau de la partie nationale. Partout ailleurs (fusion,
+  // restriction, zone nationale retirée, deux zones nationales) la forme quasi nationale n'aurait pas de chiffrage
+  // borné : refusée avant tout calcul (relecture 1 du groupe A, ④ finitions).
+  const pays = lues.filter((z) => estRecettePays(z.recette));
+  const base = lues.find((z) => z.id === zones[0]);
+  const basePays = recette.operation === 'difference' && pays.length === 1 && base && estRecettePays(base.recette)
+    ? (base.recette as { code: 'METRO' | 'FR' }).code : null;
+  if (pays.length > 0 && !basePays) return refuser('operande_pays');
+  // Une opérande « nationale moins » (différence dont la première zone est une zone pays) est quasi nationale elle
+  // aussi : refusée de même. Une lecture de plus, bornée (≤ 20 ids), seulement s'il y a des différences en opérande.
+  const basesDifferences = lues.map((z) => premiereZoneDifference(z.recette)).filter((id): id is string => id !== null);
+  if (basesDifferences.length > 0) {
+    const b = await supabase.from('custom_geo_zones').select('id, recette').eq('org_id', ctx.orgId).in('id', basesDifferences);
+    if (b.error) {
+      console.error('[zones/recette] bases des opérandes :', b.error.message);
+      return ECHEC;
+    }
+    if ((b.data ?? []).some((z) => estRecettePays(z.recette))) return refuser('operande_pays');
+  }
 
   switch (recette.operation) {
     case 'union':
       return lire('get_composite_zone_geometry', supabase.rpc('get_composite_zone_geometry', { p_zone_ids: zones }));
     case 'intersection':
       return lire('zone_intersection_toutes', supabase.rpc('zone_intersection_toutes', { p_zone_ids: zones }), 'intersection_vide');
-    case 'difference':
-      return lire('zone_difference', supabase.rpc('zone_difference', { p_base: zones[0], p_retires: zones.slice(1) }));
+    case 'difference': {
+      const i = await lire('zone_difference', supabase.rpc('zone_difference', { p_base: zones[0], p_retires: zones.slice(1) }));
+      return i.ok && basePays ? { ...i, base_pays: basePays } : i;
+    }
   }
+}
+
+/** La première zone d'une recette brute « différence » (`custom_geo_zones.recette`), sinon `null`. */
+function premiereZoneDifference(recette: unknown): string | null {
+  const r = recette as { type?: unknown; operation?: unknown; zones?: unknown } | null | undefined;
+  if (r?.type !== 'combinaison' || r.operation !== 'difference' || !Array.isArray(r.zones)) return null;
+  return typeof r.zones[0] === 'string' ? r.zones[0] : null;
 }

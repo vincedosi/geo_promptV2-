@@ -43,5 +43,7 @@ export async function POST(req: NextRequest) {
     console.error('[zones] creer_zone_recette :', cree.error?.message ?? 'réponse hors contrat', cree.error ? '' : cree.data);
     return NextResponse.json({ error: 'Enregistrement de la zone impossible.' }, { status: 500 });
   }
-  return repondreResolue(supabase, issue.id, p.espace.userId, r.surface_km2, 'creation', p.recette.type === 'pays');
+  return repondreResolue(supabase, issue.id, p.espace.userId, r.surface_km2, 'creation',
+    // C21 : une zone « nationale moins zones locales » se compte comme une zone pays, sans résolution géométrique.
+    p.recette.type === 'pays' || r.base_pays !== undefined);
 }

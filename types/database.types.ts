@@ -9242,6 +9242,7 @@ export type Database = {
       }
       zone_intersection: { Args: { p_zone_ids: string[] }; Returns: Json }
       zone_intersection_toutes: { Args: { p_zone_ids: string[] }; Returns: Json }
+      zone_pays_moins_base: { Args: { p_org_id: string; p_zone_id: string }; Returns: string }
       typologies_de_zone: {
         Args: { p_org: string; p_sources: string[]; p_zone: string }
         Returns: Json

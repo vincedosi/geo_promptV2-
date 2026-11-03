@@ -230,8 +230,9 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   // C20 round 1 : une intersection vide de zones françaises n'est pas une forme hors de France.
   intersection_vide: 'Les zones cochées n’ont aucune partie commune.',
   forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture, combinaison ou zone nationale) : elle ne se recalcule pas.',
-  operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine pas avec une autre zone : '
-    + 'combinez des zones locales, ou analysez la zone nationale telle quelle.',
+  // C21 : « zone nationale moins zones locales » est admise ; tout autre emploi d'une zone nationale est refusé.
+  operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine qu’en première zone d’une soustraction, '
+    + 'moins des zones locales : elle ne se fusionne pas, ne se restreint pas et ne se retire pas.',
   rayon_sous_minimum: `Le rayon autour d’un point est de ${formaterNombre(RAYON_POINT_MIN_M)} m au moins depuis le 31/10 `
     + '(sous ce rayon, le disque est plus petit qu’un carreau de population) : cette zone, enregistrée avec un rayon plus petit, '
     + `n’est pas modifiée et ne se recalcule plus ; recréez-la avec un rayon d’au moins ${formaterNombre(RAYON_POINT_MIN_M)} m.`,

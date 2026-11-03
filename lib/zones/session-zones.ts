@@ -151,6 +151,23 @@ export function reponseRefus(r: { statut: number; message: string; refus: RefusR
  * IRIS de France (2,1 s, 48 540 accès, ≈ 48 000 lignes de codes écrites). `compter_zone_pays` pose les deux compteurs
  * par des comptes (8,7 ms, 574 accès), sans écrire de code.
  */
+/**
+ * C21 : la zone est-elle « nationale moins zones locales » (une différence dont la première zone est une zone pays,
+ * `zone_pays_moins_base`, sql/326) ? Ses compteurs se posent alors par `compter_zone_pays`, comme une zone pays : la
+ * résolution géométrique lirait tous les IRIS de France. Aucune lecture pour une recette qui n'est pas une différence.
+ * Une lecture en échec répond VRAI : `compter_zone_pays` lèvera au pire (207), jamais une résolution nationale.
+ */
+export async function estNationaleMoins(supabase: ClientAdmin, zoneId: string, orgId: string, recette: unknown): Promise<boolean> {
+  const r = recette as { type?: unknown; operation?: unknown } | null | undefined;
+  if (r?.type !== 'combinaison' || r.operation !== 'difference') return false;
+  const res = await supabase.rpc('zone_pays_moins_base', { p_zone_id: zoneId, p_org_id: orgId });
+  if (res.error) {
+    console.error('[zones] zone_pays_moins_base :', res.error.message);
+    return true;
+  }
+  return typeof res.data === 'string';
+}
+
 export async function repondreResolue(
   supabase: ClientAdmin, zoneId: string, userId: string, surface: number | null, action: 'creation' | 'recalcul', pays = false,
 ): Promise<NextResponse> {

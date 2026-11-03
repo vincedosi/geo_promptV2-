@@ -15,6 +15,8 @@ let reponses: Record<string, { data: unknown; error: { message: string } | null 
 let zonesDeLOrg: string[] = [];
 /** Les zones de l'espace dont la recette est `pays` (sql/296). */
 let zonesPays: string[] = [];
+/** C21 : les zones de l'espace qui sont des différences, avec leurs opérandes (la première dit si elle est nationale). */
+let zonesMoins: Record<string, string[]> = {};
 let lectures: { table: string; filtres: [string, unknown][] }[] = [];
 
 /**
@@ -37,7 +39,11 @@ class FauxClient {
       in(c: string, ids: string[]) {
         lecture.filtres.push([c, ids]);
         return Promise.resolve({
-          data: ids.filter((i) => zonesDeLOrg.includes(i)).map((id) => ({ id, recette: zonesPays.includes(id) ? { v: 1, type: 'pays', code: 'FR' } : null })),
+          data: ids.filter((i) => zonesDeLOrg.includes(i)).map((id) => ({
+            id,
+            recette: zonesPays.includes(id) ? { v: 1, type: 'pays', code: 'FR' }
+              : zonesMoins[id] ? { v: 1, type: 'combinaison', operation: 'difference', zones: zonesMoins[id] } : null,
+          })),
           error: null,
         });
       },
@@ -53,7 +59,7 @@ const exec = (r: Recette, c: Partial<typeof ctx & { geometrie: unknown }> = {}) 
   executerRecette(new FauxClient() as never, r, { ...ctx, ...c });
 
 beforeEach(() => {
-  appels = []; reponses = {}; zonesDeLOrg = []; zonesPays = []; lectures = [];
+  appels = []; reponses = {}; zonesDeLOrg = []; zonesPays = []; zonesMoins = {}; lectures = [];
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -208,15 +214,53 @@ describe('executerRecette', () => {
     expect(appels.at(-1)).toEqual({ nom: 'zone_intersection_toutes', args: { p_zone_ids: [Z1, Z2] } });
   });
 
-  it('combinaison : une opérande pays (zone nationale) est refusée pour les trois opérations, sans calcul', async () => {
-    zonesDeLOrg = [Z1, Z2];
+  it('C21 : une zone pays ne se combine qu’en PREMIÈRE zone d’une différence ; ailleurs, refus sans calcul', async () => {
+    zonesDeLOrg = [Z1, Z2, Z3];
     zonesPays = [Z2];
-    for (const operation of ['union', 'difference', 'intersection'] as const) {
-      const r = await exec({ v: 1, type: 'combinaison', operation, zones: [Z1, Z2] });
-      expect(r).toEqual({ ok: false, statut: 422, refus: 'operande_pays', message: MESSAGES_REFUS.operande_pays });
+    const refus = { ok: false, statut: 422, refus: 'operande_pays', message: MESSAGES_REFUS.operande_pays };
+    // Fusion et restriction avec une zone nationale : refusées, quelle que soit sa place.
+    for (const operation of ['union', 'intersection'] as const) {
+      expect(await exec({ v: 1, type: 'combinaison', operation, zones: [Z2, Z1] })).toEqual(refus);
+      expect(await exec({ v: 1, type: 'combinaison', operation, zones: [Z1, Z2] })).toEqual(refus);
     }
+    // Une zone nationale RETIRÉE (pas en premier) : refusée.
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z1, Z2] })).toEqual(refus);
+    // Deux zones nationales : refusé, même la première en tête.
+    zonesPays = [Z2, Z3];
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z2, Z3] })).toEqual(refus);
     expect(appels).toEqual([]);
     expect(MESSAGES_REFUS.operande_pays).toContain('zone nationale');
+    expect(MESSAGES_REFUS.operande_pays).toContain('première zone');
+  });
+
+  it('C21 : « zone nationale moins zones locales » → zone_difference, l’issue porte sa base nationale', async () => {
+    zonesDeLOrg = [Z1, Z2, Z3];
+    zonesPays = [Z2];
+    reponses.zone_difference = { data: { vide: false, geometry: CARRE, surface_km2: 544_952.1 }, error: null };
+    const r = await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z2, Z1, Z3] });
+    expect(r).toMatchObject({ ok: true, geometry: CARRE, surface_km2: 544_952.1, base_pays: 'FR' });
+    expect(appels).toEqual([{ nom: 'zone_difference', args: { p_base: Z2, p_retires: [Z1, Z3] } }]);
+    // Une différence locale ne porte pas de base nationale.
+    zonesPays = [];
+    const locale = await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z1, Z3] });
+    expect(locale.ok && 'base_pays' in locale).toBe(false);
+  });
+
+  it('C21 : une zone « nationale moins » en opérande (quasi nationale) est refusée, sans calcul', async () => {
+    const PAYS = '3f2504e0-4f89-11d3-9a0c-0305e82c3305';
+    zonesDeLOrg = [Z1, Z2, Z3, PAYS];
+    zonesPays = [PAYS];
+    zonesMoins = { [Z3]: [PAYS, Z1] };
+    const refus = { ok: false, statut: 422, refus: 'operande_pays', message: MESSAGES_REFUS.operande_pays };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'union', zones: [Z3, Z2] })).toEqual(refus);
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z3, Z2] })).toEqual(refus);
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z2, Z3] })).toEqual(refus);
+    expect(appels).toEqual([]);
+    // Une différence LOCALE en opérande reste admise.
+    zonesMoins = { [Z3]: [Z1, Z2] };
+    zonesPays = [];
+    reponses.get_composite_zone_geometry = { data: { geometry: CARRE }, error: null };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'union', zones: [Z3, Z2] })).toMatchObject({ ok: true });
   });
 
   it('C20 : intersection de 2 à 20 zones par `zone_intersection_toutes` (vraie intersection de TOUTES), refus sous deux', async () => {
