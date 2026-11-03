@@ -153,11 +153,11 @@ export function estRetenue(ligne: Pick<LigneSeuil, 'part_brute'> & Partial<Pick<
  * dans `n_unites` et `n_inconnues`, dans AUCUN chiffre d'habitants (ni `couverte`, ni `achetee` : on ne les connaît pas).
  * `population` est celle de la zone (`couverture_geometrie.population`), hors-territoire compris.
  *
- * ⚠ Arrondis : la RPC arrondit à l'entier chaque `pop_en_zone`, `population` et `hors_territoire.population` (sql/275),
- * alors que les populations de carreaux sont fractionnaires (demi-habitants). `manques` (= population − couverte) et
- * la somme « CP écartés + hors territoire » diffèrent donc d'au plus ½ par ligne : −230 habitants sur les 895 CP de la
- * composite (24/10). L'écran affiche `manques` : c'est lui qui boucle avec la population de la zone affichée en tête
- * (`manques + couverte = population`) ; la somme des lignes d'un tableau peut s'en écarter de cet arrondi.
+ * Arrondis (C18, sql/323) : la RPC rend des `pop_en_zone` et une `hors_territoire.population` entiers, répartis AU PLUS
+ * FORT RESTE sur les demi-habitants des carreaux : leur somme vaut `population`. `manques` (= population − couverte) est
+ * donc exactement la somme « unités écartées + hors territoire », à tout seuil. Ce fichier n'arrondit aucune population :
+ * il somme ces entiers. Jusqu'à sql/323, `round()` ligne à ligne arrondissait chaque ,5 vers le haut : −230 habitants
+ * sur les 895 CP de la composite (24/10), un biais et non une troncature.
  */
 export function appliquerSeuil(lignes: readonly LigneSeuil[], population: number, seuil: number): ResumeMaille {
   let n_unites = 0;

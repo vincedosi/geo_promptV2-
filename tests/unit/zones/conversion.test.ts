@@ -6,6 +6,8 @@
  * `ind`) sur la zone « Cible composite (2 zones) » (`919ca65d…`), tirée de la base locale le 24/10 : 895 CP touchés,
  * 11 224 929 habitants. Ce sont les `lignes` de la mesure M2 du plan. A2 (31/10) : chaque ligne porte `membres`, les
  * codes de son unité (sql/304), tirés de la base le 31/10 — 53 des 895 unités sont des groupes de CP indiscernables.
+ * C18 (03/11) : les `pop_en_zone` retirés de la base après sql/323 (arrondi au plus fort reste) — 230 lignes en ,5, qui
+ * étaient arrondies vers le haut, perdent 1 ; Σ lignes + hors territoire = population, exactement.
  */
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
@@ -33,14 +35,12 @@ const composite = JSON.parse(readFileSync('tests/unit/zones/fixtures/couverture-
  * `manques` comparé à une grandeur calculée À PART, par un autre chemin : les habitants de la zone dans les CP écartés
  * (part NULL ou sous le seuil) + ceux qu'aucun CP ne porte (`hors_territoire.population`, rendu par la RPC).
  *
- * Les deux ne sont égaux qu'aux arrondis près : la RPC arrondit à l'entier CHAQUE `pop_en_zone`, `population` et
- * `hors_territoire.population` (sql/275, `round(d.p)`, `round(v_pop)`, `round(v_hors_p)`), alors que les populations
- * de carreaux sont fractionnaires (des demi-habitants). Écart au plus ½ par terme arrondi : ½ × (lignes + 2).
+ * C18 (sql/323) : les deux sont ÉGAUX. La RPC répartit l'arrondi des lignes et du hors-territoire au plus fort reste :
+ * leur somme vaut `population`. Jusque-là, `round(d.p)` arrondissait chaque demi-habitant vers le haut (−230 ici).
  */
 function verifierManques(r: ReturnType<typeof appliquerSeuil>, seuil: number) {
   const ecartees = composite.lignes.filter((l) => l.part_brute === null || l.part_brute < seuil).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
   const attendu = ecartees + composite.hors_territoire.population;
-  expect(Math.abs(r.manques - attendu)).toBeLessThanOrEqual((r.n_touchees + 2) / 2);
   return r.manques - attendu;
 }
 
@@ -49,29 +49,40 @@ describe('appliquerSeuil — la maille CP de la composite (mesure M2)', () => {
 
   // B11 (31/10) : attendus changés, le seuil compare la part NON arrondie — 06130 (19,993 %), 57230 (19,963 %) et 79180
   // (19,969 %), affichés 20,0 %, sortent : 617 → 614 CP, 57,6 → 57,7 % d'utile, 7 541 431 → 7 489 082 hors zone.
-  it('seuil 20 : 614 CP sur 895, 57,7 % d’utile, 7 489 082 achetés hors zone', () => {
+  // C18 (03/11) : attendus changés, arrondi au plus fort reste (sql/323) — les CP retenus perdent 108 habitants arrondis
+  // vers le haut : 7 489 082 → 7 489 190 hors zone, 993 658 → 993 766 manqués ; les écartés, 990 615 → 990 493.
+  it('seuil 20 : 614 CP sur 895, 57,7 % d’utile, 7 489 190 achetés hors zone', () => {
     const r = appliquerSeuil(composite.lignes, pop, 20);
-    expect(r).toMatchObject({ n_unites: 614, n_touchees: 895, taux_utile: 57.7, hors_zone: 7_489_082 });
-    // M2 : 990 615 habitants manqués DANS les CP écartés (977 538 avant B11) ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
-    expect(composite.lignes.filter((l) => l.part_brute === null || l.part_brute < 20).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0)).toBe(990_615);
+    expect(r).toMatchObject({ n_unites: 614, n_touchees: 895, taux_utile: 57.7, hors_zone: 7_489_190 });
+    // M2 : 990 493 habitants manqués DANS les CP écartés (977 538 avant B11) ; s'y ajoutent les 3 273 qu'aucun CP ne porte.
+    expect(composite.lignes.filter((l) => l.part_brute === null || l.part_brute < 20).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0)).toBe(990_493);
     expect(composite.hors_territoire.population).toBe(3_273);
-    // −230 : mesuré en base le 24/10, Σ round(pop_en_zone) = 11 221 886 contre Σ pop_en_zone brute = 11 221 655,5 —
-    // les demi-habitants arrondis vers le haut, CP par CP. Même écart à tout seuil : il ne dépend que de l'arrondi.
-    expect(verifierManques(r, 20)).toBe(-230);
-    expect(r.manques).toBe(993_658);
+    // C18 : écart 0. Il valait −230 jusqu'à sql/323 : Σ round(pop_en_zone) = 11 221 886 contre 11 221 655,5 brut, les
+    // demi-habitants arrondis vers le haut CP par CP. La somme des lignes est désormais le total affiché, à tout seuil.
+    expect(verifierManques(r, 20)).toBe(0);
+    expect(r.manques).toBe(993_766);
   });
 
-  it('seuil 0 : tout est retenu, seul le hors-territoire est manqué (à l’arrondi près)', () => {
+  it('C18 : Σ pop_en_zone des 895 lignes + hors territoire = population de la zone', () => {
+    expect(composite.lignes).toHaveLength(895);
+    const somme = composite.lignes.reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
+    expect(somme + composite.hors_territoire.population).toBe(composite.population);
+  });
+
+  // C18 : 16 305 578 → 16 305 808 (les 230 habitants de l'arrondi vers le haut ne sont plus comptés dans la zone).
+  it('seuil 0 : tout est retenu, seul le hors-territoire est manqué', () => {
     const r = appliquerSeuil(composite.lignes, pop, 0);
-    expect(r).toMatchObject({ n_unites: 895, n_touchees: 895, taux_utile: 40.8, hors_zone: 16_305_578 });
-    expect(verifierManques(r, 0)).toBe(-230);
+    expect(r).toMatchObject({ n_unites: 895, n_touchees: 895, taux_utile: 40.8, hors_zone: 16_305_808 });
+    expect(verifierManques(r, 0)).toBe(0);
+    expect(r.manques).toBe(composite.hors_territoire.population);
   });
 
   // B11 : 31880 (49,965 %, affiché 50,0 %) sort — 358 → 357 CP, 76,6 → 76,7 %, 2 302 112 → 2 297 867 hors zone.
+  // C18 : 2 297 867 → 2 297 905 (arrondi au plus fort reste, sql/323).
   it('seuil 50 : 357 CP, 76,7 %', () => {
     const r = appliquerSeuil(composite.lignes, pop, 50);
-    expect(r).toMatchObject({ n_unites: 357, taux_utile: 76.7, hors_zone: 2_297_867 });
-    expect(verifierManques(r, 50)).toBe(-230);
+    expect(r).toMatchObject({ n_unites: 357, taux_utile: 76.7, hors_zone: 2_297_905 });
+    expect(verifierManques(r, 50)).toBe(0);
   });
 
   // A2 (31/10) : attendus AJOUTÉS, rien de changé — les compteurs du bilan sont des UNITÉS (une ligne par groupe de CP

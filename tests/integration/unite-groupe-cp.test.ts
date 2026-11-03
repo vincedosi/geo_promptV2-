@@ -24,9 +24,10 @@ const MIGRATION = readFileSync(join(process.cwd(), 'sql', '304_unite_groupe_cp.s
 /** sql/308 et sql/309 (A4) redéfinissent les fonctions de couverture : rejouées après 304, la base revient à son état courant. */
 // A5 : sql/310 redéfinit à son tour les trois fonctions de couverture — la chaîne rejouée va jusqu'à elle.
 // A7 : sql/312 redéfinit `plateformes_geo_parametres_valides` (bornes du polygone admises) ; B13 : sql/318 la redéfinit
-// encore (comportements des minimums admis) — rejouée en dernier.
+// encore (comportements des minimums admis) — rejouée en dernier. C18 : sql/323 redéfinit `couverture_geometrie`
+// (arrondi au plus fort reste), rejouée à la fin.
 const MIGRATION_A4 = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql',
-  '312_polygone_sommets_morceaux.sql', '318_minimums_population.sql']
+  '312_polygone_sommets_morceaux.sql', '318_minimums_population.sql', '323_arrondi_plus_fort_reste.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 /** Une zone temporaire au contour de Saint-Denis (celui des trois codes), dans la transaction de l'appelant. */

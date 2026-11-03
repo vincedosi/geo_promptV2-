@@ -310,9 +310,11 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
   }, LONG);
 
   // A5 : sql/310 redéfinit ensuite couverture_geometrie, couverture_pays_jsonb et couverture_zone_en_cache — la chaîne
-  // rejouée jusqu'à elle est celle qui doit rendre la base.
-  it('les migrations rejouées deux fois (308, 309 puis 310) : empreinte identique, et identique à la base', () => {
-    const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql']
+  // rejouée jusqu'à elle est celle qui doit rendre la base. C18 : sql/323 redéfinit encore couverture_geometrie
+  // (arrondi au plus fort reste) — rejouée en dernier.
+  it('les migrations rejouées deux fois (308, 309, 310 puis 323) : empreinte identique, et identique à la base', () => {
+    const MIGRATION = ['308_population_inconnue.sql', '309_inclusion_tolerance.sql', '310_minimum_menages_conversion.sql',
+      '323_arrondi_plus_fort_reste.sql']
       .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
     const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
                               || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p
