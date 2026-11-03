@@ -168,3 +168,85 @@ Notes de bas de page mises à jour : 14, 18, 21, 28, 30, 35, 36, 37, 44.
 - **Écart DROM** : 1 190 910 par département, 1 182 806 par CP (8 104 hab.).
 - **Mineur A5 (lot 1) écrit dans le Word** : la couverture par rayon de ④ n'applique pas encore le minimum de 11 ménages.
 - **Laissé tel quel** (tickets de code pas encore faits) : § 4.1 arrondis (C18, −230 hab. sur 895 CP) ; § 1.2 intersection limitée à 2 zones (C20) ; glossaire (C24) ; note Meta catégorie spéciale (C29).
+
+---
+
+# Lot 3 : code
+
+Commits `a6ed39ff..52ac8dc3` : 13 commits, 10 migrations (sql/323 à sql/332). C17, C22, C23, C26 et C27 sont dans « Lot 3 : rédaction », ci-dessus.
+
+## Tickets livrés
+
+| Ticket | Objet | Commits | Migration | Avant → après |
+|---|---|---|---|---|
+| C18 | Arrondi au plus fort reste | `a6ed39ff`, `f35f175a` | sql/323, 324 | Pas de troncature : les carreaux portent des demi-habitants, 461 des 895 CP somment en ,5 et `round()` les montait tous. Composite : −230 → 0 au CP, +315 → 0 à la commune. Zone nationale au CP : −1 504 → 0 (FR), −1 489 → 0 (METRO) ; département METRO +24 → 0. Coût FR au CP : 5 574 → 5 703 accès |
+| C19 | Vrais IRIS de « Par seuil » | `a6b56452` | commentaire de sql/256 | Critère écrit : `is_true_iris` = `type_iris <> 'Z'` (sql/075). Exclues : 33 044 communes non découpées, 27 316 564 hab. (40,3 %), alors que 12 des 15 indicateurs IRIS y ont une valeur. Mention affichée en maille IRIS. Remplacé par D30 (lot 4) |
+| C20 | Intersection de 2 à 20 zones | `d2c9004f`, `5800f938` | sql/325 | `zone_intersection` calculait A ∩ (B ∪ C) ; `zone_intersection_toutes` calcule A ∩ B ∩ C. 20 zones de 23 073 sommets : 14,8 s → 0,73-0,80 s (2 000-2 400 buffers). Vide : 409 `intersection_vide`. 0 combinaison en base, aucun sens changé |
+| C21 | Zone nationale moins zones locales | `84a04aa3`, `01e80ffa` | sql/326 | Pays admis en 1re zone d'une différence. Couverture = agrégats nationaux − union des zones retirées, aucun carreau national lu. Lyon 30 km : 62 528 975 − 1 903 232 = 60 625 743 (avant C25). Au CP : 159 ms, 5 922 accès. Export et détail : 422 `zone_nationale_moins` |
+| C24 | Diffusion achetée en population totale | `99ca145c`, `48626db4` | sql/327, 330 | Constat vrai : `achetee` sommait la cible. Ajout de `diffusion_population_totale` et de la ligne « Diffusion achetée, population totale » en ⑤. Minimums de plateforme comparés à la population totale : fin du faux refus DV360 (cercle de 3 000 hab. dont 250 dans la cible, 422) |
+| C25 | Carreau → IRIS ⊂ commune ⊂ département | `52ac8dc3` | sql/332 | Point testé = centre du carreau, sans décalage de 100 m. Commune ≠ IRIS[0:5] : 54 300 carreaux (803 132 hab., 2,34 %) → 0. Département faux : 2 615 (32 859 hab.) → 0. Sans CP : 3 926 (71 788 hab.) → 0, CP le plus proche à 62 m en médiane, 4 289 m au plus. 16 CP à cheval au département majoritaire. METRO au CP : 62 528 975 → 62 592 659, 5 956 → 5 957 CP. National : 63 783 569 au CP comme au département. Construction : 24 lots, 46 s, 55 830 lignes ; jumeaux 106 s |
+| C28 | Registre DV360 | `48c3cc22` | sql/328 | Aucune valeur sourcée. `max_unites` (CP, cercle) et `rayon_max_m` (cercle) « à vérifier », sans valeur ; ⑤ affiche « non relevé ». CP et cercle DV360 ne sont plus « sûrs ». Défaut mesuré inchangé : rayon → CP, dessin → CP, national → pays |
+| C29 | Meta, catégorie spéciale | `91f884be`, `1e970d8e` | sql/329, 331 | `rayon_min_categorie_speciale` = 15 000 m, « à vérifier » (source : note du 24/10). Case « Catégorie d'annonces spéciale » du jeu (`zone_sets.categorie_speciale`). Rayon minimal = le plus grand des deux. Hors bornes : 400/422 chiffré. Un PATCH de la case revérifie les choix |
+
+Aucun ticket fermé sans modification.
+
+## Décisions du chef de projet (à relire)
+
+- **C18** : la zone nationale corrigée dans C18 (sql/324) ; les carreaux sans CP renvoyés à C25 ; `paver_cercles` garde `round()` ligne à ligne. Si faux : −71 813 « manqués » au département jusqu'à C25 (résorbés depuis) ; dérive d'arrondi possible sur les cercles.
+- **C21** : export et détail d'une zone nationale moins refusés (422, renvoi à ⑤), plutôt que de lire les codes nationaux. Si faux : un export CP direct à ajouter.
+- **C24** : minimums de plateforme sur la population totale, car la plateforme diffuse à tous. Si faux : un avertissement de moins sur une cible étroite.
+- **C29** : borne Meta de 15 000 m « à vérifier » (une note, pas un relevé) ; aucune règle sur les CP Meta en catégorie spéciale. Si faux : rayons Meta refusés ou admis à tort ; CP proposés alors qu'interdits.
+- **C25** : colonnes `_e7` nullables sur les seuls carreaux qui changent, plutôt qu'une réécriture de `carreau_couverture`, lue par 8 autres branches. Si faux : règle en double jusqu'au merge.
+- **C25** : les 11 lecteurs partagés du découpage lisent la vue et les jumeaux. Si faux : les tests d'intégration des autres branches qui attendent 62 528 975 ou 5 956 restent rouges jusqu'au merge.
+
+## Tests ajoutés
+
+Intégration, nouveaux : `arrondi-plus-fort-reste`, `zone-pays-moins`, `diffusion-population-totale`, `minimum-population-totale`, `carreau-couverture-e7`. Angular, nouveau : `parametres-a-verifier.spec`.
+
+Cas ajoutés en intégration : `zone-seuil-territoire`, `zones-recette`, `bataille-v2-zone`, `plateformes-geo`, `analyse-finitions`, `population-inconnue`, `unite-groupe-cp`, `couverture-zone-cache`, `jeu-zone-extraction`, `couverture-commune-departement`, `minimum-menages-conversion`. Unitaires : `conversion`, `conversion-population`, `recette`, `recette-schema`, `executer-recette`, `recette-paritaire`, `extraction-jeu-zone`, `zones-jeux-zone`, `zone-pays-codes-routes`. Angular : `recette-seuil-territoire`, `operations-zones` (logique et composant), `couverture`, `colonne-plateforme`, `bilan`, `enregistrer-jeu`, `panneau-jeu`.
+
+Dernière passe (C25) : `tsc` 0 ; unitaires 3 303/3 303 ; 12 fichiers d'intégration verts, lancés un par un (la suite complète est tuée par manque de mémoire). Rouge connu hors lot : `activation-extraction` (jeu 66061937 absent, Excel n° 49). Instable connu : `export-source-borne`, vert seul.
+
+## Dettes à fusionner au merge
+
+- **C25** : reconstruire `carreau_couverture` et ses dénominateurs avec la règle E7, puis retirer les colonnes `code_commune_e7`, `code_departement_e7`, `code_postal_e7`, `distance_cp_e7_m`, la vue `carreau_couverture_e7`, les jumeaux `unite_population_totale_e7`, `cp_population_totale_e7`, `denominateur_menages_min_e7`, le journal `carreau_couverture_e7_lots` et `base_couverture_e7_le`. `carreau_risque_distance.code_postal` (module risque) garde l'ancien rattachement.
+- **B15** : `custom_geo_zones.unites_constitutives` (sql/321) à refusionner dans le JSON `recette` quand plus aucune branche ne relit `recette` en `.strict()`.
+- **Attendus des autres branches** : `wip/A1-plan-cp` attend 5 956 CP et 62 528 975 hab. (`analyse-finitions`) et `n_cp` = 5 956 (`jeu-zone-extraction`). Aucune autre branche locale n'a ces attendus en intégration (`git grep`, 03/11). Tout test qui lit la population METRO au CP sur la base partagée doit passer à 62 592 659 et 5 957.
+
+## Mineurs parqués
+
+- C18 : `paver_cercles` arrondit ligne à ligne (rien de visible) ; l'empreinte de `population-inconnue` échoue sur une base restée à l'ancienne sql/323.
+- C19 : `CRITERE_VRAIS_IRIS` est documentaire, aucun code ne le lit ; « communes rurales » est le libellé du plan, le vrai critère est « non découpées en IRIS ».
+- C20 : une différence vide garde `forme_vide` (message discutable).
+- C21 : cercle, commune et IRIS non grisés en ⑤ (refus serveur seulement) ; plafond de 400 001 carreaux dans `compter_zone_pays` ; le repli du plan média n'affiche pas le message 422 ; texte battle-v2 approximatif ; le score d'une zone nationale moins répond `zone_trop_vaste`.
+- C24 : une zone pays à cible ≠ ind relance `couverture_pays_jsonb('ind')`, second calcul à mesurer ; `pop_ind` de `paver_cercles` sans filtre de ménages (documenté) ; minimum de groupe des cercles et unité de la maille pays encore comparés à la cible (aucune plateforme concernée) ; le polygone n'a pas `diffusion_population_totale`.
+- C25 : `couverture_rayon_poi` (②) filtre encore le département brut (2 615 carreaux, déclaré dans sql/332) ; refus `_perime` sans cause lisible ; commentaire « 266 » au lieu de « 268 » communes.
+
+## Passation à l'équipe dentsu
+
+- **DV360 (C28)** : relever dans un compte le nombre maximal de CP par liste, de cercles par liste de proximité et le rayon maximal. Rien n'est posé ; ⑤ affiche « non relevé ». `MAX_GEO_IDS_PER_PUSH` (2 000) est un garde-fou du produit, pas une limite DV360.
+- **Meta (C29)** : confirmer le rayon minimal de 15 000 m en catégorie d'annonces spéciale, et dire si les CP y sont achetables. La maille CP reste ouverte (Vincent, 03/11).
+- Les valeurs de plateforme non sourcées restent « à vérifier ». dentsu les confirme ; la question n'est plus posée à Vincent (03/11).
+
+## Document de méthodologie
+
+`C:\GENESIS\methodologie-decoupage-zones-dentsu-explore.docx` (hors dépôt). Copie avant modification : `methodologie-decoupage-zones-dentsu-explore.avant-lot3-code.docx`. Validation XSD passée (429 → 435 paragraphes), rendu PDF par Word relu (19 pages).
+
+| Ticket | Sections du Word |
+|---|---|
+| C19 | § 1.2, ligne « Seuil sur territoires » : règle actuelle (33 044 communes, 27 316 564 hab., 40,3 %), remplacée par D30 |
+| C20 | § 1.2, ligne « Combinaison » : intersection de 2 à 20 zones, « dans toutes les zones », vide refusée |
+| C21 | § 1.2, ligne « Combinaison » ; § 2.6, puce « Zone nationale moins zones locales » |
+| C25 | § 2.2 : texte de rattachement ; puce « carreau sans IRIS » (plus de carreau sans CP) |
+| C24 | Glossaire : « Maille » réécrite, « Cible » et « Diffusion achetée » ajoutées, minimums sur la population totale |
+| C18 | § 4.1 « Arrondis » : plus fort reste, écart nul ; note 45 |
+| Totaux | § 1.4, § 2.1 (et sa note), § 4.1 : 62 592 659 au CP, 63 783 569 au national |
+| C28, C29 | § 3.2 : DV360 CP et cercles « à vérifier », bornes « non relevées » ; Meta cercles ≥ 15 km en catégorie spéciale. § 3.5 : puce Meta réécrite, puce DV360 ajoutée |
+
+Six notes de bas de page ajoutées (sources sql/075, 256, 325, 326, 328, 329, 331, 332).
+
+### Écarts trouvés
+
+- **§ 2.6, CP de la France entière** : « 6 074 unités CP, dont 65 inconnues » date d'avant C25. Le CP 29259 a reçu son premier carreau ; le compte n'est pas remesuré.
+- **Ligne de datation et « L'essentiel »** : elles disent encore « lots 1 et 2 » et ne citent pas DV360 parmi les capacités non confirmées. Non modifiées (consigne : rien d'autre).
+- **Lyon 30 km (C21)** : 60 625 743 est le chiffre d'avant C25 ; non repris dans le Word.
