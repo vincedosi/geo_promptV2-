@@ -3,7 +3,10 @@
  * plateforme (lot 5, T8 ; plan A-8) : les cercles retenus au seuil et la perte exacte sur leur union
  * (`paver_cercles`, sql/276). Rien n'est enregistré ; D33 (sql/338) : le pavage est GARDÉ en cache par (version de la
  * zone, cible, rayon, seuil, limites de la ligne) — les simulations de maille de ⑤ (B9) pavent au rayon par défaut à
- * chaque ouverture, et un pavage refait coûte 0,3 à 1,9 s (mesuré le 03/11). Un refus ne s'y écrit jamais.
+ * chaque ouverture, et un pavage refait coûte 0,3 à 1,9 s (mesuré le 03/11). Seuls les refus GÉOMÉTRIQUES s'y
+ * écrivent (`zone_trop_vaste`, `trop_de_candidates` : ils ne dépendent que de la forme et du rayon) ; jamais
+ * `trop_de_cercles` (la recherche du rayon proposé, B10, reste celle du moment) ni un refus tenant à la base ou à la
+ * demande. Le cache est périmé si le minimum de ménages de la cible ou une fonction du pavage change (sql/341).
  *
  * Ordre (SÉQUENTIEL, au plus trois appels en base avant le pavage) : session (`requireAuth`, 401 / 403) → id UUID
  * (404) et paramètres Zod (400), rien en base → la règle `(plateforme, cercle)` lue dans `plateformes_geo` : couple

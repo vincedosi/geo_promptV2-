@@ -120,6 +120,11 @@ export interface ResultatCouverture {
    * Absent pour toute autre zone.
    */
   inconnues_recouvertes?: Array<{ code: string; nom: string }>;
+  /**
+   * D36 (sql/339) : la surface sur laquelle se juge une unité à population inconnue — « surface du référentiel »
+   * (régions/départements) ; absent d'une réponse d'avant D36. Affichée par le tableau de ④ à côté de `part_surface`.
+   */
+  surface_inconnues?: string;
   reference: { source: string; millesime: number | string | null; population_france: number; n_carreaux_france: number };
   base_construite_le: string;
   calcule_le: string;

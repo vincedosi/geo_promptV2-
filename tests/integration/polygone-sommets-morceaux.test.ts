@@ -42,7 +42,9 @@ const MIGRATION = ['312_polygone_sommets_morceaux.sql', '313_polygone_paliers_to
   // C24 round 1 : sql/330 redéfinit `paver_cercles` (après sql/318).
   '330_minimums_population_totale.sql',
   // D37 : sql/340 redéfinit la mesure, son enveloppe et creer_extraction_jeu_zone — rejouée en dernier.
-  '340_polygone_simplifie_50m.sql']
+  '340_polygone_simplifie_50m.sql',
+  // Relecture lot 4 : sql/341 redéfinit la mesure (morceaux retirés = morceaux sous le minimum) — après 340.
+  '341_relecture_lot4.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 let org = '';

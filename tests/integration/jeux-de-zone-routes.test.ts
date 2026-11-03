@@ -166,7 +166,12 @@ describe('POST /api/zones/jeux — jeu de zone', () => {
     const corps = await r.json();
     expect(corps.jeu).toMatchObject({ id: jeu, type: 'zone', nom: 'Lyon essai', version: 1, cible: 'ind' });
     expect(corps.jeu.org_id).toBeUndefined();
-    expect(corps.zone).toEqual({ id: zone, nom: 'Lyon 5 km', recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 } });
+    // B10 (sql/316) : la surface de la zone (km²), lue par Angular pour le rayon proposé — un disque de 5 km dessiné en
+    // polygone, à 1 % de π × 5² ≈ 78,5 km².
+    const { surface_km2: surface, ...zoneSansSurface } = corps.zone as { surface_km2: number };
+    expect(zoneSansSurface).toEqual({ id: zone, nom: 'Lyon 5 km', recette: { v: 1, type: 'rayon_point', lon: 4.8357, lat: 45.764, rayon_m: 5000, part_retenue: 1 } });
+    expect(surface).toBeGreaterThan(78.5 * 0.99);
+    expect(surface).toBeLessThan(78.5 * 1.01);
     expect(corps.plateformes.map((c: { plateforme: string }) => c.plateforme)).toEqual(['dv360', 'meta']);
   });
 

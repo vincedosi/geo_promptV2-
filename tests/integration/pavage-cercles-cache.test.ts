@@ -151,6 +151,30 @@ describe('péremption', () => {
     expect((await enCache(zone, org))?.cache).toBe(true);
   }, LONG);
 
+  it('relecture lot 4 (I-1, sql/341) : le minimum de ménages de la cible change — la ligne n’est plus servie', async () => {
+    await paver(zone, org, { cible: 'men_pauv' });
+    expect((await enCache(zone, org, { cible: 'men_pauv' }))?.cache).toBe(true);
+    const sortie = psql(`begin;
+      update public.reglages_conversion set valeur = valeur + 1 where cle = 'min_menages_cible';
+      select (public.pavage_cercles_en_cache('${zone}', '${org}', 'men_pauv', 1000, 20, 0, null) is null)::text;
+      rollback;`);
+    expect(sortie).toBe('true');
+    expect((await enCache(zone, org, { cible: 'men_pauv' }))?.cache).toBe(true);
+  }, LONG);
+
+  it('relecture lot 4 (I-1, sql/341) : une fonction appelée par paver_cercles est remplacée — la ligne n’est plus servie', async () => {
+    await paver(zone, org);
+    // La même définition de `territoire_grille`, un commentaire en plus : le corps change, donc le md5.
+    const sortie = psql(`begin;
+      do $d$ begin
+        execute replace(pg_get_functiondef('public.territoire_grille'::regproc), 'AS $function$', 'AS $function$ -- essai sql/341');
+      end $d$;
+      select (public.pavage_cercles_en_cache('${zone}', '${org}', 'ind', 1000, 20, 0, null) is null)::text;
+      rollback;`);
+    expect(sortie).toBe('true');
+    expect((await enCache(zone, org))?.cache).toBe(true);
+  }, LONG);
+
   it('la base est reconstruite (une bande plus récente) : la ligne n’est plus servie', async () => {
     await paver(zone, org);
     const sortie = psql(`begin;

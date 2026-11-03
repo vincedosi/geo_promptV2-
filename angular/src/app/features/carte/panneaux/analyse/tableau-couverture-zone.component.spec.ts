@@ -9,11 +9,12 @@ const lignes = (n: number): LigneCouverture[] => Array.from({ length: n }, (_, i
   pop_en_zone: 1000 - i, pop_totale: i === 3 ? null : 2000, part: i === 3 ? null : (1000 - i) / 20, part_brute: i === 3 ? null : (1000 - i) / 20,
 }));
 
-async function monter(l: LigneCouverture[], decoupage: 'cp' | 'iris' = 'iris') {
+async function monter(l: LigneCouverture[], decoupage: 'cp' | 'iris' = 'iris', surface?: string) {
   TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
   const f = TestBed.createComponent(TableauCouvertureZoneComponent);
   f.componentRef.setInput('lignes', l);
   f.componentRef.setInput('decoupage', decoupage);
+  if (surface !== undefined) f.componentRef.setInput('surfaceInconnues', surface);
   const survols: Array<string | null> = [];
   f.componentInstance.survol.subscribe((c) => survols.push(c));
   const el = f.nativeElement as HTMLElement;
@@ -43,6 +44,17 @@ describe('mg-tableau-couverture-zone (lot 4, T8)', () => {
     expect(codes()).toEqual(['130000004', '130000002', '130000001', '130000000', '130000003']);
     expect(el.querySelector('th[aria-sort="ascending"]')).not.toBeNull();
     expect(el.querySelector('[data-ligne="130000003"]')!.textContent).toContain('—');
+  });
+
+  it('D36 (relecture du lot 4) : une unité DROM à population inconnue dit sa part de la « surface du référentiel »', async () => {
+    const inconnue: LigneCouverture = {
+      code: '97101', nom: 'Les Abymes', commune: null, n_carreaux: 0, pop_en_zone: null, pop_totale: null, part: null,
+      part_brute: null, incluse: true, part_surface: 0.62,
+    };
+    const { el } = await monter([inconnue, lignes(1)[0]], 'cp', 'surface du référentiel');
+    expect(el.querySelector('[data-ligne="97101"] [data-inconnue]')!.textContent!.replace(/\s/g, ' ').trim())
+      .toBe('Population inconnue (non carroyée) · 62,0 % de sa surface du référentiel dans la zone');
+    expect(el.querySelector('[data-ligne="130000000"] [data-inconnue]')).toBeNull();
   });
 
   it('le survol d’une ligne émet son code, puis null', async () => {

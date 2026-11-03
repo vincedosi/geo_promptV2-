@@ -19,6 +19,7 @@ import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
 import { psql } from './_psql';
 import { mapPostalCodesToGeoIds } from '@/lib/digital/dv360-geo';
+import { creerEspaceFixture, extraireJeuZone, nettoyerEspaceFixture } from './_jeu-zone-fixture';
 
 const sb = creerClientTest();
 const LONG = 180_000;
@@ -42,10 +43,14 @@ const prevolRoute = await import('@/app/api/campaigns/[campaignId]/activation/pr
 const pousserRoute = await import('@/app/api/campaigns/[campaignId]/activation/pousser/route');
 const historiqueRoute = await import('@/app/api/campaigns/[campaignId]/activation/historique/route');
 
-/** Lycées 5 km — BdR, jeu de ZONE de la preuve du lot 6 (BMW GROUP) : dv360 CP, meta cercles, tiktok, ttd. */
-const JEU = '66061937-e638-4ef0-a99e-23ed91740cd1';
-const EXTRACTION = '2fc8fd52-cacf-44c4-9071-fae8c782f09e';
-const ORG_JEU = 'e2de7178-fff0-417e-baa1-11588178f738';
+/**
+ * Le jeu de ZONE extrait (dv360 CP, meta cercle, tiktok, ttd), créé par le test dans son propre espace et supprimé à la
+ * fin (fixture `_jeu-zone-fixture.ts`, relecture du lot 4) — jusque-là l'id en dur `66061937` (« Lycées 5 km — BdR »,
+ * preuve du lot 6), absent d'une base reconstruite.
+ */
+let JEU = '';
+let EXTRACTION = '';
+let ORG_JEU = '';
 /** « Seveso France — test phase 4 », jeu RISQUE de référence ; son extraction v1 n'a ni `plateformes` ni unités. */
 const JEU_RISQUE = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
 const EXTRACTION_RISQUE = 'b7c11e25-7734-4766-bbb2-c4695c51c7f2';
@@ -119,6 +124,10 @@ beforeAll(async () => {
     .insert({ name: '[ESSAI lot7 T1] espace', slug: `essai-lot7-t1-${Date.now()}` }).select('id').single();
   if (error || !data) throw new Error(error?.message);
   orgEssai = data.id as string;
+  ORG_JEU = await creerEspaceFixture(sb, 'activation-extraction');
+  appelant.org = ORG_JEU;
+  ({ jeu: JEU, extraction: EXTRACTION } = await extraireJeuZone(sb, ORG_JEU, (jeu) => extractions.POST(
+    new NextRequest(`http://localhost/api/zones/jeux/${jeu}/extractions`, json({})), pId(jeu))));
 }, LONG);
 
 afterAll(async () => {
@@ -135,15 +144,16 @@ afterAll(async () => {
     const { error } = await sb.from('organizations').delete().eq('id', orgEssai);
     if (error) throw new Error(`nettoyage de l’espace : ${error.message}`);
   }
+  await nettoyerEspaceFixture(sb, ORG_JEU);
 }, LONG);
 
-describe('⑦ campagne lancée depuis l’extraction v1 du jeu de zone de la preuve du lot 6', () => {
+describe('⑦ campagne lancée depuis l’extraction v1 du jeu de zone de la fixture', () => {
   let campagne = '';
   let lotV1 = '';
 
   it('pré-vol avant publication : `jamais_publiee` ; après : activable en simulé, n_cp_dv360 = …/cp?plateforme=dv360', async () => {
     appelant.org = ORG_JEU;
-    campagne = await nouvelleCampagne(ORG_JEU, 'extraction BdR');
+    campagne = await nouvelleCampagne(ORG_JEU, 'extraction fixture');
     const { strategie } = await lier(JEU, campagne, EXTRACTION);
 
     const avant = await prevol(campagne);

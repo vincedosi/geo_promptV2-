@@ -12,6 +12,11 @@ interface LigneAffichee {
   code: string;
   nom: string;
   commune: string | null;
+  /**
+   * D36 (relecture du lot 4) : une unité à population inconnue (DROM non carroyé) — « Population inconnue (non
+   * carroyée) · 62,0 % de sa surface du référentiel dans la zone » ; `null` pour une ligne ordinaire.
+   */
+  inconnue: string | null;
   dansZone: string;
   total: string;
   part: string;
@@ -71,6 +76,7 @@ const TRI_DEFAUT = { cle: 'pop_en_zone' as CleTriCouverture, sens: 'desc' as Sen
             <td class="px-2 py-[7px] text-primary">
               <span class="mr-[7px] font-mono text-[10px] text-tertiary">{{ l.code }}</span>{{ l.nom }}
               @if (l.commune) { <span class="block text-[10px] text-tertiary">{{ l.commune }}</span> }
+              @if (l.inconnue) { <span class="block text-[10px] text-tertiary" data-inconnue>{{ l.inconnue }}</span> }
             </td>
             <td mgTd fort>{{ l.dansZone }}</td>
             <td mgTd>{{ l.total }}</td>
@@ -104,6 +110,8 @@ const TRI_DEFAUT = { cle: 'pop_en_zone' as CleTriCouverture, sens: 'desc' as Sen
 export class TableauCouvertureZoneComponent {
   readonly lignes = input.required<readonly LigneCouverture[]>();
   readonly decoupage = input.required<Decoupage>();
+  /** D36 : la surface d'une unité à population inconnue (`surface_inconnues` de la réponse, « surface du référentiel »). */
+  readonly surfaceInconnues = input<string | null | undefined>(null);
   /** Le territoire survolé (tableau ou carte). */
   readonly actif = input<string | null>(null);
   readonly survol = output<string | null>();
@@ -117,7 +125,8 @@ export class TableauCouvertureZoneComponent {
   private readonly triees = computed(() => trierLignes(this.lignes(), this.tri().cle, this.tri().sens));
   protected readonly page = computed(() => {
     const p = pageDeLignes(this.triees(), this.numero());
-    return { ...p, lignes: p.lignes.map(versAffichee) };
+    const surface = this.surfaceInconnues() ?? null;
+    return { ...p, lignes: p.lignes.map((l) => versAffichee(l, surface)) };
   });
   protected readonly libelleTerritoire = computed(() => (this.decoupage() === 'iris' ? 'IRIS' : 'Code postal'));
   protected readonly compte = computed(() => {
@@ -135,12 +144,17 @@ export class TableauCouvertureZoneComponent {
   }
 }
 
-function versAffichee(l: LigneCouverture): LigneAffichee {
+function versAffichee(l: LigneCouverture, surface: string | null): LigneAffichee {
   const k = classePart(l.part);
+  const inconnue = l.pop_en_zone === null
+    ? 'Population inconnue (non carroyée)' + (l.part_surface === undefined ? ''
+      : ` · ${formaterDecimal(l.part_surface * 100, 1)} % de sa ${surface ?? 'surface'} dans la zone`)
+    : null;
   return {
     code: l.code,
     nom: l.nom ?? '',
     commune: l.commune,
+    inconnue,
     dansZone: formaterNombre(l.pop_en_zone),
     total: formaterNombre(l.pop_totale),
     part: l.part === null ? '—' : `${formaterDecimal(l.part, 1)} %`,

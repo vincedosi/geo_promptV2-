@@ -119,7 +119,7 @@ import { PALIERS_CSS, TableauCouvertureZoneComponent } from './tableau-couvertur
                 }
                 <span class="inline-flex items-center gap-1"><span class="inline-block size-2.5 rounded-[2px] border-fin border-[var(--text-tertiary)] bg-[var(--donnee-absente)]"></span>sans total</span>
               </div>
-              <mg-tableau-couverture-zone [lignes]="r.lignes" [decoupage]="r.decoupage" [actif]="c.survole()" (survol)="c.survoler($event)" />
+              <mg-tableau-couverture-zone [lignes]="r.lignes" [decoupage]="r.decoupage" [surfaceInconnues]="r.surface_inconnues" [actif]="c.survole()" (survol)="c.survoler($event)" />
             }
 
             <div data-calcule class="font-mono text-[10px] text-tertiary">Calculé le {{ date(r.calcule_le) }}@if (r.cache) { · en cache}</div>

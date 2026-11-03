@@ -1,13 +1,15 @@
 /**
  * `GET /api/zones/jeux/[id]/extractions/[version]/fichier` (lot 7, T2, A-6 ; E5), contre la vraie base locale, sur
- * l'extraction v1 du jeu de zone de la preuve du lot 6 (« Lycées 5 km — BdR », BMW GROUP : DV360 au CP, Meta en
- * cercles, TikTok au département, TTD en polygone) et sur le jeu risque de référence (A-4). Lecture seule : rien
- * n'est écrit. Seuls l'appelant et le quota sont simulés.
+ * l'extraction v1 d'un jeu de zone CRÉÉ PAR LE TEST (fixture `_jeu-zone-fixture.ts` : Lyon 5 km, DV360 au CP, Meta en
+ * cercle, TikTok au département, TTD en polygone ; supprimé à la fin) et sur le jeu risque de référence (A-4), lu
+ * seulement. Seuls l'appelant et le quota sont simulés. Jusqu'à la relecture du lot 4, le jeu de zone était l'id en dur
+ * `66061937` (« Lycées 5 km — BdR », preuve du lot 6), absent d'une base reconstruite : tout le bloc rendait 404.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-// Pour son effet : il charge l'environnement de la base LOCALE (`.env.development.local` d'abord).
-import './_client';
+// Charge aussi l'environnement de la base LOCALE (`.env.development.local` d'abord).
+import { creerClientTest } from './_client';
+import { creerEspaceFixture, extraireJeuZone, nettoyerEspaceFixture } from './_jeu-zone-fixture';
 
 const appelant = vi.hoisted(() => ({ org: '' }));
 vi.mock('@/lib/api/middleware', async (original) => ({
@@ -21,12 +23,25 @@ vi.mock('@/lib/api/rate-limit', async (original) => ({
 
 const fichier = await import('@/app/api/zones/jeux/[id]/extractions/[version]/fichier/route');
 const cpExtraction = await import('@/app/api/zones/jeux/[id]/extractions/[version]/cp/route');
+const extractions = await import('@/app/api/zones/jeux/[id]/extractions/route');
 
-const JEU = '66061937-e638-4ef0-a99e-23ed91740cd1';
-const ORG_JEU = 'e2de7178-fff0-417e-baa1-11588178f738';
+const sb = creerClientTest();
+let JEU = '';
+let ORG_JEU = '';
 const JEU_RISQUE = '0b7ece33-4903-4a0b-a57a-f6c54e78a729';
 const ORG_RISQUE = '00000000-0000-0000-0000-000000000001';
 const LONG = 60_000;
+
+beforeAll(async () => {
+  ORG_JEU = await creerEspaceFixture(sb, 'fichier-extraction');
+  appelant.org = ORG_JEU;
+  ({ jeu: JEU } = await extraireJeuZone(sb, ORG_JEU, (jeu) => extractions.POST(
+    new NextRequest(`http://localhost/api/zones/jeux/${jeu}/extractions`,
+      { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } }),
+    { params: Promise.resolve({ id: jeu }) })));
+}, 180_000);
+
+afterAll(async () => { await nettoyerEspaceFixture(sb, ORG_JEU); }, LONG);
 
 const lire = (id: string, version: number, plateforme: string, format: string) => fichier.GET(
   new NextRequest(`http://localhost/api/zones/jeux/${id}/extractions/${version}/fichier?plateforme=${plateforme}&format=${format}`),
@@ -39,12 +54,12 @@ const totalCp = async (id: string, plateforme: string) => ((await (await cpExtra
   { params: Promise.resolve({ id, version: '1' }) },
 )).json()) as { total: number }).total;
 
-describe('fichier par plateforme — extraction v1 du jeu de zone BdR', () => {
+describe('fichier par plateforme — extraction v1 du jeu de zone de la fixture (Lyon 5 km)', () => {
   it('DV360 `cp` : autant de lignes que …/cp?plateforme=dv360, nom de fichier normé', async () => {
     appelant.org = ORG_JEU;
     const r = await lire(JEU, 1, 'dv360', 'cp');
     expect(r.status).toBe(200);
-    expect(r.headers.get('content-disposition')).toBe('attachment; filename="extraction_lycees-5-km-bdr-preuve-l6-t7_v1_dv360_cp.txt"');
+    expect(r.headers.get('content-disposition')).toBe('attachment; filename="extraction_fixture-lot-4-lyon-5-km_v1_dv360_cp.txt"');
     const n = await totalCp(JEU, 'dv360');
     expect(n).toBeGreaterThan(0);
     expect((await r.text()).split('\n')).toHaveLength(n);
@@ -57,7 +72,7 @@ describe('fichier par plateforme — extraction v1 du jeu de zone BdR', () => {
     expect(await r.text()).toContain('Geography Targeting - Include');
   }, LONG);
 
-  it('Meta `cercles` : 53 lignes de données (CSV à BOM), lat/lon à 6 décimales, rayon 5 km', async () => {
+  it('Meta `cercles` : 1 ligne de données — le disque exact de la recette (CSV à BOM), lat/lon à 6 décimales, rayon 5 km', async () => {
     appelant.org = ORG_JEU;
     const r = await lire(JEU, 1, 'meta', 'cercles');
     expect(r.status).toBe(200);
@@ -65,18 +80,19 @@ describe('fichier par plateforme — extraction v1 du jeu de zone BdR', () => {
     expect(texte.charCodeAt(0)).toBe(0xfeff);
     const [entete, ...donnees] = lignesDonnees(texte);
     expect(entete).toBe('nom;latitude;longitude;rayon_km');
-    expect(donnees).toHaveLength(53);
+    expect(donnees).toHaveLength(1);
+    expect(donnees[0]).toMatch(/;45\.764000;4\.835700;5$/);
     for (const l of donnees) expect(l).toMatch(/^[^;]+;\d+\.\d{6};\d+\.\d{6};5$/);
   }, LONG);
 
-  it('TikTok `territoires` : 1 ligne (13)', async () => {
+  it('TikTok `territoires` : 1 ligne (69)', async () => {
     appelant.org = ORG_JEU;
     const r = await lire(JEU, 1, 'tiktok', 'territoires');
     expect(r.status).toBe(200);
     const [entete, ...donnees] = lignesDonnees(await r.text());
     expect(entete).toBe('code;nom');
     expect(donnees).toHaveLength(1);
-    expect(donnees[0].startsWith('13;')).toBe(true);
+    expect(donnees[0].startsWith('69;')).toBe(true);
   }, LONG);
 
   it('TTD `polygone` : GeoJSON valide, une Feature multipolygone', async () => {
