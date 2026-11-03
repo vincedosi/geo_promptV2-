@@ -5,10 +5,10 @@ import {
 const NOMS = new Map([['a', 'Bretagne'], ['b', 'Finistère']]);
 
 describe('operations-zones (ZonesOperations.tsx)', () => {
-  it('possible : union et différence à deux zones ou plus, intersection à DEUX exactement (recette combinaison)', () => {
+  it('possible : union, différence et intersection à deux zones ou plus (C20 : l’intersection n’est plus bornée à deux)', () => {
     expect([1, 2, 3].map((n) => operationPossible('union', n))).toEqual([false, true, true]);
     expect([1, 2, 3].map((n) => operationPossible('difference', n))).toEqual([false, true, true]);
-    expect([1, 2, 3].map((n) => operationPossible('intersection', n))).toEqual([false, true, false]);
+    expect([1, 2, 3].map((n) => operationPossible('intersection', n))).toEqual([false, true, true]);
   });
 
   it('noms de la zone créée, au singulier et au pluriel, id tronqué pour un nom inconnu', () => {

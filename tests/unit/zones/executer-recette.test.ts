@@ -203,9 +203,9 @@ describe('executerRecette', () => {
     reponses.zone_difference = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
     await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z1, Z2] });
     expect(appels.at(-1)).toEqual({ nom: 'zone_difference', args: { p_base: Z1, p_retires: [Z2] } });
-    reponses.zone_intersection = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
+    reponses.zone_intersection_toutes = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
     await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones: [Z1, Z2] });
-    expect(appels.at(-1)).toEqual({ nom: 'zone_intersection', args: { p_zone_ids: [Z1, Z2] } });
+    expect(appels.at(-1)).toEqual({ nom: 'zone_intersection_toutes', args: { p_zone_ids: [Z1, Z2] } });
   });
 
   it('combinaison : une opérande pays (zone nationale) est refusée pour les trois opérations, sans calcul', async () => {
@@ -219,14 +219,15 @@ describe('executerRecette', () => {
     expect(MESSAGES_REFUS.operande_pays).toContain('zone nationale');
   });
 
-  it('intersection : EXACTEMENT deux zones (la RPC calcule première ∩ union des autres), refus sinon et sans appel', async () => {
+  it('C20 : intersection de 2 à 20 zones par `zone_intersection_toutes` (vraie intersection de TOUTES), refus sous deux', async () => {
     zonesDeLOrg = [Z1, Z2, Z3];
-    for (const zones of [[Z1], [Z1, Z2, Z3]]) {
-      const r = await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones });
-      expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'L’intersection se fait entre deux zones.' });
-    }
+    const r = await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones: [Z1] });
+    expect(r).toEqual({ ok: false, statut: 400, refus: null, message: 'L’intersection se fait entre deux zones au moins.' });
     expect(appels).toEqual([]);
     expect(lectures).toEqual([]);
+    reponses.zone_intersection_toutes = { data: { vide: false, geometry: CARRE, surface_km2: 1 }, error: null };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones: [Z1, Z2, Z3] })).toMatchObject({ ok: true });
+    expect(appels.at(-1)).toEqual({ nom: 'zone_intersection_toutes', args: { p_zone_ids: [Z1, Z2, Z3] } });
   });
 
   it('union et différence : deux zones au moins, refus (jamais un 500) sinon et sans appel', async () => {

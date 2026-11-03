@@ -29,9 +29,14 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     expect(lireRecette({ v: 1, type: 'combinaison', operation: 'intersection', zones: [UUID_A, UUID_B] }).ok).toBe(true);
   });
 
-  it('l’intersection se fait entre deux zones exactement, et le dit', () => {
-    const r = lireRecette({ v: 1, type: 'combinaison', operation: 'intersection', zones: [UUID_A, UUID_B, UUID_C] });
-    expect(r).toEqual({ ok: false, message: 'Recette invalide : zones : L’intersection se fait entre deux zones.' });
+  it('C20 : l’intersection admet 2 à 20 zones, comme l’union et la différence', () => {
+    const vingt = Array.from({ length: 21 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    for (const operation of ['union', 'intersection', 'difference'] as const) {
+      expect(lireRecette({ v: 1, type: 'combinaison', operation, zones: [UUID_A, UUID_B, UUID_C] }).ok, operation).toBe(true);
+      expect(lireRecette({ v: 1, type: 'combinaison', operation, zones: vingt.slice(0, 20) }).ok, operation).toBe(true);
+      expect(lireRecette({ v: 1, type: 'combinaison', operation, zones: vingt }).ok, operation).toBe(false);
+      expect(lireRecette({ v: 1, type: 'combinaison', operation, zones: [UUID_A] }).ok, operation).toBe(false);
+    }
   });
 
   it('une zone ne figure qu’une fois dans une combinaison', () => {

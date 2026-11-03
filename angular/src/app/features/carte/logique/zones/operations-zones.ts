@@ -28,13 +28,13 @@ export interface DefinitionOperation {
 
 /**
  * Les trois opérations, dans l'ordre des boutons (`OPERATIONS`, `ZonesOperations.tsx:39-56`). « Restreindre à » et
- * non « Intersection », le mot de React. Écart voulu (lot 3, T10) : React l'admettait sur plus de deux zones (« A
- * restreint à B ∪ C ») ; la recette `combinaison` n'admet l'intersection qu'entre DEUX zones (l'exécuteur la refuse
- * sinon) — le bouton n'est actif qu'à deux exactement.
+ * non « Intersection », le mot de React. Écart voulu : React l'admettait sur plus de deux zones au sens « A restreint
+ * à B ∪ C » ; la recette `combinaison` l'admet de 2 à 20 zones (C20) au sens de l'intersection de TOUTES
+ * (`zone_intersection_toutes`, sql/325) — ce que les zones cochées ont toutes en commun.
  */
 export const OPERATIONS_ZONES: Readonly<Record<OperationZones, DefinitionOperation>> = {
   union: { libelle: 'Fusionner', min: 2, aide: 'tout ce que couvrent les zones cochées' },
-  intersection: { libelle: 'Restreindre à', min: 2, max: 2, aide: 'la première, limitée à la seconde — deux zones exactement' },
+  intersection: { libelle: 'Restreindre à', min: 2, aide: 'ce que toutes les zones cochées ont en commun' },
   difference: { libelle: 'Soustraire', min: 2, aide: 'la première, moins toutes les autres' },
 };
 

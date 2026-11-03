@@ -77,21 +77,21 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14 ; recette `combinai
     });
   });
 
-  it('« Restreindre à » : actif à DEUX zones exactement (la recette n’admet l’intersection qu’à deux), l’aide le dit', async () => {
-    const enregistrer = vi.fn();
+  it('« Restreindre à » : actif de deux zones à plus (C20, intersection de TOUTES), l’aide le dit', async () => {
+    const enregistrer = ok({ zone_id: 'n' }, 201);
     const { fixture, el, stable } = monter(enregistrer);
-    fixture.componentInstance.selection.set(['a', 'b']);
-    await stable();
-    expect(bouton(el, 'intersection').disabled).toBe(false);
-    expect(bouton(el, 'intersection').title).toBe('la première, limitée à la seconde — deux zones exactement');
-    fixture.componentInstance.selection.set(['a', 'b', 'c']);
+    fixture.componentInstance.selection.set(['a']);
     await stable();
     expect(bouton(el, 'intersection').disabled).toBe(true);
-    expect(bouton(el, 'union').disabled).toBe(false);
-    expect(bouton(el, 'difference').disabled).toBe(false);
+    fixture.componentInstance.selection.set(['a', 'b', 'c']);
+    await stable();
+    expect(bouton(el, 'intersection').disabled).toBe(false);
+    expect(bouton(el, 'intersection').title).toBe('ce que toutes les zones cochées ont en commun');
     bouton(el, 'intersection').click();
     await stable();
-    expect(enregistrer).not.toHaveBeenCalled();
+    expect(enregistrer).toHaveBeenCalledWith({
+      nom: 'Bretagne — restreinte à 2 zones', recette: { v: 1, type: 'combinaison', operation: 'intersection', zones: ['a', 'b', 'c'] },
+    });
   });
 
   it('404 → le message de la route, sélection gardée, pas de `termine`', async () => {

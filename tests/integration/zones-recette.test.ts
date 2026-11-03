@@ -183,3 +183,41 @@ describe('remplacer_geometrie_zone', () => {
     expect(data).toEqual({ refus: 'zone_referencee', par: 'composite' });
   });
 });
+
+describe('zone_intersection_toutes (C20, sql/325)', () => {
+  const rect = (x0: number, x1: number) =>
+    JSON.stringify({ type: 'Polygon', coordinates: [[[x0, 43.29], [x1, 43.29], [x1, 43.32], [x0, 43.32], [x0, 43.29]]] });
+  const zone = async (x0: number, x1: number) => {
+    const { data, error } = await admin.rpc('creer_zone_recette', { p_nom: 'Essai C20', p_org_id: org, p_cree_par: null, p_recette: RECETTE, p_geometry_geojson: rect(x0, x1) });
+    if (error) throw new Error(error.message);
+    return (data as { id: string }).id;
+  };
+  type R = { vide: boolean; surface_km2: number; geometry: { type: string } | null };
+  const toutes = async (ids: string[]) => admin.rpc('zone_intersection_toutes', { p_zone_ids: ids });
+
+  it('deux zones : même surface que zone_intersection ; trois : A ∩ B ∩ C, plus petite que A ∩ (B ∪ C)', async () => {
+    const [a, b, c] = [await zone(5.30, 5.40), await zone(5.35, 5.45), await zone(5.38, 5.50)];
+    const deux = (await toutes([a, b])).data as R;
+    expect(deux.surface_km2).toBe(((await admin.rpc('zone_intersection', { p_zone_ids: [a, b] })).data as R).surface_km2);
+    const trois = (await toutes([a, b, c])).data as R;
+    const ancienne = (await admin.rpc('zone_intersection', { p_zone_ids: [a, b, c] })).data as R;
+    expect(trois.vide).toBe(false);
+    expect(trois.geometry?.type).toBe('MultiPolygon');
+    // 5,38 → 5,40 contre 5,35 → 5,40 : 2/5 de la bande.
+    expect(trois.surface_km2 / ancienne.surface_km2).toBeCloseTo(0.4, 2);
+    // l'ordre des opérandes ne change rien (intersection commutative)
+    expect(((await toutes([c, a, b])).data as R).surface_km2).toBe(trois.surface_km2);
+  });
+
+  it('aucune surface commune : vide, sans géométrie', async () => {
+    const [a, b, c] = [await zone(5.30, 5.40), await zone(5.35, 5.45), await zone(5.41, 5.50)];
+    expect((await toutes([a, b, c])).data).toEqual({ vide: true, geometry: null, surface_km2: 0 });
+  });
+
+  it('moins de deux zones, doublon : 22023 ; zone introuvable : P0002 (jamais l’intersection d’un sous-ensemble)', async () => {
+    const a = await zone(5.30, 5.40);
+    expect((await toutes([a])).error?.code).toBe('22023');
+    expect((await toutes([a, a])).error?.code).toBe('22023');
+    expect((await toutes([a, '3f2504e0-4f89-11d3-9a0c-0305e82c3301'])).error?.code).toBe('P0002');
+  });
+});

@@ -268,11 +268,13 @@ async function combiner(
   ctx: ContexteRecette,
 ): Promise<IssueRecette> {
   const zones = [...recette.zones];
-  // `zone_intersection` calcule première ∩ union(autres) : ce n'est l'intersection que pour DEUX zones (sql/151,
-  // fonction gardée telle quelle, React l'emploie). `get_composite_zone_geometry` lève sous deux zones.
-  if (recette.operation === 'intersection' && zones.length !== 2) return invalide('L’intersection se fait entre deux zones.');
-  if (recette.operation !== 'intersection' && zones.length < 2) {
-    return invalide(recette.operation === 'union' ? 'L’union se fait entre deux zones au moins.' : 'La différence se fait entre deux zones au moins.');
+  // 2 à 20 zones pour les trois opérations (C20). L'intersection est `zone_intersection_toutes` (sql/325), la vraie
+  // intersection de TOUTES : `zone_intersection` (sql/151, gardée pour React) calcule première ∩ union(autres), qui ne
+  // l'est que pour deux zones. `get_composite_zone_geometry` lève sous deux zones.
+  if (zones.length < 2) {
+    return invalide(recette.operation === 'union' ? 'L’union se fait entre deux zones au moins.'
+      : recette.operation === 'intersection' ? 'L’intersection se fait entre deux zones au moins.'
+      : 'La différence se fait entre deux zones au moins.');
   }
 
   // ≤ 20 identifiants (schéma) : une lecture bornée par construction, une seule requête.
@@ -290,7 +292,7 @@ async function combiner(
     case 'union':
       return lire('get_composite_zone_geometry', supabase.rpc('get_composite_zone_geometry', { p_zone_ids: zones }));
     case 'intersection':
-      return lire('zone_intersection', supabase.rpc('zone_intersection', { p_zone_ids: zones }));
+      return lire('zone_intersection_toutes', supabase.rpc('zone_intersection_toutes', { p_zone_ids: zones }));
     case 'difference':
       return lire('zone_difference', supabase.rpc('zone_difference', { p_base: zones[0], p_retires: zones.slice(1) }));
   }

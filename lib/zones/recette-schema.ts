@@ -3,13 +3,14 @@
  * `lib/zones/recette.ts` ; `.strict()` partout : une clé inconnue est refusée (une géométrie ne voyage JAMAIS dans la
  * recette, elle a son propre champ dans les routes).
  *
- * Une combinaison : l'intersection se fait entre EXACTEMENT deux zones ; l'union et la différence entre deux zones au
- * moins (`get_composite_zone_geometry` lève sous deux) ; une zone n'y figure qu'une fois. Tout UUID (zones d'une
- * combinaison, périmètre « zone ») sort en minuscules — le même UUID en deux casses est donc un doublon.
+ * Une combinaison : union, intersection et différence entre 2 et 20 zones (`get_composite_zone_geometry` lève sous
+ * deux ; l'intersection est la vraie intersection de TOUTES, `zone_intersection_toutes`, sql/325 — C20, elle était
+ * bornée à deux tant que seule `zone_intersection`, A ∩ (B ∪ C), existait) ; une zone n'y figure qu'une fois. Tout
+ * UUID (zones d'une combinaison, périmètre « zone ») sort en minuscules — le même UUID en deux casses est donc un
+ * doublon.
  *
- * ⚠ `RecetteSchema` est un `ZodEffects` (le `superRefine` de l'intersection), PAS une `ZodDiscriminatedUnion` : il
- * ne s'imbrique pas dans une autre `discriminatedUnion` et n'a pas de `.options`. Pour cela, prendre
- * `RecetteUnionSchema` (l'union nue, sans la règle de l'intersection — à revérifier par `RecetteSchema` ensuite).
+ * `RecetteSchema` et `RecetteUnionSchema` sont le même schéma depuis C20 (la règle propre à l'intersection, posée par
+ * un `superRefine`, a disparu) ; les deux noms restent pour leurs appelants.
  *
  * Les messages de refus sont en français : `messageAnomalies` (`lib/api/valider-corps.ts`) traduit ceux de Zod.
  */
@@ -80,12 +81,7 @@ export const RecetteUnionSchema = z.discriminatedUnion('type', [
   z.object({ v: V, type: z.literal('pays'), code: z.enum(CODES_PAYS) }).strict(),
 ]);
 
-export const RecetteSchema = RecetteUnionSchema.superRefine((r, ctx) => {
-  // `discriminatedUnion` n'accepte que des objets nus : la règle propre à l'intersection se pose donc sur l'union.
-  if (r.type === 'combinaison' && r.operation === 'intersection' && r.zones.length !== 2) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['zones'], message: 'L’intersection se fait entre deux zones.' });
-  }
-});
+export const RecetteSchema = RecetteUnionSchema;
 
 /**
  * B15 round 1 (I-2, sql/321) : la recette telle que ⑤ et l'extraction la lisent — le JSON `recette` STOCKÉ, plus la
