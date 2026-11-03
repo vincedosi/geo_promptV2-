@@ -242,10 +242,10 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     // sql/303 (B11) redéfinit `couverture_pays_jsonb` (part_brute) : rejouée après 296, l'empreinte est celle de la base.
     // sql/304 (A2) la redéfinit encore (membres des lignes CP), puis sql/308 (A4 : unités à population inconnue) : la
     // chaîne rejouée s'arrête désormais à 308 — puis à 310 (A5 : minimum de ménages), qui la redéfinit encore (309
-    // rejouée avant elle, pour que 310 trouve `reglages_conversion`).
+    // rejouée avant elle, pour que 310 trouve `reglages_conversion`) ; puis à 324 (C18 : lignes au plus fort reste).
     const migrations = ['sql/295_codes_postaux_de_zone.sql', 'sql/296_zone_pays.sql', 'sql/303_seuil_part_non_arrondie.sql',
       'sql/304_unite_groupe_cp.sql', 'sql/308_population_inconnue.sql', 'sql/309_inclusion_tolerance.sql',
-      'sql/310_minimum_menages_conversion.sql']
+      'sql/310_minimum_menages_conversion.sql', 'sql/324_arrondi_plus_fort_reste_pays.sql']
       .map((f) => readFileSync(f, 'utf8')).join('\n');
     const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);

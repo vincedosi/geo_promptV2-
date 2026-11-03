@@ -138,7 +138,9 @@ begin
     -- round(Σ p) − Σ floor(p) plus grands restes reçoivent +1 (départage : population puis code, déterministe).
     -- `round(d.p)` ligne à ligne arrondissait chaque ,5 (des demi-habitants) vers le haut : +230 sur la composite.
     select g.code,
-           floor(g.p) + case when row_number() over (order by g.p - floor(g.p) desc, g.p desc, g.code nulls last)
+           -- `nulls last` (round 1) : un groupe à p NULL ne prend jamais une unité d'arrondi.
+           floor(g.p) + case when row_number() over (order by g.p - floor(g.p) desc nulls last, g.p desc nulls last,
+                                                              g.code nulls last)
                                   <= round(sum(g.p) over ()) - sum(floor(g.p)) over () then 1 else 0 end as pop_arrondie
       from g
   ), d as (

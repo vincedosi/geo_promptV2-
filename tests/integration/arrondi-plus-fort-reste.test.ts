@@ -39,6 +39,24 @@ describe('couverture_geometrie — Σ lignes + hors territoire = population (sql
     expect(ecart('commune').split('|')[1]).toBe('0');
   }, LONG);
 
+  it('composite au CP sous un minimum de ménages (men_pauv, v_min > 0) : écart 0', () => {
+    const r = psql(`
+      with r as (select public.couverture_geometrie('${COMPOSITE}', '${ORG}', 'men_pauv', 'cp') as j)
+      select ((r.j->>'min_menages')::numeric > 0)::text || '|' ||
+             ((select coalesce(sum((e->>'pop_en_zone')::numeric), 0) from jsonb_array_elements(r.j->'lignes') e)
+              + (r.j->'hors_territoire'->>'population')::numeric - (r.j->>'population')::numeric)
+        from r;`);
+    expect(r).toBe('true|0');
+  }, LONG);
+
+  it('composite telle quelle (forme, aucun groupe) : aucune ligne, hors territoire 0, la clé arrondi_lignes', () => {
+    const r = psql(`
+      with r as (select public.couverture_geometrie('${COMPOSITE}', '${ORG}', 'ind', 'forme') as j)
+      select jsonb_array_length(r.j->'lignes') || '|' || (r.j->'hors_territoire'->>'population') || '|' ||
+             (r.j->>'arrondi_lignes') || '|' || ((r.j->>'population')::numeric > 0) from r;`);
+    expect(r).toBe('0|0|plus_fort_reste|true');
+  }, LONG);
+
   it('chaque ligne CP vaut floor ou ceil de sa somme brute de carreaux', () => {
     const r = psql(`
       with z as (select geometry g from public.custom_geo_zones where id = '${COMPOSITE}'),
@@ -52,5 +70,54 @@ describe('couverture_geometrie — Σ lignes + hors territoire = population (sql
       select count(*) || '|' || count(*) filter (where l.v not in (floor(b.p), ceil(b.p)))
         from l join brut b on b.code = l.code;`);
     expect(r).toBe('895|0');
+  }, LONG);
+});
+
+/**
+ * C18, round 1 (sql/324) : la zone nationale. `couverture_pays_jsonb` arrondissait aussi ligne à ligne (`round(t.p)`) :
+ * France entière au CP, « manqués −1 504 » (−1 489 en METRO). Au CP, Σ lignes = `population` (même dénominateur) ; au
+ * département, les lignes se somment à l'arrondi de LEUR total brut — l'écart restant à `population` est I-2 (carreaux
+ * sans CP, rattaché à C25), égal à round(Σ départements) − round(Σ CP), hors de ce ticket.
+ */
+describe('couverture_pays_jsonb — lignes au plus fort reste (sql/324, C18 round 1)', () => {
+  /** `lignes|écart à population|écart à l'arrondi du total brut|lignes hors floor/ceil|pop_totale ≠ pop_en_zone`. */
+  function pays(code: string, cible: string, decoupage: 'cp' | 'departement'): string {
+    const brut = decoupage === 'cp'
+      ? `select cp.code_postal as code, case when v.m > 0 then coalesce((dm.populations->>'${cible}')::numeric, 0)
+                                              else (cp.populations->>'${cible}')::numeric end as p
+           from public.cp_population_totale cp
+           left join public.denominateur_menages_min dm on v.m > 0 and dm.maille = 'cp' and dm.code = cp.code_postal
+          where public.pays_contient_code('${code}', cp.code_postal)`
+      : `select u.code, case when v.m > 0 then coalesce((dm.populations->>'${cible}')::numeric, 0)
+                              else (u.populations->>'${cible}')::numeric end as p
+           from public.unite_population_totale u
+           left join public.denominateur_menages_min dm on v.m > 0 and dm.maille = 'departement' and dm.code = u.code
+          where u.maille = 'departement' and public.pays_contient_code('${code}', u.code)`;
+    return psql(`
+      with v as (select public.min_menages_de_cible('${cible}') as m),
+           j as (select public.couverture_pays_jsonb('${code}', '${cible}', '${decoupage}') as j),
+           l as (select e->>'code' as code, (e->>'pop_en_zone')::numeric as v, (e->>'pop_totale')::numeric as t
+                   from j, jsonb_array_elements(j.j->'lignes') e where e->>'pop_en_zone' is not null),
+           b as (${brut.replace(/v\.m/g, '(select m from v)')})
+      select (select count(*) from l) || '|' ||
+             ((select sum(l.v) from l) - (select (j.j->>'population')::numeric from j)) || '|' ||
+             ((select sum(l.v) from l) - (select round(sum(b.p)) from b)) || '|' ||
+             (select count(*) from l join b using (code) where l.v not in (floor(b.p), ceil(b.p))) || '|' ||
+             (select count(*) from l where l.t is distinct from l.v);`);
+  }
+
+  it.each([['FR'], ['METRO']])('%s au CP (ind) : Σ lignes = population, chaque ligne floor ou ceil', (code) => {
+    const [, ecart, ecartBrut, horsBornes, totales] = pays(code, 'ind', 'cp').split('|');
+    expect([ecart, ecartBrut, horsBornes, totales]).toEqual(['0', '0', '0', '0']);
+  }, LONG);
+
+  it('FR au CP sous un minimum (men_pauv) : Σ lignes = population', () => {
+    const [, ecart, ecartBrut, horsBornes] = pays('FR', 'men_pauv', 'cp').split('|');
+    expect([ecart, ecartBrut, horsBornes]).toEqual(['0', '0', '0']);
+  }, LONG);
+
+  it.each([['FR', 'ind'], ['METRO', 'ind'], ['FR', 'men_pauv']])('%s au département (%s) : Σ lignes = arrondi du total brut des départements', (code, cible) => {
+    const [, , ecartBrut, horsBornes, totales] = pays(code, cible, 'departement').split('|');
+    expect([ecartBrut, horsBornes, totales]).toEqual(['0', '0', '0']);
   }, LONG);
 });
