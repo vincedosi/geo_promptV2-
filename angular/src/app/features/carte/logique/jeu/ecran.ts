@@ -69,7 +69,9 @@ export function texteDefaut(d: DefautExplique): string {
   const nom = UNITE_MAILLE[d.maille].plusieurs;
   const Nom = `${nom.charAt(0).toUpperCase()}${nom.slice(1)} par défaut (${LIBELLE_POUSSEE[d.poussee]})`;
   if (d.critere === 'en_attente') return `${Nom}, provisoirement : simulation des autres mailles en cours.`;
-  if (d.critere === 'sans_simulation' || !d.simulation) return `${Nom}, par ordre de finesse : aucune autre maille n’a pu être simulée.`;
+  if (d.critere === 'sans_simulation' || !d.simulation) {
+    return `${Nom}, faute de simulation : la plus sûre, puis exacte, puis poussée par API, puis la plus fine.`;
+  }
   const chiffres = (s: Simulation) => `couverture ${pourcent(s.couverture)}, taux utile ${pourcent(s.taux_utile)}`;
   const c = d.comparee;
   const contre = c

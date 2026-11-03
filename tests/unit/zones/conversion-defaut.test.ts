@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  REGLAGES_DEFAUT_REPLI, choisirDefaut, departageParFinesse, departageParPoussee, mailleParDefaut, mailleSure, modePoussee,
+  REGLAGES_DEFAUT_REPLI, choisirDefaut, departageParFinesse, departageParPoussee, departageProvisoire, mailleParDefaut, mailleSure, modePoussee,
   simulationDe, simulationsRequises, type Departage, type MecanismePoussee, type Simulations,
 } from '@/lib/zones/conversion-defaut';
 import { appliquerSeuil, resumeExact } from '@/lib/zones/conversion';
@@ -182,8 +182,11 @@ describe('B16 — la poussée branchée, 2e critère du départage (après « s�
   });
 
   it('rayon 5 km sur DV360 : le défaut proposé porte son mode de poussée, et celui de la comparée', () => {
-    // Le CP, poussé par API, passe devant les cercles exacts au départage : il doit être simulé.
+    // Le CP, poussé par API, peut égaler les cercles exacts à ± 5 points : il doit être simulé (charge : une lecture CP).
     expect(simulationsRequises(BRANCHEES, 'dv360', RAYON_5KM, POIDS)).toEqual(['cp']);
+    // Round 1 (I-2) : en attente, aucun taux connu — l'exactitude passe avant la poussée, les cercles restent.
+    expect(choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, {}, R, POIDS)).toMatchObject({ maille: 'cercle', poussee: 'manuel', critere: 'en_attente' });
+    expect(mailleParDefaut(BRANCHEES, 'dv360', RAYON_5KM, POIDS)).toBe('cercle');
     const d = choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: { couverture: 92, taux_utile: 70 } }, R, POIDS);
     expect(d).toMatchObject({ maille: 'cercle', poussee: 'manuel', critere: 'couverture_cible' });
     expect(d?.comparee).toEqual({ maille: 'cp', poussee: 'ciblage_api', simulation: { couverture: 92, taux_utile: 70 } });
@@ -196,6 +199,28 @@ describe('B16 — la poussée branchée, 2e critère du départage (après « s�
     expect(choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: { couverture: 97, taux_utile: 94 } }, R, POIDS)?.maille).toBe('cercle');
     // Sans poussée au registre (avant sql/322) : l'ordre de B9, le cercle exact.
     expect(choisirDefaut(REGLES, 'dv360', RAYON_5KM, {}, R, POIDS)).toMatchObject({ maille: 'cercle', poussee: 'manuel' });
+  });
+
+  it('round 1 (I-1) : zone nationale au pays d’office, sans simulation, même avec un CP poussé par API (Q-1)', () => {
+    const pays: Recette = { v: 1, type: 'pays', code: 'METRO' };
+    expect(modePoussee(cpDv360, POIDS)).toBe('ciblage_api');
+    for (const p of ['dv360', 'meta'] as const) {
+      expect(simulationsRequises(BRANCHEES, p, pays, POIDS)).toEqual([]);
+      expect(choisirDefaut(BRANCHEES, p, pays, {}, R, POIDS)).toMatchObject({ maille: 'pays', critere: 'couverture_cible' });
+    }
+    // Même un CP entièrement poussé (script branché) ne fait pas simuler la France au CP.
+    const toutApi = POIDS.map((x) => ({ ...x, branche: true }));
+    expect(simulationsRequises(BRANCHEES, 'dv360', pays, toutApi)).toEqual([]);
+  });
+
+  it('round 1 : sans simulation possible, l’ordre provisoire (sûre, exacte, poussée, finesse)', () => {
+    const d = choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: 'refusee' }, R, POIDS);
+    expect(d).toMatchObject({ maille: 'cercle', critere: 'couverture_cible' });
+    // Un dessin (rien d'exact) : CP poussé devant les cercles manuels, les deux refusés → le provisoire, au CP.
+    expect(choisirDefaut(BRANCHEES, 'dv360', DESSIN, { cp: 'refusee', cercle: 'refusee' }, R, POIDS))
+      .toMatchObject({ maille: 'cp', poussee: 'ciblage_api', critere: 'sans_simulation' });
+    expect(departageProvisoire(POIDS)(cpDv360, cercleDv360, RAYON_5KM)).toBeGreaterThan(0);
+    expect(departageProvisoire(POIDS)(cpDv360, cercleDv360, DESSIN)).toBeLessThan(0);
   });
 
   it('« sûre avant à vérifier » reste le 1er critère : une maille poussée mais « à vérifier » cède à une sûre', () => {

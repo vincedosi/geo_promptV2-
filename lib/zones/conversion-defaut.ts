@@ -69,8 +69,8 @@ const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune
 
 /**
  * Le DÉPARTAGE de deux mailles (négatif : `a` d'abord). Il ordonne les mailles à taux utile égal à ± l'écart de
- * départage, et c'est tout l'ordre du défaut provisoire (simulations pas encore lues). Celui de la règle est
- * `departageParPoussee` (B16) ; un appelant peut en passer un autre.
+ * départage. Celui de la règle est `departageParPoussee` (B16) ; un appelant peut en passer un autre. Le défaut
+ * PROVISOIRE (aucun taux connu) a le sien, `departageProvisoire` (B16, round 1).
  */
 export type Departage = (a: PlateformeGeo, b: PlateformeGeo, recette: Recette) => number;
 
@@ -119,12 +119,25 @@ export function modePoussee(l: PlateformeGeo, poids: readonly MecanismePoussee[]
 const RANG_POUSSEE: Readonly<Record<ModePoussee, number>> = { api: 0, ciblage_api: 1, manuel: 2 };
 
 /**
- * B16 (ruling du 02/11) : LE départage de la règle — une maille sûre (E9) d'abord, puis la poussée branchée (`api`,
- * puis `ciblage_api`, puis `manuel`), puis l'ordre de `departageParFinesse` (exacte, plus fine, pays devant). Sans
- * aucune poussée au registre, il rend exactement l'ordre de `departageParFinesse`.
+ * B16 (ruling du 02/11) : LE départage de la règle À TAUX UTILE ÉGAL (± l'écart de départage) — une maille sûre (E9)
+ * d'abord, puis la poussée branchée (`api`, puis `ciblage_api`, puis `manuel`), puis l'ordre de `departageParFinesse`
+ * (exacte, plus fine, pays devant). Sans aucune poussée au registre, il rend exactement l'ordre de `departageParFinesse`.
  */
 export function departageParPoussee(poids: readonly MecanismePoussee[]): Departage {
   return (a, b, recette) => (mailleSure(a) ? 0 : 1) - (mailleSure(b) ? 0 : 1)
+    || RANG_POUSSEE[modePoussee(a, poids)] - RANG_POUSSEE[modePoussee(b, poids)]
+    || departageParFinesse(a, b, recette);
+}
+
+/**
+ * B16, round 1 : le départage du défaut PROVISOIRE (simulations en attente) et du défaut sans simulation — aucun taux
+ * utile n'y est connu, donc la poussée (qui ne départage qu'à taux égal) ne passe pas devant l'exactitude : une maille
+ * sûre, puis exacte pour la recette, puis poussée branchée, puis la plus fine (pays devant). Un rayon sur DV360 reste
+ * ainsi aux cercles exacts tant que le CP n'est pas chiffré.
+ */
+export function departageProvisoire(poids: readonly MecanismePoussee[]): Departage {
+  return (a, b, recette) => (mailleSure(a) ? 0 : 1) - (mailleSure(b) ? 0 : 1)
+    || (exactitude(recette, a.maille, a) === 'exacte' ? 0 : 1) - (exactitude(recette, b.maille, b) === 'exacte' ? 0 : 1)
     || RANG_POUSSEE[modePoussee(a, poids)] - RANG_POUSSEE[modePoussee(b, poids)]
     || departageParFinesse(a, b, recette);
 }
@@ -138,11 +151,12 @@ const estExacte = (l: PlateformeGeo, recette: Recette) => exactitude(recette, l.
 
 /**
  * Le défaut PROVISOIRE, par le seul départage (A-4) — tant que les simulations ne sont pas lues, ou qu'aucune ne
- * peut l'être. `null` si la plateforme n'a aucune maille achetable.
+ * peut l'être : `departageProvisoire` (sûre, exacte, poussée, finesse). `null` si la plateforme n'a aucune maille
+ * achetable.
  */
 export function mailleParDefaut(
   lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, poids: readonly MecanismePoussee[] = [],
-  departage: Departage = departageParPoussee(poids),
+  departage: Departage = departageProvisoire(poids),
 ): Maille | null {
   return [...candidates(lignes, plateforme, recette)].sort((a, b) => departage(a, b, recette))[0]?.maille ?? null;
 }
@@ -153,12 +167,17 @@ export function mailleParDefaut(
  * près ET si le départage la met devant — donc, sans exacte, toutes ; sinon celles que le départage place avant elle.
  * C'est ce qui garde les lectures au strict nécessaire : rien pour une zone pays (pays exact et sûr), rien pour TTD
  * (polygone exact, tout « à vérifier »), les cercles seuls pour une liste de CP sur Meta (CP exact, « à vérifier »).
+ * B16, round 1 : une zone nationale part au pays D'OFFICE (Q-1 du 30/10), quelle que soit la poussée des autres
+ * mailles — sans cette garde, le CP de DV360 (`ciblage_api`) passait devant le pays (`manuel`) et faisait simuler
+ * tous les CP de France. Hors zone nationale, la poussée compte (un CP poussé peut égaler des cercles exacts à ± 5
+ * points) : un rayon sur DV360 simule donc son CP, une lecture de couverture CP de plus qu'avant B16.
  */
 export function simulationsRequises(
   lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, poids: readonly MecanismePoussee[] = [],
   departage: Departage = departageParPoussee(poids),
 ): Maille[] {
   const toutes = candidates(lignes, plateforme, recette);
+  if (toutes.some((l) => l.maille === 'pays' && estExacte(l, recette))) return [];
   const exacte = toutes.filter((l) => estExacte(l, recette)).sort((a, b) => departage(a, b, recette))[0];
   return toutes.filter((l) => !estExacte(l, recette) && (!exacte || departage(l, exacte, recette) < 0)).map((l) => l.maille);
 }
@@ -167,8 +186,8 @@ export function simulationsRequises(
  * Le défaut retenu et sa raison, pour la ligne d'explication de l'écran (Q7 = A : les deux chiffres) :
  * - `couverture_cible` : la maille de taux utile maximal parmi celles qui atteignent la cible ;
  * - `couverture_max` : aucune ne l'atteint, celle de couverture maximale ;
- * - `en_attente` : une simulation requise n'est pas encore lue — défaut provisoire par le départage ;
- * - `sans_simulation` : aucune ne peut l'être (toutes refusées) — le départage parmi les autres.
+ * - `en_attente` : une simulation requise n'est pas encore lue — défaut provisoire (`departageProvisoire`) ;
+ * - `sans_simulation` : aucune ne peut l'être (toutes refusées) — `departageProvisoire` parmi les autres.
  * `comparee` : la meilleure des autres mailles simulées (« contre 10 % / 95 % en CP »), absente s'il n'y en a pas.
  * `poussee` (B16) : le mode de poussée de la maille, et de la comparée — la ligne d'explication le dit.
  */
@@ -185,7 +204,8 @@ export interface DefautExplique {
  * LA règle de la maille par défaut (ARB-7 = A, E1). Parmi les candidates (natives, disponibles, avec un sens pour la
  * recette), celles dont la couverture simulée atteint la couverture cible ; parmi elles, le taux utile maximal, à
  * ± `ecart_departage` points près départagé par `departage` (B16 : sûre, puis poussée branchée, puis finesse — les
- * mécanismes de poids `poids` en entrent). Si aucune n'atteint la
+ * mécanismes de poids `poids` en entrent ; le provisoire et le cas sans simulation, où aucun taux n'est connu,
+ * passent par `departageProvisoire`, qui met l'exactitude avant la poussée). Si aucune n'atteint la
  * cible : la couverture maximale (départagée à égalité). Une maille exacte vaut 100 % / 100 % sans lecture ; une
  * maille dont la simulation n'est pas requise (`simulationsRequises`) ne peut pas gagner et n'est pas comparée.
  * Le « à vérifier » n'écarte plus une maille (relecture du ticket : une liste de CP sur Meta, CP « à vérifier », doit
@@ -201,7 +221,7 @@ export function choisirDefaut(
   const poussee = (m: Maille) => modePoussee(toutes.find((l) => l.maille === m) as PlateformeGeo, poids);
   const requises = simulationsRequises(lignes, plateforme, recette, poids, departage);
   if (requises.some((m) => simulations[m] === undefined)) {
-    const maille = mailleParDefaut(lignes, plateforme, recette, poids, departage) as Maille;
+    const maille = mailleParDefaut(lignes, plateforme, recette, poids) as Maille;
     return { maille, poussee: poussee(maille), critere: 'en_attente', couverture_cible: cible };
   }
   const simulees = toutes.flatMap((l) => {
@@ -210,7 +230,7 @@ export function choisirDefaut(
   });
   if (simulees.length === 0) {
     const restantes = toutes.filter((l) => simulations[l.maille] !== 'refusee');
-    const maille = mailleParDefaut(restantes.length > 0 ? restantes : toutes, plateforme, recette, poids, departage) as Maille;
+    const maille = mailleParDefaut(restantes.length > 0 ? restantes : toutes, plateforme, recette, poids) as Maille;
     return { maille, poussee: poussee(maille), critere: 'sans_simulation', couverture_cible: cible };
   }
   const taux = (s: Simulation) => s.taux_utile ?? 0;

@@ -260,9 +260,8 @@ describe('B16 — le défaut dit son mode de poussée', () => {
   it('rayon 5 km sur DV360 : le CP, poussé par API, se simule ; la ligne du défaut dit le mode de chacune', () => {
     expect(choixASimuler(regles, 'dv360', rayon5km, null, [...poids]).map((s) => s.choix)).toEqual([{ maille: 'cp', seuil: 20 }]);
     const attente = defautsDe(regles, rayon5km, undefined, () => undefined, () => false, null, [...poids]).dv360!;
-    // Provisoire : le départage seul, où la poussée passe avant l'exactitude (ruling B16).
-    expect(texteDefaut(attente)).toBe('Codes postaux par défaut (ciblage par API, poids en export manuel), provisoirement : '
-      + 'simulation des autres mailles en cours.');
+    // Provisoire (round 1) : aucun taux connu, l'exactitude passe avant la poussée — les cercles exacts.
+    expect(texteDefaut(attente)).toBe('Cercles par défaut (export manuel), provisoirement : simulation des autres mailles en cours.');
     const d = defautsDe(regles, rayon5km, undefined, () => couverture('cp', 'v1'), () => false, null, [...poids]).dv360!;
     expect(d).toMatchObject({ maille: 'cercle', poussee: 'manuel', comparee: { maille: 'cp', poussee: 'ciblage_api' } });
     expect(texteDefaut(d)).toBe('Cercles par défaut (export manuel) : couverture 100 %, taux utile 100 %, contre 60 % / 60 % en '
