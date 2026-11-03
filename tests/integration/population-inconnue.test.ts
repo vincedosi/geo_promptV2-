@@ -220,11 +220,15 @@ describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue si la 
   // est retenu sur les trois territoires, mais pas toutes ses communes ni tous ses CP — les contours du référentiel ne
   // viennent pas de la même source (Terre-de-Haut : 34 % de sa surface dans le contour de 971). À l'inclusion stricte
   // (sql/308), c'était 1/32, 3/22, 2/17 communes et 1/32, 3/22, 0/11 unités CP.
+  // D36 (décision de Vincent du 03/11, sql/339) : le contour d'une commune ou d'un CP inconnu est la part de son contour
+  // comprise dans celui du référentiel régions/départements (son département), et sa surface est la « surface du
+  // référentiel ». Mesuré le 03/11 : communes 18/32 → 32/32, 21/22 → 22/22, 8/17 → 17/17 ; CP 18/32 → 32/32,
+  // 21/22 → 22/22, 6/11 → 11/11.
   it.each([
-    ['971', [18, 32], [18, 32]],
-    ['973', [21, 22], [21, 22]],
-    ['976', [8, 17], [6, 11]],
-  ])('zone = département %s : département retenu ; communes et CP retenus à la tolérance (comptes de la base)', async (dep, communes, cps) => {
+    ['971', [32, 32], [32, 32]],
+    ['973', [22, 22], [22, 22]],
+    ['976', [17, 17], [11, 11]],
+  ])('zone = département %s : département, toutes ses communes et tous ses CP retenus (D36, contours du référentiel)', async (dep, communes, cps) => {
     const geo = psql(`select ST_AsGeoJSON(ST_Multi(coalesce(geom_perimetre, geom))) from public.ref_departements where code_dept = '${dep}';`);
     const { data: z, error } = await sb.rpc('creer_zone_recette', {
       p_nom: `Département ${dep} (A4)`, p_org_id: org, p_cree_par: null, p_recette: { v: 1, type: 'dessin' }, p_geometry_geojson: geo,
@@ -233,8 +237,9 @@ describe('A4 — une zone LOCALE sur un territoire non carroyé : retenue si la 
     const compter = async (decoupage: string) => {
       const r = await sb.rpc('couverture_geometrie', { p_zone_id: (z as { id: string }).id, p_org_id: org, p_decoupage: decoupage });
       if (r.error) throw new Error(r.error.message);
-      const c = r.data as Couverture & { tolerance_inclusion: number };
+      const c = r.data as Couverture & { tolerance_inclusion: number; surface_inconnues: string };
       expect(c.tolerance_inclusion).toBe(0.95);
+      expect(c.surface_inconnues).toBe('surface du référentiel');
       return [appliquerSeuil(c.lignes, c.population, 100).n_unites, c.lignes.length];
     };
     expect(await compter('departement')).toEqual([1, 1]);
@@ -305,8 +310,11 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
       select ${servi};
       ${ecrire(", 'tolerance_inclusion', 0.95")}
       select ${servi};
+      ${ecrire(", 'tolerance_inclusion', 0.95, 'surface_inconnues', 'surface du référentiel'")}
+      select ${servi};
       rollback;`);
-    expect(r.slice(-3)).toEqual(['false', 'false', 'true']);
+    // D36 (sql/339) : un chiffrage jugé sur les contours d'avant (sans `surface_inconnues`) n'est plus servi.
+    expect(r.slice(-4)).toEqual(['false', 'false', 'false', 'true']);
   }, LONG);
 
   // A5 : sql/310 redéfinit ensuite couverture_geometrie, couverture_pays_jsonb et couverture_zone_en_cache — la chaîne
@@ -321,7 +329,9 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
       // C24 round 1 : sql/330 redéfinit `couverture_geometrie` et `couverture_zone`.
       '330_minimums_population_totale.sql',
       // C25 : sql/332 redéfinit `couverture_geometrie` et `couverture_zone_en_cache` (vue E7, base_couverture_e7_le).
-      '332_carreau_couverture_e7.sql']
+      '332_carreau_couverture_e7.sql',
+      // D36 : sql/339 redéfinit `couverture_geometrie` (contours du référentiel) et `couverture_zone_en_cache`.
+      '339_contours_drom_referentiel.sql']
       .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
     const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
                               || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p

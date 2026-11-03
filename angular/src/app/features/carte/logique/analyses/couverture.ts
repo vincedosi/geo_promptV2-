@@ -79,7 +79,11 @@ export interface LigneCouverture {
    * `reglages_conversion` (sql/309). Absent sur les autres lignes.
    */
   incluse?: boolean;
-  /** A4 tour 1 (sql/309), zone locale, ligne inconnue seulement : part de la surface de l'unité dans la zone (0-1, au millième). */
+  /**
+   * A4 tour 1 (sql/309), zone locale, ligne inconnue seulement : part de la surface de l'unité dans la zone (0-1, au millième).
+   * D36 (sql/339) : « surface du référentiel » — celle de la part de son contour comprise dans le contour de son
+   * département au référentiel régions/départements (`surface_inconnues` de la réponse).
+   */
   part_surface?: number;
 }
 
