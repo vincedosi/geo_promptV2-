@@ -108,7 +108,7 @@ function lireReponse(data: unknown): ReponseRpc | null {
   return data !== null && typeof data === 'object' ? rpcJson<ReponseRpc>(data) : null;
 }
 
-function issue(nom: string, r: ReponseRpc | null): IssueRecette {
+function issue(nom: string, r: ReponseRpc | null, motifVide: RefusRecette = 'forme_vide'): IssueRecette {
   if (!r) {
     console.error(`[zones/recette] ${nom} : réponse illisible`);
     return ECHEC;
@@ -118,7 +118,7 @@ function issue(nom: string, r: ReponseRpc | null): IssueRecette {
     console.error(`[zones/recette] ${nom} : refus hors contrat`, r.refus);
     return ECHEC;
   }
-  if (r.vide || !estForme(r.geometry)) return refuser('forme_vide', 409);
+  if (r.vide || !estForme(r.geometry)) return refuser(motifVide, 409);
   const unites = unitesDe(r);
   return {
     ok: true, geometry: r.geometry, surface_km2: nombreOuNull(r.surface_km2), compte: nombreOuNull(r.compte),
@@ -127,7 +127,11 @@ function issue(nom: string, r: ReponseRpc | null): IssueRecette {
 }
 
 /** Attend une requête RPC DÉJÀ lancée sur le client (appel lié) et la traduit en issue HTTP. */
-async function lire(nom: string, requete: RequeteRpc): Promise<IssueRecette> {
+/**
+ * `motifVide` : le refus d'une réponse `vide`. `forme_vide` (« aucun territoire français ») par défaut ;
+ * `intersection_vide` pour une intersection de zones qui ne se touchent pas (C20 round 1).
+ */
+async function lire(nom: string, requete: RequeteRpc, motifVide: RefusRecette = 'forme_vide'): Promise<IssueRecette> {
   const { data, error } = await requete;
   if (error) {
     console.error(`[zones/recette] ${nom} :`, error.message);
@@ -144,7 +148,7 @@ async function lire(nom: string, requete: RequeteRpc): Promise<IssueRecette> {
     }
     return ECHEC;
   }
-  return issue(nom, lireReponse(data));
+  return issue(nom, lireReponse(data), motifVide);
 }
 
 export async function executerRecette(supabase: ClientAdmin, recette: Recette, ctx: ContexteRecette): Promise<IssueRecette> {
@@ -292,7 +296,7 @@ async function combiner(
     case 'union':
       return lire('get_composite_zone_geometry', supabase.rpc('get_composite_zone_geometry', { p_zone_ids: zones }));
     case 'intersection':
-      return lire('zone_intersection_toutes', supabase.rpc('zone_intersection_toutes', { p_zone_ids: zones }));
+      return lire('zone_intersection_toutes', supabase.rpc('zone_intersection_toutes', { p_zone_ids: zones }), 'intersection_vide');
     case 'difference':
       return lire('zone_difference', supabase.rpc('zone_difference', { p_base: zones[0], p_retires: zones.slice(1) }));
   }

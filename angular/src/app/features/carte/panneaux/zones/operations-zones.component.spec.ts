@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
 import { ZonesCustomApi } from '../../data/zones-custom.api';
 import { ZonesApi } from '../../data/zones.api';
+import { MESSAGES_REFUS } from '../../logique/zones/recette';
 import { OperationsZonesComponent } from './operations-zones.component';
 
 @Component({
@@ -92,6 +93,30 @@ describe('OperationsZonesComponent (ZonesOperations.tsx, T14 ; recette `combinai
     expect(enregistrer).toHaveBeenCalledWith({
       nom: 'Bretagne — restreinte à 2 zones', recette: { v: 1, type: 'combinaison', operation: 'intersection', zones: ['a', 'b', 'c'] },
     });
+  });
+
+  it('C20 round 1 : 409 intersection_vide → « Les zones cochées n’ont aucune partie commune. », rien d’enregistré', async () => {
+    const enregistrer = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 409, error: { error: MESSAGES_REFUS.intersection_vide, refus: 'intersection_vide' } })));
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(['a', 'b', 'c']);
+    await stable();
+    bouton(el, 'intersection').click();
+    await stable();
+    expect(el.querySelector('[data-erreur]')!.textContent).toBe('Les zones cochées n’ont aucune partie commune.');
+    expect(fixture.componentInstance.termines).toBe(0);
+  });
+
+  it('C20 round 1 : plus de 20 zones cochées → les trois boutons inactifs, la raison affichée', async () => {
+    const enregistrer = vi.fn();
+    const { fixture, el, stable } = monter(enregistrer);
+    fixture.componentInstance.selection.set(Array.from({ length: 21 }, (_, i) => `z${i}`));
+    await stable();
+    for (const op of ['union', 'intersection', 'difference']) expect(bouton(el, op).disabled, op).toBe(true);
+    expect(el.querySelector('[data-aide-max]')!.textContent!.trim()).toBe('Cochez 20 zones au plus.');
+    fixture.componentInstance.selection.set(Array.from({ length: 20 }, (_, i) => `z${i}`));
+    await stable();
+    expect(bouton(el, 'intersection').disabled).toBe(false);
+    expect(el.querySelector('[data-aide-max]')).toBeNull();
   });
 
   it('404 → le message de la route, sélection gardée, pas de `termine`', async () => {

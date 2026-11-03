@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { z } from 'zod';
 import { formaterNombre } from '@/lib/format/nombre';
 import {
   CAPACITE_SYNCHRONE_POI_RAYON, MAX_CARREAUX_SEUIL, MAX_SOMMETS_FORME, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, RAYON_POINT_MAX_M,
-  SEUIL_TERRITOIRE_MAX_ABS, type Recette,
+  SEUIL_TERRITOIRE_MAX_ABS, MAX_ZONES_COMBINAISON, type Recette,
 } from '@/lib/zones/recette';
 import { RecetteSchema, RecetteUnionSchema, lireRecette } from '@/lib/zones/recette-schema';
 
@@ -27,6 +28,13 @@ describe('lireRecette (Zod) — revue de la Task 2', () => {
     expect(lireRecette({ v: 1, type: 'combinaison', operation: 'union', zones: [UUID_A, UUID_B, UUID_C] }).ok).toBe(true);
     expect(lireRecette({ v: 1, type: 'combinaison', operation: 'difference', zones: [UUID_A, UUID_B] }).ok).toBe(true);
     expect(lireRecette({ v: 1, type: 'combinaison', operation: 'intersection', zones: [UUID_A, UUID_B] }).ok).toBe(true);
+  });
+
+  it('C20 round 1 : la borne de 20 zones est MAX_ZONES_COMBINAISON, le littéral de sql/325', () => {
+    expect(MAX_ZONES_COMBINAISON).toBe(20);
+    const sql = readFileSync('sql/325_zone_intersection_toutes.sql', 'utf8');
+    expect(sql).toContain(`v_n > ${MAX_ZONES_COMBINAISON} then`);
+    expect(sql).toContain('order by ST_Area(Box2D(z.geometry)::geometry), z.id');
   });
 
   it('C20 : l’intersection admet 2 à 20 zones, comme l’union et la différence', () => {

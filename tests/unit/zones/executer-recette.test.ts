@@ -230,6 +230,18 @@ describe('executerRecette', () => {
     expect(appels.at(-1)).toEqual({ nom: 'zone_intersection_toutes', args: { p_zone_ids: [Z1, Z2, Z3] } });
   });
 
+  it('C20 round 1 : intersection sans partie commune → 409 intersection_vide (pas « aucun territoire français »)', async () => {
+    zonesDeLOrg = [Z1, Z2, Z3];
+    reponses.zone_intersection_toutes = { data: { vide: true, geometry: null, surface_km2: 0 }, error: null };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'intersection', zones: [Z1, Z2, Z3] })).toEqual({
+      ok: false, statut: 409, refus: 'intersection_vide', message: MESSAGES_REFUS.intersection_vide,
+    });
+    expect(MESSAGES_REFUS.intersection_vide).toBe('Les zones cochées n’ont aucune partie commune.');
+    // les autres recettes vides gardent forme_vide
+    reponses.zone_difference = { data: { vide: true, geometry: null, surface_km2: 0 }, error: null };
+    expect(await exec({ v: 1, type: 'combinaison', operation: 'difference', zones: [Z1, Z2] })).toMatchObject({ statut: 409, refus: 'forme_vide' });
+  });
+
   it('union et différence : deux zones au moins, refus (jamais un 500) sinon et sans appel', async () => {
     zonesDeLOrg = [Z1];
     for (const operation of ['union', 'difference'] as const) {

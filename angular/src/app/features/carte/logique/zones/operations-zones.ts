@@ -13,6 +13,7 @@
  * diffuserait nulle part sans que rien ne l'ait signalé.
  */
 import { formaterNombre } from '../../../../core/format/nombre';
+import { MAX_ZONES_COMBINAISON } from './recette';
 
 export type OperationZones = 'union' | 'intersection' | 'difference';
 
@@ -33,10 +34,13 @@ export interface DefinitionOperation {
  * (`zone_intersection_toutes`, sql/325) — ce que les zones cochées ont toutes en commun.
  */
 export const OPERATIONS_ZONES: Readonly<Record<OperationZones, DefinitionOperation>> = {
-  union: { libelle: 'Fusionner', min: 2, aide: 'tout ce que couvrent les zones cochées' },
-  intersection: { libelle: 'Restreindre à', min: 2, aide: 'ce que toutes les zones cochées ont en commun' },
-  difference: { libelle: 'Soustraire', min: 2, aide: 'la première, moins toutes les autres' },
+  union: { libelle: 'Fusionner', min: 2, max: MAX_ZONES_COMBINAISON, aide: 'tout ce que couvrent les zones cochées' },
+  intersection: { libelle: 'Restreindre à', min: 2, max: MAX_ZONES_COMBINAISON, aide: 'ce que toutes les zones cochées ont en commun' },
+  difference: { libelle: 'Soustraire', min: 2, max: MAX_ZONES_COMBINAISON, aide: 'la première, moins toutes les autres' },
 };
+
+/** C20 round 1 : la raison affichée quand plus de `MAX_ZONES_COMBINAISON` zones sont cochées (le schéma les refuse). */
+export const MESSAGE_TROP_DE_ZONES = `Cochez ${MAX_ZONES_COMBINAISON} zones au plus.`;
 
 /** L'opération est-elle possible sur `n` zones cochées ? */
 export function operationPossible(op: OperationZones, n: number): boolean {

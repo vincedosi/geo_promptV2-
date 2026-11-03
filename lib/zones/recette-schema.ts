@@ -17,7 +17,7 @@
 import { z } from 'zod';
 import { messageAnomalies } from '@/lib/api/valider-corps';
 import {
-  CODES_FRANCE, CODES_PAYS, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MAX_TERRITOIRES_SEUIL, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
+  CODES_FRANCE, CODES_PAYS, INDICATEURS_SEUIL_CARREAUX, MAX_CODES_POSTAUX, MAX_INDICATEURS_SCORE, MAX_ZONES_COMBINAISON, MAX_TERRITOIRES_SEUIL, MIN_MENAGES_CARREAUX_MAX, RAYON_POINT_MAX_M, RAYON_POI_MAX_M, RAYON_POI_MIN_M,
   SEUIL_CARREAUX_MAX, SEUIL_TERRITOIRE_MAX_ABS, TYPES_PERIMETRE, VERSION_RECETTE, type OperateurSeuil, type ParametresScore as ParametresScoreRecette,
   type PerimetreRecette, type Recette,
 } from './recette';
@@ -61,7 +61,7 @@ const UnitesTerritoire = z.discriminatedUnion('maille', [
   unitesCp(MAX_TERRITOIRES_SEUIL),
   z.object({ maille: z.literal('iris'), codes: z.array(CodeIris).min(1).max(MAX_TERRITOIRES_SEUIL), groupes_partiels: GroupesPartiels }).strict(),
 ]);
-const Zones = z.array(Uuid).min(2).max(20)
+const Zones = z.array(Uuid).min(2).max(MAX_ZONES_COMBINAISON)
   .refine((zs) => new Set(zs).size === zs.length, { message: 'Une zone ne peut figurer qu’une fois.' });
 
 export const RecetteUnionSchema = z.discriminatedUnion('type', [

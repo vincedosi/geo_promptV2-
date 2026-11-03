@@ -107,6 +107,8 @@ export const MENTION_COMMUNES_NON_IRISEES =
   'Communes rurales non couvertes par cette recette : seules les communes découpées en IRIS sont retenues.';
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
+/** Zones d'une combinaison (union, intersection, différence) : 2 à 20 (schéma, `zone_intersection_toutes`, sql/325). */
+export const MAX_ZONES_COMBINAISON = 20;
 /** Ne refuse en pratique que la France entière (la plus grande région : 84 617 km²). */
 export const SURFACE_MAX_PERIMETRE_KM2 = 100_000;
 /** Seuil sur carreaux : une zone-périmètre au plus grande qu'un département (Gironde : 10 000 km²). */
@@ -195,7 +197,7 @@ export type RefusRecette =
   | 'perimetre_non_admis' | 'commune_ambigue'
   | 'trop_de_poi' | 'trop_de_carreaux' | 'trop_de_territoires' | 'trop_de_sommets'
   | 'trop_de_poi_metropole' | 'seuil_metropole_differe'
-  | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'forme_figee'
+  | 'indicateur_inconnu' | 'zone_introuvable' | 'zone_referencee' | 'forme_vide' | 'intersection_vide' | 'forme_figee'
   | 'operande_pays' | 'rayon_sous_minimum';
 
 export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
@@ -220,6 +222,8 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
   zone_introuvable: 'Zone introuvable dans cet espace.',
   zone_referencee: 'Cette zone est utilisée par un plan, un jeu de zones ou une autre zone : elle ne peut pas être recalculée.',
   forme_vide: 'Aucun territoire français dans cette forme : rien à enregistrer.',
+  // C20 round 1 : une intersection vide de zones françaises n'est pas une forme hors de France.
+  intersection_vide: 'Les zones cochées n’ont aucune partie commune.',
   forme_figee: 'Cette zone a une forme figée (dessin, import, isochrone, capture, combinaison ou zone nationale) : elle ne se recalcule pas.',
   operande_pays: 'Une zone nationale (France métropolitaine ou entière) ne se combine pas avec une autre zone : '
     + 'combinez des zones locales, ou analysez la zone nationale telle quelle.',

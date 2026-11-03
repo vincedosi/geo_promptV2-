@@ -1,5 +1,5 @@
 import {
-  basculerDansSelection, libelleSelection, messageZoneCreee, nomZoneCreee, operationPossible, selectionExistante,
+  MESSAGE_TROP_DE_ZONES, basculerDansSelection, libelleSelection, messageZoneCreee, nomZoneCreee, operationPossible, selectionExistante,
 } from './operations-zones';
 
 const NOMS = new Map([['a', 'Bretagne'], ['b', 'Finistère']]);
@@ -9,6 +9,13 @@ describe('operations-zones (ZonesOperations.tsx)', () => {
     expect([1, 2, 3].map((n) => operationPossible('union', n))).toEqual([false, true, true]);
     expect([1, 2, 3].map((n) => operationPossible('difference', n))).toEqual([false, true, true]);
     expect([1, 2, 3].map((n) => operationPossible('intersection', n))).toEqual([false, true, true]);
+  });
+
+  it('C20 round 1 : 20 zones au plus pour les trois opérations, la raison est dite', () => {
+    for (const op of ['union', 'intersection', 'difference'] as const) {
+      expect([20, 21].map((n) => operationPossible(op, n)), op).toEqual([true, false]);
+    }
+    expect(MESSAGE_TROP_DE_ZONES).toBe('Cochez 20 zones au plus.');
   });
 
   it('noms de la zone créée, au singulier et au pluriel, id tronqué pour un nom inconnu', () => {

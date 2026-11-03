@@ -3,10 +3,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input
 import type { Subscription } from 'rxjs';
 import { ZonesApi } from '../../data/zones.api';
 import {
-  MESSAGE_RESOLUTION_ECHOUEE, OPERATIONS_ZONES, ORDRE_OPERATIONS, type OperationZones,
+  MESSAGE_RESOLUTION_ECHOUEE, MESSAGE_TROP_DE_ZONES, OPERATIONS_ZONES, ORDRE_OPERATIONS, type OperationZones,
   libelleSelection, messageZoneCreee, nomDansSelection, nomZoneCreee, operationPossible,
 } from '../../logique/zones/operations-zones';
 import { messageErreurZone } from '../../logique/zones/perimetre-recette';
+import { MAX_ZONES_COMBINAISON } from '../../logique/zones/recette';
 
 /**
  * La barre des opérations booléennes au-dessus de « Mes zones » — `ZonesOperations.tsx` (lot 4, T14), textes exacts.
@@ -60,6 +61,9 @@ import { messageErreurZone } from '../../logique/zones/perimetre-recette';
         @if (selection().length < 2) {
           <div data-aide class="mt-2 text-[11px] text-tertiary">Cochez au moins deux zones. L’ordre compte : la première est la base.</div>
         }
+        @if (selection().length > maxZones) {
+          <div data-aide-max class="mt-2 text-[11px] text-tertiary">{{ messageTropDeZones }}</div>
+        }
         @if (erreur(); as e) {
           <div data-erreur role="alert" class="erreur mt-2 rounded-[4px] px-[9px] py-[7px] text-[11px] leading-[1.5] text-danger">{{ e }}</div>
         }
@@ -96,6 +100,8 @@ export class OperationsZonesComponent {
   protected readonly erreur = signal<string | null>(null);
   private abonnement: Subscription | null = null;
 
+  protected readonly maxZones = MAX_ZONES_COMBINAISON;
+  protected readonly messageTropDeZones = MESSAGE_TROP_DE_ZONES;
   protected readonly compte = computed(() => libelleSelection(this.selection().length));
   protected readonly base = computed(() => nomDansSelection(this.noms(), this.selection()[0]));
   protected readonly boutons = computed(() => ORDRE_OPERATIONS.map((op) => {

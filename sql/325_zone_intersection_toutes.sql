@@ -47,7 +47,7 @@ begin
   for v_z in
     select ST_MakeValid(z.geometry) from public.custom_geo_zones z
      where z.id = any (p_zone_ids)
-     order by ST_Area(Box2D(z.geometry)::geometry)
+     order by ST_Area(Box2D(z.geometry)::geometry), z.id   -- z.id : ordre total, résultat stable (round 1)
   loop
     v_trouvees := v_trouvees + 1;
     if v_vide then
