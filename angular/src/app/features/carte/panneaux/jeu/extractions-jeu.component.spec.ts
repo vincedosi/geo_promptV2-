@@ -48,6 +48,25 @@ describe('mg-extractions-jeu', () => {
       'The Trade Desk : polygones 1, 99,7 % (simplifié à 25 m : 66 000 → 18 000 sommets, 400 habitants de la zone perdus, 30 hors zone inclus)');
   });
 
+  /** D37 : une version TTD au polygone portant la simplification donnée. */
+  const polygone = (simplification: Record<string, number>) => ({ ...version(1), plateformes: [{
+    plateforme: 'ttd', maille: 'polygone', seuil: 20, rayon_m: null, exacte: false, n_unites: 1, taux_utile: 99.7, simplification,
+  }] });
+
+  it('D37 : des morceaux de moins de 0,04 km² retirés se disent après les sommets', async () => {
+    const { el } = await ouvert([polygone({ tolerance_m: 50, morceau_min_km2: 0.04, morceaux_retires: 7, sommets_avant: 23073,
+      morceaux_avant: 565, sommets: 19542, morceaux: 558, perdue: 28567, gagnee: 37562 })]);
+    expect(texte(el, '[data-version="1"] [data-resume]')?.replace(/\s/g, ' ')).toBe(
+      'The Trade Desk : polygones 1, 99,7 % (simplifié à 50 m : 23 073 → 19 542 sommets, 7 morceaux de moins de 0,04 km² retirés, '
+      + '28 567 habitants de la zone perdus, 37 562 hors zone inclus)');
+  });
+
+  it('D37 : une forme envoyée identique à la zone (rien retiré à 50 m) ne dit aucune simplification', async () => {
+    const inchangee = await ouvert([polygone({ tolerance_m: 50, morceau_min_km2: 0.04, morceaux_retires: 0, sommets_avant: 500,
+      morceaux_avant: 1, sommets: 500, morceaux: 1, perdue: 0, gagnee: 0 })]);
+    expect(texte(inchangee.el, '[data-version="1"] [data-resume]')).toBe('The Trade Desk : polygones 1, 99,7 %');
+  });
+
   it('T5 (A-14) : sous chaque version, ses fichiers par plateforme — l’annonce « arrivent avec les exports » a disparu', async () => {
     const { el } = await ouvert([version(2), version(1)]);
     expect(el.textContent).not.toContain('arrivent avec les exports');

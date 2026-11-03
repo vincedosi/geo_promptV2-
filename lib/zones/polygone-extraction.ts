@@ -1,7 +1,7 @@
 /**
  * @file lib/zones/polygone-extraction.ts — A7 (sql/312) : la forme envoyée en maille POLYGONE, à l'extraction d'un jeu
- * de zone. La base la simplifie (`simplification_polygone`, Douglas-Peucker à la tolérance de `reglages_conversion`) et
- * en rend la mesure ; ce module dit, sans I/O, si elle dépasse les bornes de la plateforme (refus) et si la perte de
+ * de zone. La base la simplifie (`simplification_polygone_plateforme` : depuis D37, sql/340, TOUJOURS à 50 m, puis
+ * morceaux de moins de 0,04 km² retirés — deux réglages de `reglages_conversion`) et en rend la mesure ; ce module dit, sans I/O, si elle dépasse les bornes de la plateforme (refus) et si la perte de
  * population induite doit être affichée (avertissement).
  *
  * Serveur seulement : l'écran ⑤ ne rejoue pas cette règle (la mesure exige la base), il AFFICHE l'avertissement figé
@@ -19,10 +19,15 @@ import type { PlateformeGeo } from './plateformes';
  */
 export interface MesureSimplification {
   /**
-   * Tour 1 (sql/313) : le palier RETENU — 0 si la forme était déjà sous les bornes (aucune simplification), sinon le
-   * plus fin des paliers de `reglages_conversion` qui la fait passer sous les bornes, ou le plus grossier si aucun.
+   * D37 (sql/340) : la tolérance appliquée, `reglages_conversion.simplification_polygone_m` (50 m), pour TOUTE forme.
+   * Avant D37 (sql/313) : le palier retenu, 0 sans simplification — une extraction figée avant D37 peut le porter.
    */
   tolerance_m: number;
+  /** D37 : surface minimale d'un morceau (km², `polygone_morceau_min_km2`) ; absent avant D37. */
+  morceau_min_km2?: number;
+  /** D37 : morceaux retirés parce que plus petits que `morceau_min_km2` (leur population est dans `perdue`). */
+  morceaux_retires?: number;
+  /** La forme envoyée diffère de la zone (sommets ou morceaux retirés). */
   simplifiee: boolean;
   /** Tour 1 : la forme envoyée passe sous les bornes lues par la base (faux = refus). Absent avant sql/313. */
   sous_bornes?: boolean;

@@ -205,12 +205,19 @@ function textePopMinUnite(a: Avertissement, maille: Maille, limite: string): str
 
 /**
  * A7 (tour 1) : la simplification figée d'un polygone, dite dans la liste des versions de ⑤ — « simplifié à 50 m :
- * 66 000 → 18 000 sommets, 400 habitants de la zone perdus, 30 hors zone inclus ». `null` sans simplification
- * (tolérance 0, ou extraction d'avant A7).
+ * 66 000 → 18 000 sommets, 400 habitants de la zone perdus, 30 hors zone inclus ». D37 (sql/340) : les morceaux de
+ * moins d'un carreau retirés se disent après les sommets — « 3 morceaux de moins de 0,04 km² retirés ». `null` sans
+ * simplification (tolérance 0, extraction d'avant A7, ou forme envoyée identique à la zone : rien retiré à 50 m).
  */
-export function texteSimplification(s: { tolerance_m: number; sommets_avant: number; sommets: number; perdue: number; gagnee: number } | undefined): string | null {
+export function texteSimplification(s: {
+  tolerance_m: number; sommets_avant: number; sommets: number; perdue: number; gagnee: number;
+  morceau_min_km2?: number; morceaux_retires?: number;
+} | undefined): string | null {
   if (!s || !(s.tolerance_m > 0)) return null;
+  const retires = s.morceaux_retires ?? 0;
+  if (s.sommets === s.sommets_avant && retires === 0) return null;
   return `simplifié à ${formaterNombre(s.tolerance_m)} m : ${formaterNombre(s.sommets_avant)} → ${formaterNombre(s.sommets)} sommets, `
+    + (retires > 0 ? `${formaterNombre(retires)} morceaux de moins de ${formaterNombre(s.morceau_min_km2)} km² retirés, ` : '')
     + `${formaterNombre(s.perdue)} habitants de la zone perdus, ${formaterNombre(s.gagnee)} hors zone inclus`;
 }
 

@@ -23,7 +23,9 @@ import { psql, psqlBrut, psqlLignes } from './_psql';
 // définition (blocs) et la colonne `zone_set_extraction_unites.bloc` — rejouées après 277-278, 312 (qui crée
 // `forme_simplifiee`) et 313 (tolérance retenue), l'empreinte est celle de la base.
 const MIGRATION = ['277_jeux_de_zone.sql', '278_jeux_de_zone_cp_par_plateforme.sql', '312_polygone_sommets_morceaux.sql',
-  '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql', '319_decoupage_blocs.sql']
+  '313_polygone_paliers_tolerance.sql', '317_plan_par_plateforme.sql', '319_decoupage_blocs.sql',
+  // D37 : sql/340 porte la DERNIÈRE définition de creer_extraction_jeu_zone (morceau minimal) — rejouée en dernier.
+  '340_polygone_simplifie_50m.sql']
   .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join(';\n');
 
 /** « CIRFA BRETAGNE », zone de l'espace interne présente dans le dump local. */
@@ -72,8 +74,8 @@ const RESUME = `'{"n_cp":2,"n_retenus":1,"taux_utile":90,"part_plan_en_zone":60,
 const extraire = (u: string, cp = CP) => `select public.creer_extraction_jeu_zone('${JEU}', ${cp}, ${u}, ${RESUME});`;
 
 /** Le même résumé, la plateforme polygone portant la tolérance RETENUE par la mesure (A7 tour 1, sql/313). */
-const resumeTolerance = (t: number) => RESUME.replace('{"plateforme":"ttd","n_unites":1}',
-  `{"plateforme":"ttd","n_unites":1,"simplification":{"tolerance_m":${t}}}`);
+const resumeTolerance = (t: number, morceauMin?: number) => RESUME.replace('{"plateforme":"ttd","n_unites":1}',
+  `{"plateforme":"ttd","n_unites":1,"simplification":{"tolerance_m":${t}${morceauMin === undefined ? '' : `,"morceau_min_km2":${morceauMin}`}}}`);
 
 describe('sql/277-278 — jeux de zone', () => {
   it('la migration rejouée deux fois : empreinte identique, et identique à la base', () => {
@@ -175,6 +177,23 @@ describe('sql/277-278 — jeux de zone', () => {
     // Même contenu, autre tolérance : une autre forme, donc une nouvelle version (et non un `deja_extraite`).
     expect(JSON.parse(c)).toMatchObject({ deja_extraite: false, version: 2 });
     expect(formes).toBe('true,true');
+  });
+
+  it('D37 : le morceau minimal du RÉSUMÉ fige forme_extraction_polygone et entre dans l’empreinte', () => {
+    const lignes = psqlLignes(`begin; ${JEU_DE_ZONE}
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(50)});
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(50, 0.04)});
+      select public.creer_extraction_jeu_zone('${JEU}', ${CP}, ${unites(CERCLES)}, ${resumeTolerance(50, 0.04)});
+      select ST_Equals(e.forme, public.forme_extraction_polygone(z.geometry, 50, 0.04))::text
+        from public.zone_set_extractions e, public.custom_geo_zones z
+       where e.zone_set_id = '${JEU}' and z.id = '${ZONE}' and e.version = 2;
+      rollback;`);
+    const [a, b, c, forme] = lignes.slice(-4);
+    expect(JSON.parse(a)).toMatchObject({ deja_extraite: false, version: 1 });
+    // Même tolérance, morceau minimal en plus : une autre empreinte, donc une nouvelle version.
+    expect(JSON.parse(b)).toMatchObject({ deja_extraite: false, version: 2 });
+    expect(JSON.parse(c)).toMatchObject({ deja_extraite: true, version: 2 });
+    expect(forme).toBe('true');
   });
 
   it('extraction : une unité changée → nouvelle version ; une unité ne se modifie pas', () => {

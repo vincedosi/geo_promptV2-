@@ -428,8 +428,8 @@ describe('A7 — polygone : simplifié, sommets et morceaux contrôlés contre l
   const POI_2000 = { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 500, perimetre: { type: 'departement', code: '31' } };
   const simplification = (p: Record<string, unknown> = {}) => ({
     data: {
-      tolerance_m: 50, simplifiee: true, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000, morceaux: 2_000,
-      carreaux_bande: 900, perdue: 400, gagnee: 30, min_menages: 0, seuil_perte_affichee: 0.1, ...p,
+      tolerance_m: 50, morceau_min_km2: 0.04, simplifiee: true, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000,
+      morceaux: 2_000, morceaux_retires: 0, carreaux_bande: 900, perdue: 400, gagnee: 30, min_menages: 0, seuil_perte_affichee: 0.1, ...p,
     },
     error: null,
   });
@@ -446,23 +446,57 @@ describe('A7 — polygone : simplifié, sommets et morceaux contrôlés contre l
     });
     expect(Number(r.couverte) + Number(r.manques)).toBe(r.population);
     expect(argsCreation().p_unites).toEqual([{ plateforme: 'ttd', maille: 'polygone', retenu: true, pop_en_zone: 9_600, pop_totale: 9_630, part: 99.7 }]);
+    // D37 : tolérance ET morceau minimal figés (la RPC d'écriture les relit), morceaux retirés dits.
     expect(r.simplification).toEqual({
-      tolerance_m: 50, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000, morceaux: 2_000, perdue: 400, gagnee: 30,
+      tolerance_m: 50, morceau_min_km2: 0.04, morceaux_retires: 0, sommets_avant: 66_000, morceaux_avant: 2_000, sommets: 18_000,
+      morceaux: 2_000, perdue: 400, gagnee: 30,
     });
     expect(r.avertissements).toEqual([{ code: 'perte_simplification', limite: 0.1, valeur: 4, n: 400 }]);
   });
 
-  it('zone importée à 500 sommets, déjà sous les bornes : AUCUNE simplification (tolérance 0), bilan exact, aucun avertissement', async () => {
+  it('zone importée à 500 sommets, tous significatifs : rien de retiré à 50 m (forme inchangée), bilan exact, aucun avertissement', async () => {
     jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], { v: 1, type: 'import' }, [ttdPolygone]);
     etat.reponses.simplification_polygone_plateforme = simplification({
-      tolerance_m: 0, simplifiee: false, sous_bornes: true, sommets_avant: 500, morceaux_avant: 1, sommets: 500, morceaux: 1,
+      simplifiee: false, sous_bornes: true, sommets_avant: 500, morceaux_avant: 1, sommets: 500, morceaux: 1,
       carreaux_bande: 0, perdue: 0, gagnee: 0,
     });
     expect((await extraire()).status).toBe(201);
     const r = argsCreation().p_resume.plateformes[0];
     expect(r).toMatchObject({ exacte: true, couverte: 10_000, manques: 0, hors_zone: 0 });
-    expect(r.simplification).toMatchObject({ tolerance_m: 0, sommets_avant: 500, sommets: 500, perdue: 0 });
+    expect(r.simplification).toMatchObject({ tolerance_m: 50, morceau_min_km2: 0.04, morceaux_retires: 0, sommets_avant: 500, sommets: 500, perdue: 0 });
     expect(r.avertissements).toEqual([]);
+  });
+
+  it('D37 : des îlots de moins de 0,04 km² retirés — comptés, leur population dans la perte, affichée', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], { v: 1, type: 'import' }, [ttdPolygone]);
+    etat.reponses.simplification_polygone_plateforme = simplification({
+      sommets_avant: 600, morceaux_avant: 4, sommets: 120, morceaux: 1, morceaux_retires: 3, carreaux_bande: 12, perdue: 150, gagnee: 0,
+    });
+    expect((await extraire()).status).toBe(201);
+    const r = argsCreation().p_resume.plateformes[0];
+    expect(r.simplification).toMatchObject({ morceaux_avant: 4, morceaux: 1, morceaux_retires: 3, perdue: 150 });
+    expect(r).toMatchObject({ exacte: false, manques: 150, couverte: 9_850 });
+    expect(r.avertissements).toEqual([{ code: 'perte_simplification', limite: 0.1, valeur: 1.5, n: 150 }]);
+  });
+
+  it('D37 : tous les morceaux sous 0,04 km² — 422 morceaux_tous_retires chiffré (avant → après), rien d’écrit', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], { v: 1, type: 'import' }, [ttdPolygone]);
+    etat.reponses.simplification_polygone_plateforme = { data: { refus: 'morceaux_tous_retires', morceaux_avant: 3, morceau_min_km2: 0.04 }, error: null };
+    const r = await extraire();
+    expect(r.status).toBe(422);
+    const corps = await r.json();
+    expect(corps).toMatchObject({ refus: 'morceaux_tous_retires', plateforme: 'ttd', morceaux_avant: 3, morceaux: 0, morceau_min_km2: 0.04 });
+    expect(corps.error).toBe('ttd — Les 3 morceaux de la zone font tous moins de 0,04 km² (un carreau) : la forme envoyée au polygone '
+      + 'en garderait 0. Agrandissez la zone, ou choisissez une autre maille.');
+    expect(etat.rpcs.map((x) => x.nom)).not.toContain('creer_extraction_jeu_zone');
+  });
+
+  it('D37 : au-dessus de la borne avec des morceaux retirés — le refus dit le retrait', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], POI_2000, [ttdPolygone]);
+    etat.reponses.simplification_polygone_plateforme = simplification({ sommets: 34_000, morceaux_avant: 2_010, morceaux_retires: 10 });
+    const corps = await (await extraire()).json();
+    expect(corps).toMatchObject({ refus: 'polygone_trop_lourd', morceaux_retires: 10 });
+    expect(corps.error.replace(/\s/g, ' ')).toMatch(/^ttd — Même simplifié à 50 m \(10 morceaux de moins de 0,04 km² retirés\), le polygone compte 34 000 sommets/);
   });
 
   it('au-dessus de la borne APRÈS simplification : 422 chiffré (obtenu, admis, à vérifier), rien d’écrit', async () => {

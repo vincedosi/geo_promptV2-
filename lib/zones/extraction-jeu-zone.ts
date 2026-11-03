@@ -118,9 +118,10 @@ interface ResumePlateforme {
    */
   somme_disques?: number;
   /**
-   * A7 (sql/312) : maille polygone — la forme envoyée a été simplifiée (tolérance du réglage) : sommets et morceaux
-   * avant / après, habitants de la zone perdus et habitants hors zone gagnés. La forme figée (`zone_set_extractions.forme`)
-   * est la forme simplifiée ; les chiffres de la zone (`population`, `couverte`…) restent ceux de la zone.
+   * A7 (sql/312) : maille polygone — la forme envoyée a été simplifiée (D37, sql/340 : 50 m, morceaux de moins de
+   * 0,04 km² retirés) : sommets et morceaux avant / après, morceaux retirés, habitants de la zone perdus et habitants
+   * hors zone gagnés. La forme figée (`zone_set_extractions.forme`) est la forme envoyée ; la zone enregistrée ne change
+   * pas, et les chiffres de la zone (`population`, `couverte`…) restent ceux de la zone.
    */
   simplification?: Omit<MesureSimplification, 'simplifiee' | 'seuil_perte_affichee' | 'sous_bornes'>;
   /**
@@ -264,9 +265,11 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
         ? { pop_en_zone: simplifie.couverte, pop_totale: simplifie.achetee, part: simplifie.taux_utile }
         : { pop_en_zone: forme.population, pop_totale: forme.population, part: 100 }),
     }];
-    // `tolerance_m` (le palier retenu, 0 sans simplification) est relu par la RPC pour figer CETTE forme (tour 1, M-2).
+    // `tolerance_m` et `morceau_min_km2` (D37) sont relus par la RPC pour figer CETTE forme (tour 1, M-2).
     const simplification = {
-      tolerance_m: m.tolerance_m, sommets_avant: m.sommets_avant, morceaux_avant: m.morceaux_avant, sommets: m.sommets,
+      tolerance_m: m.tolerance_m,
+      ...(m.morceau_min_km2 !== undefined ? { morceau_min_km2: m.morceau_min_km2, morceaux_retires: m.morceaux_retires ?? 0 } : {}),
+      sommets_avant: m.sommets_avant, morceaux_avant: m.morceaux_avant, sommets: m.sommets,
       morceaux: m.morceaux, perdue: m.perdue, gagnee: m.gagnee,
     };
     return {
@@ -283,7 +286,10 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   return { ok: true, unites, populations: unites.map(() => popTotaleForme), resume: { ...bilan, plateforme: c.plateforme, avertissements: verifierLimites(bilan, regle), ...aVerifier, min_menages: forme.min_menages } };
 }
 
-/** Les refus de `simplification_polygone_plateforme` : ceux de la couverture, et la règle polygone absente du registre. */
+/**
+ * Les refus de `simplification_polygone_plateforme` : ceux de la couverture, et la règle polygone absente du registre
+ * (`morceaux_tous_retires`, D37, est traité à part : son message porte les nombres).
+ */
 const MESSAGES_REFUS_POLYGONE = {
   ...MESSAGES_REFUS_COUVERTURE,
   regle_introuvable: 'Cette plateforme n’achète pas au polygone : réglez à nouveau le jeu avant d’extraire.',
@@ -297,9 +303,9 @@ function texteDepassement(d: DepassementPolygone, premier: boolean): string {
 }
 
 /**
- * A7 (sql/312, tour 1 sql/313) : la forme mesurée par la base (`simplification_polygone_plateforme`) — telle quelle si
- * elle est déjà sous les bornes de la plateforme, sinon au palier de tolérance le plus fin qui l'y fait passer — puis
- * ses sommets et morceaux contrôlés contre ces bornes (registre relu ici). Un dépassement REFUSE l'extraction (422
+ * A7 (sql/312, D37 sql/340) : la forme mesurée par la base (`simplification_polygone_plateforme`) — toujours simplifiée
+ * à 50 m, morceaux de moins de 0,04 km² retirés (réglages en base) — puis ses sommets et morceaux contrôlés contre les
+ * bornes de la plateforme (registre relu ici). Tous les morceaux retirés : 422 `morceaux_tous_retires`, chiffré. Un dépassement REFUSE l'extraction (422
  * `polygone_trop_lourd`) avec les nombres obtenus et admis — la plateforme rejetterait le fichier. Un refus de la RPC
  * est préfixé de la plateforme, comme ceux de la couverture.
  */
@@ -310,12 +316,27 @@ async function mesurerPolygone(
     p_zone_id: ctx.jeu.custom_geo_zone_id ?? '', p_org_id: ctx.jeu.org_id, p_cible: ctx.jeu.cible, p_plateforme: plateforme,
   });
   const m = rpcJson<MesureSimplification & { refus?: string }>(r.data);
+  // D37 (sql/340) : tous les morceaux sous la surface minimale — la forme envoyée serait vide ; refus chiffré (avant → après).
+  if (!r.error && m?.refus === 'morceaux_tous_retires') {
+    const min = formaterNombre(Number(m.morceau_min_km2));
+    return {
+      ok: false,
+      reponse: NextResponse.json({
+        error: `${plateforme} — Les ${formaterNombre(m.morceaux_avant)} morceaux de la zone font tous moins de ${min} km² (un carreau) : `
+          + `la forme envoyée au polygone en garderait 0. Agrandissez la zone, ou choisissez une autre maille.`,
+        refus: 'morceaux_tous_retires', plateforme, morceaux_avant: m.morceaux_avant, morceaux: 0, morceau_min_km2: m.morceau_min_km2,
+      }, { status: 422 }),
+    };
+  }
   if (r.error || !m || m.refus !== undefined || typeof m.sommets !== 'number' || typeof m.morceaux !== 'number') {
     return refusDe(plateforme, repondreCouverture(r, MESSAGES_REFUS_POLYGONE, 'zones/extractions polygone', ECHEC));
   }
   const depassements = depassementsPolygone(m, regle);
   if (depassements.length > 0) {
-    const forme = m.tolerance_m > 0 ? `Même simplifié à ${formaterNombre(m.tolerance_m)} m, le polygone compte` : 'Le polygone compte';
+    // D37 : des morceaux retirés se disent aussi (ils ont déjà réduit le compte).
+    const retires = (m.morceaux_retires ?? 0) > 0
+      ? ` (${formaterNombre(m.morceaux_retires)} morceaux de moins de ${formaterNombre(m.morceau_min_km2)} km² retirés)` : '';
+    const forme = m.tolerance_m > 0 ? `Même simplifié à ${formaterNombre(m.tolerance_m)} m${retires}, le polygone compte` : 'Le polygone compte';
     const message = `${plateforme} — ${forme} `
       + `${depassements.map((d, i) => texteDepassement(d, i === 0)).join(' et ')} : réduisez la zone, ou choisissez une autre maille.`;
     return {
@@ -323,6 +344,7 @@ async function mesurerPolygone(
       reponse: NextResponse.json({
         error: message, refus: 'polygone_trop_lourd', plateforme, tolerance_m: m.tolerance_m,
         sommets_avant: m.sommets_avant, morceaux_avant: m.morceaux_avant, sommets: m.sommets, morceaux: m.morceaux,
+        ...(m.morceaux_retires !== undefined ? { morceaux_retires: m.morceaux_retires } : {}),
         sommets_max: regle.polygone_sommets_max ?? null, morceaux_max: regle.polygone_morceaux_max ?? null, depassements,
       }, { status: 422 }),
     };

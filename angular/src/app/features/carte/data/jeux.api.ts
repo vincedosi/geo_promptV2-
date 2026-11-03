@@ -156,9 +156,12 @@ export interface BlocExtraction {
   n_inconnues?: number;
 }
 
-/** Ce que l'extraction a figé de la simplification du polygone (A7). */
+/** Ce que l'extraction a figé de la simplification du polygone (A7 ; D37, sql/340 : 50 m, petits morceaux retirés). */
 export interface SimplificationPolygone {
   tolerance_m: number;
+  /** D37 : surface minimale d'un morceau (km²) et morceaux retirés ; absents d'une extraction d'avant D37. */
+  morceau_min_km2?: number;
+  morceaux_retires?: number;
   sommets_avant: number;
   morceaux_avant: number;
   sommets: number;
