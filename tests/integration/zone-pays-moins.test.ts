@@ -105,7 +105,7 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
     const r = await couverture(zones.metroMoinsLyon, 'forme');
     expect(r.refus).toBeUndefined();
     expect(r.pays).toBe('METRO');
-    expect(national.population).toBe(62_528_975);
+    expect(national.population).toBe(62_592_659);  // C25 (E7) : 62 528 975 avant le rattachement des carreaux sans CP
     // Le rayon compte aussi ses carreaux sans CP (C25) : absents du national, ils ne sont pas retirés, et sont dits.
     const rayonAuCp = rayonSeul.population - rayonSeul.hors_territoire.population;
     expect(r.retire?.population).toBe(rayonAuCp);
@@ -134,7 +134,7 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
     const national = new Map((await couverture(zones.metro, 'cp')).lignes.map((l) => [l.code, l]));
     const r = await couverture(zones.metroMoinsLyon, 'cp');
     const retire = carreauxDe([zones.lyon], 'code_postal');
-    const brut = psql(`select string_agg(code_postal || ':' || (populations->>'ind'), ',') from public.cp_population_totale
+    const brut = psql(`select string_agg(code_postal || ':' || (populations->>'ind'), ',') from public.cp_population_totale_e7
                         where code_postal = any(array['${[...retire.keys()].join("','")}'])`);
     const totaux = new Map(brut.split(',').map((x) => { const [c, p] = x.split(':'); return [c, Number(p)]; }));
     const aCheval = r.lignes.filter((l) => retire.has(l.code));
@@ -158,7 +158,7 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
     const retire = carreauxDe([zones.lyon], 'code_departement');
     const n69 = national.lignes.find((l) => l.code === '69')!;
     const l69 = r.lignes.find((l) => l.code === '69')!;
-    const brut69 = Number(psql(`select populations->>'ind' from public.unite_population_totale where maille = 'departement' and code = '69'`));
+    const brut69 = Number(psql(`select populations->>'ind' from public.unite_population_totale_e7 where maille = 'departement' and code = '69'`));
     const reste = brut69 - retire.get('69')!;
     expect([Math.floor(reste), Math.ceil(reste)]).toContain(l69.pop_en_zone);
     expect(l69.pop_en_zone!).toBeLessThan(n69.pop_en_zone!);
@@ -180,7 +180,7 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
     expect(union).toBeLessThan(lyon + est);  // ils se chevauchent bien
     expect(r.retire?.population).toBe(Math.round(union));
     // La population nationale BRUTE (une somme de demi-habitants) : le résultat est l'arrondi de la différence brute.
-    const nationalBrut = Number(psql(`select sum((populations->>'ind')::numeric) from public.cp_population_totale
+    const nationalBrut = Number(psql(`select sum((populations->>'ind')::numeric) from public.cp_population_totale_e7
                                        where public.pays_contient_code('METRO', code_postal)`));
     expect(Math.abs(nationalBrut - national.population)).toBeLessThanOrEqual(0.5);
     expect(r.population).toBe(Math.round(nationalBrut - union));
@@ -217,7 +217,7 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
              || '|' || (select count(*) from public.custom_geo_zone_codes where zone_id = '${zones.metroMoinsLyon}');
       rollback;`);
     const [national, moins, codes] = r.split('|').map(Number);
-    expect(national).toBe(5956);
+    expect(national).toBe(5957);  // C25 (E7) : 5 956 avant (29259 reçoit son premier carreau)
     expect(moins).toBeLessThan(national);
     expect(moins).toBeGreaterThan(national - 200);
     expect(codes).toBe(0);

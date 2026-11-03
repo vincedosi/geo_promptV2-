@@ -146,9 +146,13 @@ describe('T1 — codes_postaux_de_zone_jsonb : la règle de la couverture', () =
 });
 
 describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
-  /** Les références nationales, lues dans les dénominateurs (mesurées le 30/10 : 5 956 CP, 62 528 975 hab.). */
+  /**
+   * Les références nationales, lues dans les dénominateurs (mesurées le 30/10 : 5 956 CP, 62 528 975 hab.). C25 (E7,
+   * sql/332) : le jumeau `cp_population_totale_e7` rattache les 3 926 carreaux sans CP au CP le plus proche — 5 957 CP
+   * (29259, un carreau de 2 hab., n'avait aucun carreau), 62 592 659 hab. = la somme des départements de métropole.
+   */
   const refMetro = () => psql(`select count(*) || '|' || round(sum((populations->>'ind')::numeric))
-                                 from public.cp_population_totale
+                                 from public.cp_population_totale_e7
                                 where code_postal not like '97%' and code_postal not like '98%';`).split('|').map(Number);
 
   it('recette `pays` METRO → une zone multipolygone, sans aucune région d’outre-mer', () => {
@@ -168,10 +172,10 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     expect(r.stderr).toContain('custom_geo_zones_recette_forme');
   });
 
-  it('telle quelle : la population nationale de la cible, somme de cp_population_totale hors outre-mer', async () => {
+  it('telle quelle : la population nationale de la cible, somme de cp_population_totale_e7 hors outre-mer', async () => {
     const [nCp, pop] = refMetro();
-    expect(nCp).toBe(5956);
-    expect(pop).toBe(62_528_975);
+    expect(nCp).toBe(5957);  // C25 : 5 956 avant E7
+    expect(pop).toBe(62_592_659);  // C25 : 62 528 975 avant E7 (+ 63 684 hab. des carreaux sans CP de métropole)
     const r = await couvertureZone(zones.metro, 'forme');
     expect(r.refus).toBeUndefined();
     expect(r.pays).toBe('METRO');
@@ -224,7 +228,7 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
     const user = psql(`select id from auth.users order by created_at limit 1;`);
     psql(`insert into public.organization_members (user_id, organization_id) values ('${user}', '${org}') on conflict do nothing;`);
     const o = JSON.parse(psql(`select public.compter_zone_pays('${zones.metro}', '${user}')::text;`)) as { count_cp: number; count_iris: number };
-    // Les CP de la couverture nationale (relecture 1) : 5 956, pas les 6 051 de ref_codes_postaux.
+    // Les CP de la couverture nationale (relecture 1) : 5 957 depuis C25 (5 956 avant), pas les 6 051 de ref_codes_postaux.
     expect(o.count_cp).toBe(refMetro()[0]);
     expect(o.count_iris).toBeGreaterThan(45_000);
     expect(psql(`select count(*) from public.custom_geo_zone_codes where zone_id = '${zones.metro}';`)).toBe('0');
@@ -248,7 +252,9 @@ describe('T2 — la zone pays et sa couverture nationale (sql/296)', () => {
       'sql/304_unite_groupe_cp.sql', 'sql/308_population_inconnue.sql', 'sql/309_inclusion_tolerance.sql',
       'sql/310_minimum_menages_conversion.sql', 'sql/324_arrondi_plus_fort_reste_pays.sql', 'sql/326_zone_pays_moins.sql',
       // C24 round 1 : sql/330 porte la dernière définition de `couverture_zone` — rejouée en dernier.
-      'sql/330_minimums_population_totale.sql']
+      'sql/330_minimums_population_totale.sql',
+      // C25 : sql/332 redéfinit `codes_postaux_de_zone_jsonb`, `compter_zone_pays` et `couverture_pays_moins_jsonb` (vue E7).
+      'sql/332_carreau_couverture_e7.sql']
       .map((f) => readFileSync(f, 'utf8')).join('\n');
     const r = psqlBrut(`${empreinte}\nbegin;\n${migrations}\n${empreinte}\nrollback;\n`);
     expect(r.status, r.stderr).toBe(0);

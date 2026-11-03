@@ -348,7 +348,7 @@ describe('zone pays (⑤ finitions, T2) : achetée au pays, unités figées', ()
     }
   }, LONG);
 
-  it('France métropolitaine, DV360 au CP et Meta au pays : plan CP des 5 956 codes, Meta au pays (FR)', async () => {
+  it('France métropolitaine, DV360 au CP et Meta au pays : plan CP des 5 957 codes, Meta au pays (FR)', async () => {
     const zoneMetro = await creerZonePays('METRO', org);
     const id = await jeuSur(zoneMetro, 'Métropole CP et pays', [
       { plateforme: 'dv360', maille: 'cp', seuil: 20 }, { plateforme: 'meta', maille: 'pays', seuil: 0 },
@@ -358,7 +358,7 @@ describe('zone pays (⑤ finitions, T2) : achetée au pays, unités figées', ()
     const { id: x } = await r.json() as { id: string };
     const { data: e, error } = await sb.from('zone_set_extractions').select('n_cp').eq('id', x).single();
     if (error) throw new Error(error.message);
-    expect(e!.n_cp).toBe(5956);
+    expect(e!.n_cp).toBe(5957);  // C25 (E7) : 5 956 avant (29259 reçoit son premier carreau)
     const { data: u } = await sb.from('zone_set_extraction_unites').select('code').eq('extraction_id', x).eq('maille', 'pays');
     expect(u).toEqual([{ code: 'FR' }]);
     // A2 : le groupe de Saint-Denis (une unité, un multiplicateur) développé en ses trois codes, au MÊME multiplicateur ;

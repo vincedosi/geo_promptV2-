@@ -153,8 +153,12 @@ describe('péremption (Review Focus 2, R-2)', () => {
     expect((await enCache(zone, org))?.cache).toBe(true);
     // Dans UNE transaction annulée : bande 0 « reconstruite » maintenant, certificat refait, puis lecture et calcul.
     // Une instruction par étape : une fonction STABLE voit l'instantané de SON instruction, pas l'écriture d'à côté.
+    // C25 (sql/332) : une bande reconstruite périme les lots E7 et les jumeaux (refus `_perime`) ; la reconstruction
+    // complète les rejoue après elle — ici à la même date `now()`, celle de la transaction, que le cache écrit reprend.
     const sortie = psql(`begin;
-      update public.carreau_couverture_bandes set construit_le = clock_timestamp() where bande = (select min(bande) from public.carreau_couverture_bandes);
+      update public.carreau_couverture_bandes set construit_le = now() where bande = (select min(bande) from public.carreau_couverture_bandes);
+      update public.carreau_couverture_e7_lots set construit_le = now();
+      update public.cp_population_totale_e7 set construit_le = now();
       select public.certifier_carreau_couverture();
       select coalesce(public.carreau_couverture_complete(), 'complete')
           || '|' || (public.couverture_zone_en_cache('${zone}', '${org}', 'ind', 'cp') is null)::text as a \\gset
@@ -178,15 +182,24 @@ describe('péremption (Review Focus 2, R-2)', () => {
     expect(sortie).toBe('true|couverture_non_construite');
   }, LONG);
 
-  it('le dénominateur CP est reconstruit APRÈS la base : le cache CP n’est plus servi, le calcul refuse (n° 6)', async () => {
+  // C25 (sql/332) : le jumeau `cp_population_totale_e7` est construit DEPUIS la base. Reconstruit après le chiffrage, il
+  // périme le cache (le calcul, lui, est valable) ; plus ancien que la base, il fait refuser (`_perime`).
+  it('le dénominateur CP est reconstruit APRÈS le chiffrage : le cache CP n’est plus servi ; plus ancien que la base, refus (n° 6)', async () => {
     await couvrir(zone, org);
     const sortie = psql(`begin;
-      update public.cp_population_totale set construit_le = clock_timestamp() + interval '1 hour'
-       where code_postal = (select min(code_postal) from public.cp_population_totale);
+      update public.cp_population_totale_e7 set construit_le = clock_timestamp() + interval '1 hour'
+       where code_postal = (select min(code_postal) from public.cp_population_totale_e7);
+      select (public.couverture_zone_en_cache('${zone}', '${org}', 'ind', 'cp') is null)::text
+          || '|' || coalesce(public.couverture_geometrie('${zone}', '${org}', 'ind', 'cp')->>'motif', 'aucun');
+      rollback;`);
+    expect(sortie).toBe('true|aucun');
+    const perime = psql(`begin;
+      update public.carreau_couverture_e7_lots set construit_le = clock_timestamp() + interval '1 hour'
+       where lot = (select min(lot) from public.carreau_couverture_e7_lots);
       select (public.couverture_zone_en_cache('${zone}', '${org}', 'ind', 'cp') is null)::text
           || '|' || (public.couverture_zone('${zone}', '${org}', 'ind', 'cp')->>'motif');
       rollback;`);
-    expect(sortie).toBe('true|denominateur_cp_plus_recent');
+    expect(perime).toBe('true|denominateur_cp_perime');
     expect((await enCache(zone, org))?.cache).toBe(true);
   }, LONG);
 });

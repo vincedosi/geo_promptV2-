@@ -80,18 +80,19 @@ describe('couverture_geometrie — Σ lignes + hors territoire = population (sql
  * sans CP, rattaché à C25), égal à round(Σ départements) − round(Σ CP), hors de ce ticket.
  */
 describe('couverture_pays_jsonb — lignes au plus fort reste (sql/324, C18 round 1)', () => {
+  // C25 (sql/332) : les dénominateurs lus sont les jumeaux `_e7`, ceux que `couverture_pays_jsonb` lit désormais.
   /** `lignes|écart à population|écart à l'arrondi du total brut|lignes hors floor/ceil|pop_totale ≠ pop_en_zone`. */
   function pays(code: string, cible: string, decoupage: 'cp' | 'departement'): string {
     const brut = decoupage === 'cp'
       ? `select cp.code_postal as code, case when v.m > 0 then coalesce((dm.populations->>'${cible}')::numeric, 0)
                                               else (cp.populations->>'${cible}')::numeric end as p
-           from public.cp_population_totale cp
-           left join public.denominateur_menages_min dm on v.m > 0 and dm.maille = 'cp' and dm.code = cp.code_postal
+           from public.cp_population_totale_e7 cp
+           left join public.denominateur_menages_min_e7 dm on v.m > 0 and dm.maille = 'cp' and dm.code = cp.code_postal
           where public.pays_contient_code('${code}', cp.code_postal)`
       : `select u.code, case when v.m > 0 then coalesce((dm.populations->>'${cible}')::numeric, 0)
                               else (u.populations->>'${cible}')::numeric end as p
-           from public.unite_population_totale u
-           left join public.denominateur_menages_min dm on v.m > 0 and dm.maille = 'departement' and dm.code = u.code
+           from public.unite_population_totale_e7 u
+           left join public.denominateur_menages_min_e7 dm on v.m > 0 and dm.maille = 'departement' and dm.code = u.code
           where u.maille = 'departement' and public.pays_contient_code('${code}', u.code)`;
     return psql(`
       with v as (select public.min_menages_de_cible('${cible}') as m),

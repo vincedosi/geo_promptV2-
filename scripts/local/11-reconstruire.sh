@@ -319,6 +319,24 @@ else
   echo "  déjà construit : $(n "public.denominateur_menages_min") lignes"
 fi
 
+# ── 7ter. LES CORRECTIONS E7 ET LES DÉNOMINATEURS JUMEAUX (sql/332, C25) ─────
+#
+# Commune dérivée de l'IRIS, département de la commune, CP le plus proche pour
+# les carreaux sans CP : colonnes `_e7` de `carreau_couverture` et jumeaux
+# `_e7` des dénominateurs, lus par le découpage. Périmés dès qu'une bande est
+# reconstruite (`base_couverture_e7_le`). ≈ 2 min 30. À fusionner au merge.
+etape "7ter/8 corrections E7 et dénominateurs jumeaux"
+e7_motif=$(sql "select coalesce(public.denominateur_menages_motif('cp'),
+                                case when public.denominateur_construit_le('cp') is null
+                                       or public.denominateur_construit_le('cp') < public.base_couverture_e7_le()
+                                     then 'denominateurs_e7_perimes' end, 'ok')" | tr -d ' \r')
+if [ "$e7_motif" != "ok" ]; then
+  echo "  à construire : ${e7_motif:-motif illisible}"
+  node scripts/construire_carreau_couverture_e7.mjs || { echo "ÉCHEC corrections E7" >&2; exit 1; }
+else
+  echo "  déjà construit : $(n "public.cp_population_totale_e7") CP"
+fi
+
 # ── 8. LA COUVERTURE PAR RAYON ──────────────────────────────────────────────
 #
 # ⚠ `--tout` N'EST PAS UN LUXE ICI, et c'est l'erreur la plus coûteuse du

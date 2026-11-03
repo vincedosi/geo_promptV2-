@@ -94,7 +94,7 @@ describe('A4 — « France entière » en maille département : 101 lignes, dont
     // Les 98 lignes chiffrées sont celles d'avant A4 : leur somme est celle des dénominateurs départementaux (arrondis
     // ligne à ligne). Les lignes inconnues n'y ajoutent rien — aucun habitant inventé.
     const connue = r.lignes.filter((l) => l.pop_totale !== null).reduce((t, l) => t + (l.pop_en_zone ?? 0), 0);
-    const denominateurs = Number(psql(`select sum((populations->>'ind')::numeric) from public.unite_population_totale where maille = 'departement';`));
+    const denominateurs = Number(psql(`select sum((populations->>'ind')::numeric) from public.unite_population_totale_e7 where maille = 'departement';`));
     expect(Math.abs(connue - denominateurs)).toBeLessThanOrEqual(98 / 2);
   }, LONG);
 
@@ -250,7 +250,7 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
   it('une ligne de cache département sans `n_inconnues` (d’avant sql/308) : NULL ; avec : servie (transaction annulée)', () => {
     const ecrire = (cles: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
-      select g.id, 'ind', 'departement', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+      select g.id, 'ind', 'departement', g.updated_at, public.base_couverture_e7_le(),  -- C25 (sql/332) : bandes ET lots E7
              -- A5 (sql/310) : un chiffrage porte aussi le minimum de ménages de sa cible (0 pour \`ind\`), sinon il n'est plus servi.
              jsonb_build_object('lignes', jsonb_build_array('{"code":"13","part":100,"part_brute":100}'::jsonb), 'min_menages', 0${cles}), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
@@ -289,7 +289,7 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
   it('cache : une zone locale à lignes inconnues jugées à une autre tolérance n’est plus servie (transaction annulée)', () => {
     const ecrire = (tolerance: string) => `
       insert into public.couverture_zone_cache as c (zone_id, cible, decoupage, zone_maj, base_construite_le, resultat, calcule_le)
-      select g.id, 'ind', 'commune', g.updated_at, (select max(b.construit_le) from public.carreau_couverture_bandes b),
+      select g.id, 'ind', 'commune', g.updated_at, public.base_couverture_e7_le(),  -- C25 (sql/332) : bandes ET lots E7
              jsonb_build_object('lignes', jsonb_build_array('{"code":"97120","part":null,"part_brute":null,"incluse":true}'::jsonb),
                                 'n_inconnues', 1, 'min_menages', 0${tolerance}), now()
         from public.custom_geo_zones g where g.id = '${ZONE}'
@@ -319,7 +319,9 @@ describe('A4 — sql/308 et sql/309 : réglage, cache et rejeu', () => {
       // C24 : sql/327 porte la dernière définition de `couverture_geometrie` (pop_totale_ind).
       '327_diffusion_population_totale.sql',
       // C24 round 1 : sql/330 redéfinit `couverture_geometrie` et `couverture_zone`.
-      '330_minimums_population_totale.sql']
+      '330_minimums_population_totale.sql',
+      // C25 : sql/332 redéfinit `couverture_geometrie` et `couverture_zone_en_cache` (vue E7, base_couverture_e7_le).
+      '332_carreau_couverture_e7.sql']
       .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
     const EMPREINTE = `select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)
                               || (select string_agg(t::text, ';' order by cle) from public.reglages_conversion t)) from pg_proc p

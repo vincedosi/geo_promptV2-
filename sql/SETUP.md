@@ -126,12 +126,14 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreau_couverture` | 266 | Une ligne étroite par carreau Filosofi (2 324 577) : centroïde 3857, CP canonique, IRIS, commune, département, 24 effectifs `real[]` (ordre `rang_pop`) ; construite par `scripts/construire_carreau_couverture.mjs` (≈ 5 min, psql), exclue de la sauvegarde avec son journal |
 | `carreau_couverture_bandes` | 266 | Journal des bandes de `carreau_couverture` ; `max(construit_le)` date la base pour le cache de couverture |
 | `carreau_couverture_controle` | 268 | Certificat de complétude de `carreau_couverture` (une ligne : comptes de `carreaux_filosofi`, de la table et du journal), posé en fin de construction ; `service_role` en lecture seule (seule `certifier_carreau_couverture` l'écrit) |
+| `carreau_couverture_e7` (vue), `carreau_couverture_e7_lots`, `unite_population_totale_e7`, `cp_population_totale_e7`, `denominateur_menages_min_e7` | 332 | C25 (E7) : colonnes `_e7` de `carreau_couverture` (commune = IRIS[0:5], département de la commune, CP le plus proche des carreaux sans CP), posées sur les seuls carreaux qui changent ; vue `coalesce(x_e7, x)` et dénominateurs jumeaux lus par le découpage (département majoritaire du CP). Remplis par `scripts/construire_carreau_couverture_e7.mjs`. À fusionner au merge |
 | `couverture_zone_cache` | 270 | Cache des chiffrages de couverture par (zone, cible, découpage) ; servi seulement si la zone est de l'espace et que sa forme et la base n'ont pas changé ; cascade à la suppression de la zone |
 
 ## Fonctions RPC actives (état final)
 
 | Fonction | Script | Description |
 |----------|--------|-------------|
+| `construire_carreau_couverture_e7()`, `construire_denominateurs_e7()`, `base_couverture_e7_le()`, `departement_de_commune()` | 332 | C25 (E7) : corrections par lots de `carreau_id`, dénominateurs jumeaux, date de la base (bandes et lots E7) ; les lecteurs du découpage lisent la vue `carreau_couverture_e7` et les jumeaux `_e7` |
 | `get_isochrone_battle()` | 042_v9 | Bataille Isochrones — palier-ASC, raw rings |
 | `calculate_coverage_per_group()` | 043 | Couverture dédupliquée par groupe (ST_UnaryUnion) |
 | `compute_coverage_fast()` | 035 | Couverture rapide (JSONB, ST_Intersects) |

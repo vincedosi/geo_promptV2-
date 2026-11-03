@@ -4,7 +4,7 @@
  * même cache.
  *
  * Ce que ce fichier prouve :
- *   - la composite de 13 000 km² (copiée dans un espace de test) rend ≈ 1 410 communes et 91 départements de population connue (mesure M3 du
+ *   - la composite de 13 000 km² (copiée dans un espace de test) rend ≈ 1 144 communes (1 410 avant C25) et 91 départements de population connue (mesure M3 du
  *     plan), plus les unités à population inconnue de 971/973 (A4 : 6 communes, 2 départements) ; chaque découpage est une PARTITION de la forme ; aucune part > 100 % ;
  *   - une zone couvrant Paris rend ses ARRONDISSEMENTS (751xx), jamais la commune 75056 : c'est la maille de
  *     `carreau_couverture.code_commune` (Q-B du plan : TikTok les accepte-t-il ? « À vérifier »);
@@ -88,13 +88,15 @@ afterAll(async () => {
 });
 
 describe('couverture_geometrie par commune et par département — composite 13 000 km² (M3)', () => {
-  it('commune : ≈ 1 410 communes, partition exacte, nommées', async () => {
+  it('commune : ≈ 1 144 communes, partition exacte, nommées', async () => {
     const forme = await couverture(zones.composite, 'forme');
     const r = await couverture(zones.composite, 'commune');
     expect(r.decoupage).toBe('commune');
-    // ≈ 1 410 communes de population connue + 6 communes de 971/973 à population inconnue (A4), lignes distinctes.
+    // C25 (E7, sql/332) : 1 410 avant, quand la commune était le premier code de `lcog_geo` ; 266 communes de bord n'y
+    // entraient que par 1 à 14 carreaux (519 en tout, 19 148 hab.) dont le centre est dans l'IRIS d'une commune voisine.
+    // ≈ 1 144 communes de population connue + 6 communes de 971/973 à population inconnue (A4), lignes distinctes.
     const connues = r.lignes.filter((l) => l.pop_totale !== null);
-    expect(Math.abs(connues.length - 1410)).toBeLessThanOrEqual(15);
+    expect(Math.abs(connues.length - 1144)).toBeLessThanOrEqual(15);
     expect(r.n_territoires).toBe(connues.length + 6);
     expect(r.n_inconnues).toBe(6);
     verifierPartition(r, forme);
@@ -150,17 +152,19 @@ describe('cache et fraîcheur des dénominateurs commune / département', () => 
     for (const d of ['forme', 'cp', 'iris', 'commune', 'departement']) expect(def, d).toContain(`'${d}'`);
   });
 
-  it('dénominateur reconstruit après la table étroite : refus, et le cache n\'est plus servi', () => {
+  // C25 (sql/332) : les dénominateurs sont les jumeaux `_e7`, construits DEPUIS la base (vue E7) ; la règle « plus récent
+  // que la base » est devenue « plus ancien que la base » (`_perime`). Le cas réel : un lot E7 rejoué sans les jumeaux.
+  it('base avancée après les jumeaux (lot E7 rejoué) : refus `_perime`, et le cache n\'est plus servi', () => {
     for (const maille of ['commune', 'departement']) {
       const r = psql(`begin;
         select public.couverture_zone('${zones.paris}', '${org}', 'ind', '${maille}') is not null;
-        update public.unite_population_totale set construit_le = clock_timestamp() + interval '1 hour'
-         where maille = '${maille}' and code = (select min(code) from public.unite_population_totale where maille = '${maille}');
+        update public.carreau_couverture_e7_lots set construit_le = clock_timestamp() + interval '1 hour'
+         where lot = (select min(lot) from public.carreau_couverture_e7_lots);
         select jsonb_build_object('calcul', public.couverture_geometrie('${zones.paris}', '${org}', 'ind', '${maille}'),
                                   'cache', public.couverture_zone_en_cache('${zones.paris}', '${org}', 'ind', '${maille}'))::text;
         rollback;`);
       expect(JSON.parse(r), maille).toEqual({
-        calcul: { refus: 'couverture_non_construite', motif: `denominateur_${maille}_plus_recent` }, cache: null,
+        calcul: { refus: 'couverture_non_construite', motif: `denominateur_${maille}_perime` }, cache: null,
       });
     }
   });

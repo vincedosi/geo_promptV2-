@@ -113,19 +113,19 @@ describe('A5 — rayon 3 km, cible « ménages pauvres » : le nombre de carreau
     // département (index), sans passer par la table de dénominateurs.
     const l = pauv.lignes[0]!;
     const attendu = Number(psql(`select round(coalesce(sum(cc.pops[(select rang_pop from public.cibles_exposition where code = 'men_pauv')]::numeric), 0))
-                                   from public.carreau_couverture cc
+                                   from public.carreau_couverture_e7 cc
                                   where cc.code_departement = '69' and cc.code_postal = '${l.code}'
                                     and cc.pops[(select rang_pop from public.cibles_exposition where code = 'men')] >= ${MIN};`));
     expect(Math.abs((l.pop_totale ?? 0) - attendu)).toBeLessThanOrEqual(1);
     // Sans minimum (population totale), la même zone garde le dénominateur de toujours.
     const ind = await couverture('ind', 'cp');
-    const tot = Number(psql(`select round((populations->>'ind')::numeric) from public.cp_population_totale where code_postal = '${l.code}';`));
+    const tot = Number(psql(`select round((populations->>'ind')::numeric) from public.cp_population_totale_e7 where code_postal = '${l.code}';`));
     expect(ind.lignes.find((x) => x.code === l.code)?.pop_totale).toBe(tot);
   }, LONG);
 
   it('la France de la cible (phrase de référence) compte les mêmes carreaux que le chiffre', async () => {
     const pauv = await couverture('men_pauv', 'forme');
-    const attendu = Number(psql(`select round(sum((populations->>'men_pauv')::numeric)) from public.denominateur_menages_min where maille = 'departement';`));
+    const attendu = Number(psql(`select round(sum((populations->>'men_pauv')::numeric)) from public.denominateur_menages_min_e7 where maille = 'departement';`));
     expect(pauv.reference.population_france).toBe(attendu);
   }, LONG);
 
@@ -157,8 +157,8 @@ describe('A5 — rayon 3 km, cible « ménages pauvres » : le nombre de carreau
 describe('A5 — le dénominateur filtré et le cache', () => {
   it('denominateur_menages_min est utilisable et compte, pour le Rhône, ses carreaux d’au moins 11 ménages', () => {
     expect(psql(`select coalesce(public.denominateur_menages_motif('cp'), 'ok');`)).toBe('ok');
-    const [a, b] = psql(`select (select n_carreaux from public.denominateur_menages_min where maille = 'departement' and code = '69')
-                         || '|' || (select count(*) from public.carreau_couverture
+    const [a, b] = psql(`select (select n_carreaux from public.denominateur_menages_min_e7 where maille = 'departement' and code = '69')
+                         || '|' || (select count(*) from public.carreau_couverture_e7
                                      where code_departement = '69'
                                        and pops[(select rang_pop from public.cibles_exposition where code = 'men')] >= ${MIN});`).split('|').map(Number);
     expect(a).toBe(b);
