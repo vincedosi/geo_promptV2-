@@ -80,7 +80,7 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     expect(el.querySelector('[data-communes-entieres]')).toBeNull();
   });
 
-  it('D30 : seuil sur territoires à l’IRIS — communes entières toujours dites, non évaluables seulement s’il y en a', async () => {
+  it('D30 : seuil sur territoires à l’IRIS — communes entières et non évaluables, seulement s’il y en a', async () => {
     const { f, el, stable, atelier } = monter();
     const TERR: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'region', code: '84' } };
     f.componentInstance.recette.set(TERR);
@@ -92,7 +92,7 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     expect(el.querySelector('[data-non-evaluables]')!.textContent!.trim()).toBe('12 unités non évaluables (valeur absente), jamais retenues');
     atelier.apercu.set({ ...APERCU, part_retenue: null, communes_entieres: 0, non_evaluables: 0 });
     await stable();
-    expect(el.querySelector('[data-communes-entieres]')!.textContent!.trim()).toBe('0 commune entière traitée comme un seul IRIS');
+    expect(el.querySelector('[data-communes-entieres]')).toBeNull();
     expect(el.querySelector('[data-non-evaluables]')).toBeNull();
   });
 

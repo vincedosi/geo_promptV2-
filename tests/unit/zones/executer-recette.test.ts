@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { compterSommets, executerRecette } from '@/lib/zones/executer-recette';
 import { recetteAEcrire } from '@/lib/zones/session-zones';
-import { MESSAGES_REFUS, type Recette } from '@/lib/zones/recette';
+import { MESSAGES_REFUS, messageTropDeTerritoires, type Recette } from '@/lib/zones/recette';
 
 const CARRE = { type: 'MultiPolygon', coordinates: [[[[5, 43], [5.1, 43], [5.1, 43.1], [5, 43.1], [5, 43]]]] };
 const PER = { type: 'departement', code: '13' } as const;
@@ -382,6 +382,15 @@ describe('B15 — les unités constitutives, posées par le serveur', () => {
     expect(r).toMatchObject({ ok: true, unites: { maille: 'cp', codes: ['13001', '13002'] } });
     if (!r.ok) throw new Error('attendu ok');
     expect(recetteAEcrire(recette, r)).toEqual({ ...recette, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] } });
+  });
+
+  it('D30 round 1 : trop de territoires — le message dit le nombre retenu, le plafond et suit l’opérateur', async () => {
+    reponses.zone_seuil_territoire = { data: { refus: 'trop_de_territoires', plafond: 7000, retenues: 7412 }, error: null };
+    const haut = await exec({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 0, perimetre: PER });
+    expect(haut).toMatchObject({ ok: false, statut: 422, refus: 'trop_de_territoires' });
+    expect(!haut.ok && haut.message).toBe(messageTropDeTerritoires({ retenues: 7412, plafond: 7000, operateur: '>=' }));
+    const bas = await exec({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '<=', seuil: 100, perimetre: PER });
+    expect(!bas.ok && bas.message).toContain('baissez le seuil');
   });
 
   it('D30 : seuil sur territoires à l’IRIS — communes entières et non évaluables relayés, absents à la maille CP', async () => {

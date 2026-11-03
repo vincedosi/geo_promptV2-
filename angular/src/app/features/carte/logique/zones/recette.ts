@@ -90,29 +90,19 @@ export const MIN_MENAGES_CARREAUX_DEFAUT = 11;
 export const MIN_MENAGES_CARREAUX_MAX = 1_000;
 /** Le plafond d'indicateurs du score composite (`MAX_INDICATEURS` de `/api/custom-geo/source/score`), repris par sa recette. */
 export const MAX_INDICATEURS_SCORE = 6;
-export const MAX_TERRITOIRES_SEUIL = 5_000;
+/** D30 round 1 (sql/335) : 7 000 unités, IRIS de quartier et communes entières (région 44 : 6 113). */
+export const MAX_TERRITOIRES_SEUIL = 7_000;
 /**
- * D30 (03/11/2026, suite de C19) — « par seuil sur territoires » à la maille IRIS (`zone_seuil_territoire`, sql/333) lit
- * TOUTES les unités du périmètre : les IRIS de quartier (habitat H, activité A, divers D) et les communes non découpées,
- * chacune UNE unité « commune entière » (IRIS communal, `type_iris` Z, code en `0000`). Une unité dont la valeur est
- * absente (revenu médian, taux de pauvreté, part des couples avec enfants sur les communes entières ; toute valeur
- * NULL ; une part rapportée à une population nulle) est « non évaluable » : jamais retenue, jamais comptée à 0, et
- * comptée (`non_evaluables`). Base locale, 03/11/2026 : 33 044 communes entières (27 316 564 habitants, 40,3 % de la
- * population IRIS), qui n'entraient pas avant D30 (C19 : `where t.is_true_iris`). La maille CP n'est pas concernée.
+ * D30 (sql/333) — à l'IRIS, chaque commune non découpée (IRIS communal Z, code 0000 ; 33 044, 27 316 564 hab. au 03/11)
+ * est UNE unité « commune entière » ; une unité sans valeur est « non évaluable » : jamais retenue, jamais comptée à 0.
  */
 export const UNITE_COMMUNE_ENTIERE = { type_iris: 'Z', suffixe_code: '0000' } as const;
-/** D30 — « 12 communes entières traitées comme un seul IRIS », sous les chiffres de l'aperçu (maille IRIS). */
-export function mentionCommunesEntieres(n: number): string {
-  return n > 1
-    ? `${formaterNombre(n)} communes entières traitées chacune comme un seul IRIS`
-    : `${formaterNombre(n)} commune entière traitée comme un seul IRIS`;
+/** D30 — les deux mentions de l'aperçu d'un seuil sur territoires à l'IRIS ; `null` à 0. */
+export function mentionCommunesEntieres(n: number): string | null {
+  return n > 0 ? `${formaterNombre(n)} ${n > 1 ? 'communes entières traitées chacune' : 'commune entière traitée'} comme un seul IRIS` : null;
 }
-/** D30 — les unités du périmètre sans valeur de l'indicateur, jamais retenues ; `null` s'il n'y en a aucune. */
 export function mentionNonEvaluables(n: number): string | null {
-  if (!(n > 0)) return null;
-  return n > 1
-    ? `${formaterNombre(n)} unités non évaluables (valeur absente), jamais retenues`
-    : `${formaterNombre(n)} unité non évaluable (valeur absente), jamais retenue`;
+  return n > 0 ? `${formaterNombre(n)} ${n > 1 ? 'unités non évaluables (valeur absente), jamais retenues' : 'unité non évaluable (valeur absente), jamais retenue'}` : null;
 }
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
@@ -220,7 +210,8 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
     + 'ce calcul dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; '
     + 'en attendant, resserrez le périmètre à l’étape ①.',
   trop_de_carreaux: `Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux retenus : resserrez le périmètre ou relevez le seuil.`,
-  trop_de_territoires: `Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires retenus : resserrez le périmètre ou relevez le seuil.`,
+  // Repli seulement : le serveur dit le nombre retenu et le conseil selon l'opérateur (`messageTropDeTerritoires`).
+  trop_de_territoires: `Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires retenus : changez le seuil ou resserrez le périmètre à l’étape ①.`,
   trop_de_sommets: `La forme dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets : simplifiez-la avant de l’importer.`,
   trop_de_poi_metropole: `Plus de ${formaterNombre(CAPACITE_SYNCHRONE_POI_RAYON)} POI dans toute la France métropolitaine : `
     + 'ce calcul dépasse ce qu’on peut calculer en direct. Il se lancera en tâche de fond dès le lot « calculs longs » ; '
@@ -241,6 +232,14 @@ export const MESSAGES_REFUS: Readonly<Record<RefusRecette, string>> = {
     + '(sous ce rayon, le disque est plus petit qu’un carreau de population) : cette zone, enregistrée avec un rayon plus petit, '
     + `n’est pas modifiée et ne se recalcule plus ; recréez-la avec un rayon d’au moins ${formaterNombre(RAYON_POINT_MIN_M)} m.`,
 };
+
+/** D30 round 1 (sql/335) : retenues ET plafond (règle 5), conseil selon l'opérateur ; sans retenues, « plus de ». */
+export function messageTropDeTerritoires(r: { retenues: number | null; plafond: number; operateur: OperateurSeuil }): string {
+  const conseil = `${r.operateur === '>=' ? 'relevez' : 'baissez'} le seuil ou resserrez le périmètre à l’étape ①.`;
+  return r.retenues !== null
+    ? `${formaterNombre(r.retenues)} territoires retenus, plafond ${formaterNombre(r.plafond)} : ${conseil}`
+    : `Plus de ${formaterNombre(r.plafond)} territoires retenus : ${conseil}`;
+}
 
 export function estRecalculable(r: Recette): boolean {
   return TYPES_RECALCULABLES.includes(r.type);

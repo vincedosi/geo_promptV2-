@@ -166,6 +166,7 @@ describe('MESSAGES_REFUS — revue de la Task 2', () => {
     expect(MESSAGES_REFUS.trop_de_poi).toContain(`Plus de ${formaterNombre(CAPACITE_SYNCHRONE_POI_RAYON)} POI`);
     expect(MESSAGES_REFUS.trop_de_carreaux).toContain(`Plus de ${formaterNombre(MAX_CARREAUX_SEUIL)} carreaux`);
     expect(MESSAGES_REFUS.trop_de_territoires).toContain(`Plus de ${formaterNombre(MAX_TERRITOIRES_SEUIL)} territoires`);
+    expect(MESSAGES_REFUS.trop_de_territoires).toContain('resserrez le périmètre');
     expect(MESSAGES_REFUS.trop_de_sommets).toContain(`dépasse ${formaterNombre(MAX_SOMMETS_FORME)} sommets`);
     for (const m of Object.values(MESSAGES_REFUS)) expect(m).not.toMatch(/\d \d{3}/);
   });

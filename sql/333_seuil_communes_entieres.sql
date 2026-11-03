@@ -38,10 +38,10 @@
 -- tout (44 : 6 113 unités, 76 : 5 451, 84 : 5 413, 11 : 5 277, 75 : 5 209, 32 : 5 009) — refus
 -- `trop_de_territoires`, jamais une zone partielle. Avant D30, aucune (région 11 : 3 953 vrais IRIS).
 --
--- Même signature, même type de retour (jsonb) : `create or replace`, aucun DROP. Rejouable.
+-- Même signature, même type de retour (jsonb) : `create or replace`, aucun DROP. Rejouable. Appliquer par `psql -1`
+-- (aucun begin / commit interne, D30 round 1). ⚠ Redéfinie par sql/335 (plafond 7 000, `retenues` dans le refus) :
+-- rejouer celle-ci SANS rejouer sql/335 après remettrait le plafond de 5 000.
 -- ============================================================================
-
-begin;
 
 create index if not exists idx_iris_code_region on public.iris (code_region);
 
@@ -165,4 +165,3 @@ $fn$;
 revoke all on function public.zone_seuil_territoire(text, text, numeric, text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function public.zone_seuil_territoire(text, text, numeric, text, text, uuid, integer) to service_role;
 
-commit;

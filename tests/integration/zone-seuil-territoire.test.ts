@@ -13,7 +13,7 @@ import { creerClientTest } from './_client';
 const admin = creerClientTest();
 const appeler = (args: Record<string, unknown>) => admin.rpc('zone_seuil_territoire', {
   p_indicateur: 'taux_pauvrete', p_operateur: '>=', p_seuil: 20, p_perimetre_type: 'region', p_perimetre_code: '84',
-  p_org_id: null, p_max_territoires: 5000, ...args,
+  p_org_id: null, p_max_territoires: 7000, ...args,
 });
 
 type Zone = { vide: boolean; compte: number; maille: string; geometry: { type: string } | null; surface_km2: number };
@@ -83,8 +83,10 @@ describe('zone_seuil_territoire', () => {
     expect(inf.compte).toBe(1601 - 147);
   });
 
-  it('D30 : la région 84 entière (≥ 0) dépasse désormais le plafond de 5 000 unités', async () => {
-    expect((await appeler({ p_indicateur: 'densite_pop', p_seuil: 0 })).data).toEqual({ refus: 'trop_de_territoires', plafond: 5000 });
+  it('D30 round 1 : plafond de 7 000 — la région 44 entière (6 113 unités, la plus riche) passe', async () => {
+    // Mesuré le 03/11 : densité ≥ 0 → 6 109 unités dont 4 965 communes entières, 4 non évaluables, 130 Ko, ~0,5 s.
+    const z = (await appeler({ p_indicateur: 'densite_pop', p_seuil: 0, p_perimetre_code: '44' })).data as Zone & { communes_entieres: number; non_evaluables: number };
+    expect(z).toMatchObject({ vide: false, compte: 6109, communes_entieres: 4965, non_evaluables: 4 });
   });
 
   it('aucun territoire au-dessus du seuil : vide, sans géométrie', async () => {
@@ -97,15 +99,16 @@ describe('zone_seuil_territoire', () => {
   it.each([
     ['France', { p_perimetre_type: 'france', p_perimetre_code: 'FR' }, { refus: 'perimetre_national_refuse' }],
     ['indicateur inconnu', { p_indicateur: 'pas_un_indicateur' }, { refus: 'indicateur_inconnu' }],
-    ['plafond dépassé', { p_seuil: 0, p_max_territoires: 5 }, { refus: 'trop_de_territoires', plafond: 5 }],
-    ['plafond dépassé, CP', { p_indicateur: 'abstention_pres_2022', p_seuil: 0, p_perimetre_type: 'departement', p_perimetre_code: '13', p_max_territoires: 5 }, { refus: 'trop_de_territoires', plafond: 5 }],
+    // D30 round 1 : le refus dit le nombre EXACT retenu (1 454 IRIS ont un taux de pauvreté en région 84 ; 127 CP dans le 13).
+    ['plafond dépassé', { p_seuil: 0, p_max_territoires: 5 }, { refus: 'trop_de_territoires', plafond: 5, retenues: 1454 }],
+    ['plafond dépassé, CP', { p_indicateur: 'abstention_pres_2022', p_seuil: 0, p_perimetre_type: 'departement', p_perimetre_code: '13', p_max_territoires: 5 }, { refus: 'trop_de_territoires', plafond: 5, retenues: 127 }],
   ])('%s : refus', async (_n, args, attendu) => {
     expect((await appeler(args)).data).toEqual(attendu);
   });
 
   it.each([
     ['opérateur inconnu', { p_operateur: '>' }],
-    ['plafond au-delà de 5 000', { p_max_territoires: 5001 }],
+    ['plafond au-delà de 7 000', { p_max_territoires: 7001 }],
   ])('%s : 22023', async (_n, args) => {
     expect((await appeler(args)).error?.code).toBe('22023');
   });

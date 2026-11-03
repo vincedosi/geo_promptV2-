@@ -15,7 +15,7 @@ import type { createAdminClient } from '@/lib/auth';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { estRecettePays } from './couverture';
 import {
-  CAPACITE_SYNCHRONE_POI_RAYON, MAX_SOMMETS_FORME, MESSAGES_REFUS, refusPerimetreLocal, type Recette, type RefusRecette,
+  CAPACITE_SYNCHRONE_POI_RAYON, MAX_SOMMETS_FORME, MAX_TERRITOIRES_SEUIL, MESSAGES_REFUS, messageTropDeTerritoires, refusPerimetreLocal, type Recette, type RefusRecette,
   type UnitesConstitutives,
 } from './recette';
 
@@ -63,6 +63,8 @@ interface ReponseRpc {
   maille?: unknown; codes?: unknown;
   /** D30 : `zone_seuil_territoire` à la maille IRIS (sql/333). */
   communes_entieres?: unknown; non_evaluables?: unknown;
+  /** D30 round 1 : le refus `trop_de_territoires` (sql/335) — plafond et nombre d'unités retenues. */
+  plafond?: unknown; retenues?: unknown;
 }
 
 /** B15 : les unités d'une réponse qui les porte (maille CP ou IRIS, codes non vides) ; `null` sinon. */
@@ -118,13 +120,20 @@ function lireReponse(data: unknown): ReponseRpc | null {
   return data !== null && typeof data === 'object' ? rpcJson<ReponseRpc>(data) : null;
 }
 
-function issue(nom: string, r: ReponseRpc | null, motifVide: RefusRecette = 'forme_vide'): IssueRecette {
+/** Un message de refus propre à l'appel (nombres de la réponse) ; `null` : le message générique de `MESSAGES_REFUS`. */
+type MessageRefus = (r: ReponseRpc) => string | null;
+
+function issue(nom: string, r: ReponseRpc | null, motifVide: RefusRecette = 'forme_vide', messageRefus?: MessageRefus): IssueRecette {
   if (!r) {
     console.error(`[zones/recette] ${nom} : réponse illisible`);
     return ECHEC;
   }
   if (r.refus !== undefined && r.refus !== null) {
-    if (estRefus(r.refus)) return refuser(r.refus);
+    if (estRefus(r.refus)) {
+      const refus = refuser(r.refus);
+      const m = messageRefus?.(r);
+      return m && !refus.ok ? { ...refus, message: m } : refus;
+    }
     console.error(`[zones/recette] ${nom} : refus hors contrat`, r.refus);
     return ECHEC;
   }
@@ -145,7 +154,7 @@ function issue(nom: string, r: ReponseRpc | null, motifVide: RefusRecette = 'for
  * `motifVide` : le refus d'une réponse `vide`. `forme_vide` (« aucun territoire français ») par défaut ;
  * `intersection_vide` pour une intersection de zones qui ne se touchent pas (C20 round 1).
  */
-async function lire(nom: string, requete: RequeteRpc, motifVide: RefusRecette = 'forme_vide'): Promise<IssueRecette> {
+async function lire(nom: string, requete: RequeteRpc, motifVide: RefusRecette = 'forme_vide', messageRefus?: MessageRefus): Promise<IssueRecette> {
   const { data, error } = await requete;
   if (error) {
     console.error(`[zones/recette] ${nom} :`, error.message);
@@ -162,7 +171,7 @@ async function lire(nom: string, requete: RequeteRpc, motifVide: RefusRecette = 
     }
     return ECHEC;
   }
-  return issue(nom, lireReponse(data), motifVide);
+  return issue(nom, lireReponse(data), motifVide, messageRefus);
 }
 
 export async function executerRecette(supabase: ClientAdmin, recette: Recette, ctx: ContexteRecette): Promise<IssueRecette> {
@@ -203,7 +212,12 @@ export async function executerRecette(supabase: ClientAdmin, recette: Recette, c
       return lire('zone_seuil_territoire', supabase.rpc('zone_seuil_territoire', {
         p_indicateur: recette.indicateur, p_operateur: recette.operateur, p_seuil: recette.seuil,
         p_perimetre_type: p.type, p_perimetre_code: p.code, p_org_id: ctx.orgId,
-      }));
+      }), 'forme_vide', (r) => {
+        // D30 round 1 (sql/335) : le nombre retenu, le plafond, et le conseil selon l'opérateur.
+        if (r.refus !== 'trop_de_territoires') return null;
+        const plafond = nombreOuNull(r.plafond) ?? MAX_TERRITOIRES_SEUIL;
+        return messageTropDeTerritoires({ retenues: nombreOuNull(r.retenues), plafond, operateur: recette.operateur });
+      });
     }
     case 'codes_postaux':
       return lire('get_admin_filter_geometry', supabase.rpc('get_admin_filter_geometry', { p_scale: 'cp', p_codes: [...recette.codes] }));

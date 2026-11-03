@@ -20,7 +20,7 @@ function parFamille(liste: readonly IndicateurRegistre[]): { famille: string; in
 /**
  * « IRIS ou codes postaux au-dessus d'un seuil » (lot 3, spec § 16.3) : un indicateur du registre (celui du score
  * composite), un opérateur, un seuil ; la zone est l'union des territoires retenus DANS le périmètre de ① (sql/256,
- * 5 000 territoires au plus — la maille, IRIS ou CP, est celle de l'indicateur).
+ * 7 000 territoires au plus — la maille, IRIS ou CP, est celle de l'indicateur).
  *
  * Le catalogue est lu UNE fois par ce formulaire (`CatalogueIndicateursService`, fourni par la page carte : la lecture
  * en vol ou déjà faite est partagée), à l'ouverture de « Par seuil » — jamais à l'ouverture de ③. Il ne compose que sa recette et

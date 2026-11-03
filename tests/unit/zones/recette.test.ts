@@ -5,7 +5,7 @@ import {
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, RAYON_POINT_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, mentionEstimatif, rayonNonActivable, refusActivation, refusPerimetreLocal, CODES_PAYS, type Recette,
-  UNITE_COMMUNE_ENTIERE, mentionCommunesEntieres, mentionNonEvaluables,
+  UNITE_COMMUNE_ENTIERE, mentionCommunesEntieres, mentionNonEvaluables, messageTropDeTerritoires,
 } from '@/lib/zones/recette';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lireRecette } from '@/lib/zones/recette-schema';
@@ -84,8 +84,12 @@ describe('la recette d’une zone', () => {
     // Q-2 (29/10) : 11 ménages, le seuil du secret statistique INSEE — sous lui, les valeurs du carreau sont imputées.
     expect(MIN_MENAGES_CARREAUX_DEFAUT).toBe(11);
     expect(litteral(CARREAUX, /p_max_carreaux > (\d+) then/)).toBe(MAX_CARREAUX_SEUIL);
-    expect(litteral(TERRITOIRES, /p_max_territoires integer default (\d+)/)).toBe(MAX_TERRITOIRES_SEUIL);
-    expect(litteral(TERRITOIRES, /p_max_territoires > (\d+) then/)).toBe(MAX_TERRITOIRES_SEUIL);
+    // D30 round 1 : le plafond est lu dans la DERNIÈRE définition de zone_seuil_territoire (sql/335 : 7 000).
+    const derniere = readdirSync('sql').filter((n) => n.endsWith('.sql')).sort().reverse()
+      .map((n) => readFileSync(`sql/${n}`, 'utf8')).find((t) => t.includes('create or replace function public.zone_seuil_territoire('))!;
+    expect(Number(/p_max_territoires integer default (\d+)/.exec(derniere)![1])).toBe(MAX_TERRITOIRES_SEUIL);
+    expect(Number(/p_max_territoires > (\d+) then/.exec(derniere)![1])).toBe(MAX_TERRITOIRES_SEUIL);
+    expect(MAX_TERRITOIRES_SEUIL).toBe(7_000);
   });
 
   it('D30 : la DERNIÈRE définition de zone_seuil_territoire lit les communes entières et compte les non évaluables', () => {
@@ -103,8 +107,17 @@ describe('la recette d’une zone', () => {
     expect(UNITE_COMMUNE_ENTIERE.suffixe_code).toBe('0000');
   });
 
-  it('D30 : mentions de l’aperçu — communes entières (toujours) et non évaluables (seulement s’il y en a)', () => {
-    expect(mentionCommunesEntieres(0)).toBe('0 commune entière traitée comme un seul IRIS');
+  it('D30 round 1 : trop de territoires — nombre retenu, plafond, conseil selon l’opérateur, et le périmètre', () => {
+    const haut = messageTropDeTerritoires({ retenues: 7412, plafond: 7000, operateur: '>=' });
+    expect(haut).toBe(`${formaterNombre(7412)} territoires retenus, plafond ${formaterNombre(7000)} : relevez le seuil ou resserrez le périmètre à l’étape ①.`);
+    expect(messageTropDeTerritoires({ retenues: 7412, plafond: 7000, operateur: '<=' })).toContain(': baissez le seuil ou resserrez le périmètre');
+    // Sans le nombre retenu (réponse d'avant round 1) : « plus de » le plafond, même conseil.
+    expect(messageTropDeTerritoires({ retenues: null, plafond: 7000, operateur: '<=' }))
+      .toBe(`Plus de ${formaterNombre(7000)} territoires retenus : baissez le seuil ou resserrez le périmètre à l’étape ①.`);
+  });
+
+  it('D30 : mentions de l’aperçu — communes entières et non évaluables, seulement s’il y en a', () => {
+    expect(mentionCommunesEntieres(0)).toBeNull();
     expect(mentionCommunesEntieres(1)).toBe('1 commune entière traitée comme un seul IRIS');
     expect(mentionCommunesEntieres(1041)).toMatch(/^1\s041 communes entières traitées chacune comme un seul IRIS$/);
     expect(mentionNonEvaluables(0)).toBeNull();
