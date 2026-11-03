@@ -31,6 +31,8 @@ export class RegistrePlateformes {
   /** Le registre `plateformes_geo`, vide tant qu'il n'est pas lu ; C29 : ses lignes lues par `regleCategorieSpeciale`. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() =>
     (this.lecture.resultat()?.plateformes ?? []).map((l) => regleCategorieSpeciale(l, this.categorieSpeciale())));
+  /** Revue T6 (I-9) : les mécanismes de poids du registre (`plateformes_poids`), dont leurs paramètres « à vérifier ». */
+  readonly poids = computed(() => this.lecture.resultat()?.poids ?? []);
   /** Le message d'une lecture du registre en échec ; `null` sinon. */
   readonly erreur: Signal<string | null> = this.lecture.erreur.asReadonly();
 

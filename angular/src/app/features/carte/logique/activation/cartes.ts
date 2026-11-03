@@ -96,6 +96,16 @@ function nature(maille: Maille, n: number, r: { exacte?: boolean; rayon_m?: numb
   return base;
 }
 
+/**
+ * Revue T6 (I-8) : « à vérifier » d'une plateforme dans une extraction — sa règle FIGÉE (la ligne, ou un de ses
+ * paramètres et de ceux de ses mécanismes de poids), à défaut (extraction d'avant) la ligne du registre du jour ; et la
+ * réserve « France entière » figée (`pays_a_verifier`) — jamais la métropole. Le même indicateur que l'en-tête du fichier.
+ */
+export function aVerifierExtraction(r: ResumeExtraction | undefined, ligne: PlateformeGeo | undefined): boolean {
+  const f = r?.regle_figee;
+  return (f ? f.a_verifier || f.parametres_a_verifier.length > 0 : ligne?.a_verifier ?? false) || r?.pays_a_verifier === true;
+}
+
 /** Les avertissements réglementaires d'une plateforme (A-13, § 8). */
 function reglementaires(p: Plateforme | null, nom: string): string[] {
   if (p === 'meta') return [avertissementPolitique(nom), AVERTISSEMENT_SENSIBLE_META];
@@ -170,8 +180,8 @@ function carte(canal: string, e: EntreeCartes): CarteActivation {
     unites: nUnites,
     nature: nature(maille, nUnites, { exacte: brut?.exacte, rayon_m: brut?.rayon_m, utile: resume.utile }),
     formats: formatsDe(plateforme, maille),
-    // La ligne entière, ou le seul ciblage pays de « France entière » figé dans l'extraction — jamais la métropole.
-    aVerifier: (ligne?.a_verifier ?? false) || brut?.pays_a_verifier === true,
+    // La règle FIGÉE (revue T6, I-8), ou le seul ciblage pays de « France entière » figé dans l'extraction.
+    aVerifier: aVerifierExtraction(brut, ligne),
     avertissements: [...vide.avertissements, ...limites(brut, ligne, maille, nUnites)],
   };
   if (risque && plateforme === 'meta') return { ...base, formats: [], motifs: [MESSAGE_META_RISQUE] };

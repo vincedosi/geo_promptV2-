@@ -226,8 +226,8 @@ export class ColonnePlateformeComponent {
     const notes = [l?.a_verifier ? l.note : null, pays ? NOTE_PAYS_A_VERIFIER : null].filter((n): n is string => !!n);
     return { note: notes.length ? notes.join(' ') : null };
   });
-  /** C28 (amendement E9) : les bornes « à vérifier » de la ligne choisie, chacune avec sa valeur ou « non relevé ». */
-  protected readonly parametresAVerifier = computed(() => texteParametresAVerifier(this.ligne()));
+  /** C28 (E9), revue T6 (I-9) : les paramètres « à vérifier » de la ligne et de ses mécanismes de poids, avec leur valeur. */
+  protected readonly parametresAVerifier = computed(() => texteParametresAVerifier(this.ligne(), this.jeu.poids()));
   /** D33 : le défaut est PROVISOIRE (une simulation de maille en vol) ; la phrase d'attente n'est dite qu'après une seconde. */
   protected readonly enAttente = computed(() => this.jeu.defauts()[this.plateforme()]?.critere === 'en_attente');
   private readonly attenteLongue = signal(false);

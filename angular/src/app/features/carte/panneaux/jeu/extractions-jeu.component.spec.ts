@@ -32,6 +32,28 @@ async function ouvert(versions = [version(1)]) {
 }
 const texte = (el: HTMLElement, sel: string) => el.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
 
+describe('mg-extractions-jeu — revue T6 (I-11, I-8) : ce que l’extraction a figé se dit dans ⑤', () => {
+  it('écrêtages, envois découpés et réserve « France entière » figés : dits sous la version ; « à vérifier » lu dans l’extraction', async () => {
+    const v = { ...version(1), plateformes: [{
+      plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null, exacte: false, n_unites: 2, taux_utile: 45,
+      avertissements: [
+        { code: 'multiplicateur_max', limite: 10, valeur: 14.2, n: 3, plateforme: 'dv360' },
+        { code: 'nb_max_entrees', limite: 2000, valeur: 2500, n: 2, mecanisme: 'script' },
+      ],
+      regle_figee: { a_verifier: false, releve_le: '2026-10-31', parametres_a_verifier: ['max_unites'] },
+    }, {
+      plateforme: 'meta', maille: 'pays', seuil: 0, rayon_m: null, exacte: true, n_unites: 6, taux_utile: 100, pays_a_verifier: true,
+    }] };
+    const { el } = await ouvert([v]);
+    const resume = texte(el, '[data-version="1"] [data-resume]')?.replace(/\s/g, ' ') ?? '';
+    expect(resume).toContain('3 codes postaux ramenés à ×10, le maximum admis par la plateforme (×14,2 calculé au plus extrême).');
+    expect(resume).toContain('2 500 codes postaux pour 2 000 par envoi');
+    expect(resume).toContain('France entière : le ciblage des DROM comme pays distincts');
+    // DV360 au CP : « à vérifier » par ses paramètres figés, même si la ligne du registre ne l'est pas.
+    expect(el.querySelector('[data-fichiers-version="1"] mg-fichiers-extraction [data-a-verifier]')).not.toBeNull();
+  });
+});
+
 describe('mg-extractions-jeu', () => {
   it('les versions : origine, date et résumé FIGÉ par plateforme', async () => {
     const { el } = await ouvert();

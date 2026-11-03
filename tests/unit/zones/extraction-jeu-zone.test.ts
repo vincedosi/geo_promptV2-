@@ -419,6 +419,17 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
   });
 });
 
+describe('revue T6 (I-8) : la règle de chaque plateforme FIGÉE avec l’extraction (à vérifier, relevé, paramètres)', () => {
+  it('DV360 au CP : la ligne et ses mécanismes de poids — les paramètres à vérifier des deux, sans doublon', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], DESSIN,
+      [{ ...regle('dv360', 'cp'), parametres_a_verifier: ['poids_groupe_cp', 'max_unites'] }]);
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0].regle_figee).toEqual({
+      a_verifier: false, releve_le: '2026-10-14', parametres_a_verifier: ['poids_groupe_cp', 'max_unites', 'valeur_min', 'valeur_max', 'nb_max_entrees'],
+    });
+  });
+});
+
 describe('revue T6 (I-3) : une maille exacte en territoire non carroyé — population inconnue FIGÉE, jamais 0 (ARB-3)', () => {
   const nonCarroye = { population: 0, surface_km2: 78.5, lignes: [], motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] };
   it('polygone : l’unité sans population, le résumé compte une unité inconnue', async () => {

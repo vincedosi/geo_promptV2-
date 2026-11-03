@@ -8,7 +8,8 @@ import { type ExtractionJeu, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { LectureAnnulable } from '../../etat/lecture-annulable';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
-import { type FormatFichier, formatsDe } from '../../logique/activation/cartes';
+import { type FormatFichier, aVerifierExtraction, formatsDe } from '../../logique/activation/cartes';
+import { NOTE_PAYS_A_VERIFIER } from '../../logique/jeu/conversion';
 import { NOM_PLATEFORME, UNITE_MAILLE, texteAvertissement, texteBlocs, texteSimplification } from '../../logique/jeu/ecran';
 
 /** « (texte) », ou rien sans texte — un seul appel par texte (relecture B14, M-2). */
@@ -133,7 +134,10 @@ export class ExtractionsJeuComponent {
       + entreParentheses(texteSimplification(p.simplification))
       // B14 : un découpage en blocs se dit, avec le bilan de chaque bloc et le minimum d'un bloc (round 1, I-1).
       + entreParentheses(texteBlocs(p.decoupage))
-      + (p.avertissements ?? []).filter((a) => a.bloc !== undefined).map((a) => ` — ${texteAvertissement(a, p.maille)}`).join('')).join(' · '),
+      // Revue T6 (I-11) : TOUT ce que l'extraction a figé (écrêtages, envois découpés, minimums…), pas les seuls blocs —
+      // le dépassement de `max_unites` découpé est déjà dit par les blocs.
+      + (p.avertissements ?? []).filter((a) => !(a.code === 'max_unites' && p.decoupage)).map((a) => ` — ${texteAvertissement(a, p.maille)}`).join('')
+      + (p.pays_a_verifier ? ` — ${NOTE_PAYS_A_VERIFIER}` : '')).join(' · '),
     fichiers: (e.plateformes ?? []).flatMap((p) => {
       const formats = formatsDe(p.plateforme, p.maille);
       // Sans unité, la route répond 409 : aucun bouton plutôt qu'un échec promis.
@@ -141,7 +145,8 @@ export class ExtractionsJeuComponent {
       const regle = this.jeu.plateformes().find((r) => r.plateforme === p.plateforme && r.maille === p.maille);
       return [{
         plateforme: p.plateforme, nom: NOM_PLATEFORME[p.plateforme] ?? p.plateforme, maille: p.maille, formats,
-        aVerifier: regle?.a_verifier ?? false, blocs: p.decoupage?.blocs ?? [],
+        // Revue T6 (I-8) : la règle FIGÉE avec l'extraction (et « France entière »), pas le registre du jour.
+        aVerifier: aVerifierExtraction(p, regle), blocs: p.decoupage?.blocs ?? [],
       }];
     }),
   })));

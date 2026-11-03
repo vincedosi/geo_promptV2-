@@ -92,6 +92,15 @@ describe('fichierPlateforme — CSV', () => {
     const ttd = fichierPlateforme(entete({ plateforme: 'ttd', maille: 'cp' }), unites, null, 'cp');
     expect(lignesDonnees(ttd.contenu)).toEqual(['code_postal', '13001']);
   });
+  it('revue T6 (I-8) : les paramètres « à vérifier » figés et la réserve « France entière » se disent dans la méthode', () => {
+    const f = fichierPlateforme(entete({ plateforme: 'dv360', maille: 'pays', parametresAVerifier: ['max_unites', 'poids_groupe_cp'], paysAVerifier: true }),
+      [{ ordinal: 1, code: 'FR', nom: 'France', centre: null, rayon_m: null, retenu: true }], null, 'pays');
+    expect(f.contenu).toContain('# À vérifier, paramètres : nombre d’unités par liste, poids d’un groupe de codes postaux');
+    expect(f.contenu).toContain('# À vérifier : France entière : le ciblage des DROM comme pays distincts (GP, MQ, GF, RE, YT) n’est pas encore confirmé dans un compte.');
+    const g = JSON.parse(fichierPlateforme(entete({ plateforme: 'ttd', maille: 'polygone', parametresAVerifier: ['polygone_sommets_max'] }), [], { type: 'Point', coordinates: [0, 0] }, 'polygone').contenu);
+    expect(g.features[0].properties.methode).toMatchObject({ parametres_a_verifier: ['polygone_sommets_max'], pays_a_verifier: false });
+  });
+
   it('territoires : `code;nom` des unités retenues', () => {
     const f = fichierPlateforme(entete({ plateforme: 'tiktok', maille: 'departement' }), [
       unite({ code: '13', nom: 'Bouches-du-Rhône' }), unite({ ordinal: 2, code: '30', nom: 'Gard', retenu: false }),

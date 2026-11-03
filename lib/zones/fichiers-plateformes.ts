@@ -28,6 +28,7 @@ import { toSlug } from '@/lib/custom-geo/slug';
 import { formaterNombre } from '@/lib/format/nombre';
 import { texteCpDv360, texteSdfDv360 } from '@/lib/digital/fichiers-dv360';
 import type { MAILLES, PLATEFORMES } from '@/lib/zones/plateformes';
+import { NOTE_PAYS_A_VERIFIER } from '@/lib/zones/conversion';
 
 export type Plateforme = (typeof PLATEFORMES)[number];
 type Maille = (typeof MAILLES)[number];
@@ -60,7 +61,26 @@ export interface EnteteFichier {
   releveLe: string | null;
   /** B14 round 1 (I-2) : le bloc écrit — ses seules unités, nommé dans l'en-tête et le nom du fichier. */
   bloc?: { numero: number; total: number };
+  /** Revue T6 (I-8) : les paramètres « à vérifier » FIGÉS avec l'extraction (ligne et mécanismes de poids). */
+  parametresAVerifier?: readonly string[];
+  /** Revue T6 (I-8) : maille pays, « France entière » — le ciblage des DROM comme pays distincts reste à vérifier. */
+  paysAVerifier?: boolean;
 }
+
+/**
+ * Revue T6 (I-8) : le nom en français d'un paramètre « à vérifier » (`parametres_a_verifier` de `plateformes_geo` et de
+ * `plateformes_poids`) ; un nom inconnu s'écrit tel quel. ⚠ L'écran de ⑤ a ses propres libellés, avec la valeur
+ * (`parametres-a-verifier.ts`, Angular) : ici le fichier ne dit que le nom.
+ */
+const LIBELLES_A_VERIFIER: Readonly<Record<string, string>> = {
+  max_unites: 'nombre d’unités par liste', rayon_min_m: 'rayon minimal', rayon_max_m: 'rayon maximal',
+  pop_min_unite: 'population minimale par unité', pop_min_groupe: 'population minimale par groupe',
+  pop_min_unite_comportement: 'comportement du minimum par unité', pop_min_groupe_comportement: 'comportement du minimum par groupe',
+  poids_groupe_cp: 'poids d’un groupe de codes postaux', polygone_sommets_max: 'sommets du polygone', polygone_morceaux_max: 'morceaux du polygone',
+  max_sommets: 'sommets du polygone', rayon_min_categorie_speciale: 'rayon minimal en catégorie spéciale', mecanisme: 'mécanisme de poids',
+  valeur_min: 'poids minimal', valeur_max: 'poids maximal', pas: 'pas du poids', nb_max_entrees: 'entrées par envoi',
+  nb_paliers_max: 'paliers maximaux', branche: 'branchement de la poussée',
+};
 
 /** En-têtes de colonnes des CSV, une seule définition (lus aussi par les tests). */
 export const EN_TETES_CSV = {
@@ -106,6 +126,9 @@ function methodeCsv(e: EnteteFichier): string[] {
     // Revue finale du lot 7 (M-12) : jamais une ligne « Relevé … : » vide.
     ...(e.releveLe ? [`# Relevé des limites de la plateforme : ${e.releveLe}`] : []),
     ...(e.aVerifier ? ['# À vérifier : la règle de ciblage de cette plateforme n’a pas été confirmée sur sa documentation.'] : []),
+    ...(e.parametresAVerifier?.length
+      ? [`# À vérifier, paramètres : ${[...new Set(e.parametresAVerifier.map((p) => LIBELLES_A_VERIFIER[p] ?? p))].join(', ')}`] : []),
+    ...(e.paysAVerifier ? [`# À vérifier : ${NOTE_PAYS_A_VERIFIER}`] : []),
     ...(e.bloc ? [`# Bloc : ${e.bloc.numero} sur ${e.bloc.total} (découpage au-delà de la limite d’unités de la plateforme)`] : []),
   ];
 }
@@ -203,6 +226,7 @@ export function fichierPlateforme(
               methode: {
                 jeu: e.jeu, version: e.version, plateforme: e.plateforme, maille: e.maille,
                 releve_le: e.releveLe, a_verifier: e.aVerifier,
+                parametres_a_verifier: [...(e.parametresAVerifier ?? [])], pays_a_verifier: e.paysAVerifier === true,
               },
             },
           }],

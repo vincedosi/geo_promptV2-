@@ -110,6 +110,12 @@ interface ResumePlateforme {
   plan_cp?: { seuil: number; poids: SortiePoids[]; avertissements: Avertissement[] } & PlanPlateforme['plan']['resume'];
   /** A4 (ARB-3) : unités achetées à population inconnue (« diffusion à population inconnue ») ; absent s'il n'y en a pas. */
   n_inconnues?: number;
+  /**
+   * Revue T6 (I-8) : la règle de la plateforme telle qu'au moment de figer — `a_verifier` et `releve_le` de sa ligne de
+   * `plateformes_geo`, et les paramètres « à vérifier » de la ligne ET de ses mécanismes de poids (`plateformes_poids`).
+   * Le fichier de ⑦ et le badge de ⑤ les lisent ici, jamais dans le registre du jour.
+   */
+  regle_figee?: { a_verifier: boolean; releve_le: string; parametres_a_verifier: string[] };
   /** C24 (sql/327) : maille territoriale, cible ≠ `ind` — la diffusion achetée en population totale ; absent sinon. */
   diffusion_population_totale?: number;
   /**
@@ -611,6 +617,15 @@ export async function extraireJeuZone(
     r.avertissements.push(...s.avertissements);
     const sp = sortiesPoids(poids, r.plateforme, propre.plan.resume.n_codes, propre.plan.resume.multiplicateur);
     r.plan_cp = { seuil: propre.seuil, ...propre.plan.resume, poids: sp.sorties, avertissements: sp.avertissements };
+  }
+  // Revue T6 (I-8) : la règle de chaque plateforme figée avec l'extraction (les mécanismes de poids : lus pour le CP).
+  for (const r of resumes) {
+    const c = choix.find((x) => x.plateforme === r.plateforme);
+    const regle = regles.find((l) => l.plateforme === r.plateforme && l.maille === c?.maille);
+    if (!c || !regle) continue;
+    const parametres = [...(regle.parametres_a_verifier ?? []),
+      ...poids.filter((m) => m.plateforme === c.plateforme && m.maille === c.maille).flatMap((m) => m.parametres_a_verifier)];
+    r.regle_figee = { a_verifier: regle.a_verifier, releve_le: regle.releve_le, parametres_a_verifier: [...new Set(parametres)] };
   }
   // B12 : les lignes de chaque plan (unités RETENUES, développées en codes) → `zone_set_extraction_cp_plateforme`.
   const plansPlateformes = (plans?.parPlateforme ?? []).map((p) => ({

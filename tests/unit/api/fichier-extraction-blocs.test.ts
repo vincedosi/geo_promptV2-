@@ -17,17 +17,18 @@ const UNITES = [
   })),
   { ordinal: 3501, code: '99999', nom: 'Hors', centre: null, rayon_m: null, retenu: false, bloc: null },
 ];
-const h = { unites: UNITES as unknown[] };
+const h = { unites: UNITES as unknown[], resume: { plateforme: 'tiktok', maille: 'commune' } as Record<string, unknown>, lues: [] as string[] };
 
 const TABLES: Record<string, () => unknown> = {
   zone_sets: () => ({ id: JEU, org_id: ORG, nom: 'Communes TikTok', type: 'zone' }),
-  zone_set_extractions: () => ({ id: 'x1', version: 1, plateformes: [{ plateforme: 'tiktok', maille: 'commune' }] }),
+  zone_set_extractions: () => ({ id: 'x1', version: 1, plateformes: [h.resume] }),
   plateformes_geo: () => ({ a_verifier: false, releve_le: '2026-11-02' }),
   zone_set_extraction_unites: () => h.unites,
 };
 
 /** Une requête enchaînable minimale ; `range` découpe la liste comme PostgREST (lecture paginée de `lireTout`). */
 function requete(table: string) {
+  h.lues.push(table);
   let page: [number, number] | null = null;
   const fin = () => {
     const d = TABLES[table]();
@@ -64,6 +65,24 @@ const lignes = (texte: string) => texte.replace(/^﻿/, '').split('\n').filter((
 
 beforeEach(() => {
   h.unites = UNITES;
+  h.resume = { plateforme: 'tiktok', maille: 'commune' };
+  h.lues = [];
+});
+
+describe('revue T6 (I-8) : l’en-tête lit la règle FIGÉE dans l’extraction, pas le registre du jour', () => {
+  it('« à vérifier » figé (ligne et paramètres) : écrit, et le registre n’est pas relu', async () => {
+    h.resume = { plateforme: 'tiktok', maille: 'commune', regle_figee: { a_verifier: true, releve_le: '2026-10-30', parametres_a_verifier: ['max_unites'] } };
+    const texte = await (await lire('&bloc=1')).text();
+    expect(texte).toContain('# Relevé des limites de la plateforme : 2026-10-30');
+    expect(texte).toContain('# À vérifier : la règle de ciblage de cette plateforme n’a pas été confirmée sur sa documentation.');
+    expect(texte).toContain('# À vérifier, paramètres : nombre d’unités par liste');
+    expect(h.lues).not.toContain('plateformes_geo');
+  });
+  it('une extraction d’avant la revue (rien de figé) : le registre, comme avant', async () => {
+    const texte = await (await lire('&bloc=1')).text();
+    expect(texte).toContain('# Relevé des limites de la plateforme : 2026-11-02');
+    expect(h.lues).toContain('plateformes_geo');
+  });
 });
 
 describe('fichier d’une extraction découpée en blocs', () => {

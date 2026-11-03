@@ -5,7 +5,8 @@ import type { Extraction } from '../../risques/data/jeux-zones.api';
 import type { MODES_PLAN } from '../../risques/logique/jeu';
 import type { ResultatCercles } from '../logique/jeu/bilan';
 import type { Avertissement } from '../logique/jeu/conversion';
-import type { MecanismePoussee, ReglagesDefaut } from '../logique/jeu/conversion-defaut';
+import type { ReglagesDefaut } from '../logique/jeu/conversion-defaut';
+import type { PoidsVerifiable } from '../logique/jeu/parametres-a-verifier';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 
@@ -131,6 +132,8 @@ export interface ResumeExtraction {
   avertissements?: Avertissement[];
   /** Maille pays : le ciblage n'est pas confirmé pour la recette figée (« France entière », `paysAVerifier`) ; absent sinon. */
   pays_a_verifier?: true;
+  /** Revue T6 (I-8) : la règle figée avec l'extraction — « à vérifier », relevé, paramètres ; absente avant la revue. */
+  regle_figee?: { a_verifier: boolean; releve_le: string; parametres_a_verifier: string[] };
   /**
    * Maille polygone (A7, sql/312-313) : la forme envoyée — tolérance retenue (0 = non simplifiée), sommets et morceaux
    * avant / après, habitants de la zone perdus et habitants hors zone gagnés. Absent avant A7.
@@ -190,7 +193,7 @@ export interface ExtractionCreee {
 export interface ReponsePlateformes {
   plateformes: PlateformeGeo[];
   /** B16 : absent (réponse d'avant B16) = aucun mécanisme lu, le mode de poussée ne lit que `poussee_branchee`. */
-  poids?: MecanismePoussee[];
+  poids?: PoidsVerifiable[];
   reglages_defaut?: ReglagesDefaut;
 }
 

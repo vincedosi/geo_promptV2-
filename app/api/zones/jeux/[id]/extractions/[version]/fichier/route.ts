@@ -11,7 +11,9 @@
  *   cercles, territoires et pays (⑤ finitions, T3 : les codes pays figés, six au plus) par `lireTout` sur
  *   `zone_set_extraction_unites` (préfixe de la clé primaire, plafond 7 000) ; polygone par la `forme` de
  *   l'extraction (une ligne).
- * - `plateformes_geo` (une ligne par la clé) : `a_verifier` et `releve_le`, écrits dans l'en-tête de méthode.
+ * - La règle FIGÉE de la plateforme (`regle_figee` du résumé, revue T6 I-8) : `a_verifier`, `releve_le` et les
+ *   paramètres « à vérifier », écrits dans l'en-tête de méthode avec la réserve « France entière » (`pays_a_verifier`).
+ *   Une extraction d'avant la revue n'en a pas : `plateformes_geo` (une ligne par la clé), comme avant.
  * - B14 round 1 (I-2) : `&bloc=N` — une maille découpée en blocs (ARB-6, `zone_set_extraction_unites.bloc`) se
  *   télécharge bloc par bloc (`choisirBloc`) : sans `bloc` alors qu'il y en a plusieurs, 422 avec la liste `blocs` —
  *   jamais un fichier au-dessus de la limite de la plateforme ; bloc absent 404 ; `bloc` sans découpage 400.
@@ -103,7 +105,9 @@ export async function GET(
 
   // ── La maille de la plateforme dans CETTE extraction ──────────────────
   let maille: (typeof MAILLES)[number];
-  const resumes = x.plateformes as Array<{ plateforme?: string; maille?: string }> | null;
+  type Figee = { a_verifier?: boolean; releve_le?: string; parametres_a_verifier?: string[] };
+  const resumes = x.plateformes as Array<{ plateforme?: string; maille?: string; regle_figee?: Figee; pays_a_verifier?: boolean }> | null;
+  const resumePlateforme = Array.isArray(resumes) ? resumes.find((r) => r.plateforme === plateforme) : undefined;
   if (!Array.isArray(resumes)) {
     if (!PLATEFORMES_RISQUE.includes(plateforme)) return refusFormat(plateforme, 'cp', 'cp');
     maille = 'cp';
@@ -114,16 +118,15 @@ export async function GET(
   }
   if (!formatsDe(plateforme, maille).includes(format)) return refusFormat(plateforme, maille, format);
 
-  // ── Le registre : fraîcheur et « à vérifier » de la règle de la plateforme ──
-  const { data: regle, error: erreurRegle } = await supabase
-    .from('plateformes_geo')
-    .select('a_verifier, releve_le')
-    .eq('plateforme', plateforme)
-    .eq('maille', maille)
-    .maybeSingle();
-  if (erreurRegle) {
-    console.error('[zones/extraction fichier] registre :', erreurRegle.message);
-    return erreur('Registre des plateformes illisible.', 500);
+  // ── La règle : figée avec l'extraction (revue T6, I-8), sinon le registre (extraction d'avant) ──
+  let regle: Figee | null = resumePlateforme?.regle_figee ?? null;
+  if (!regle) {
+    const lu = await supabase.from('plateformes_geo').select('a_verifier, releve_le').eq('plateforme', plateforme).eq('maille', maille).maybeSingle();
+    if (lu.error) {
+      console.error('[zones/extraction fichier] registre :', lu.error.message);
+      return erreur('Registre des plateformes illisible.', 500);
+    }
+    regle = lu.data;
   }
 
   // ── Les unités ────────────────────────────────────────────────────────
@@ -169,6 +172,7 @@ export async function GET(
       {
         jeu: jeu.nom, version: x.version, plateforme, maille,
         aVerifier: regle?.a_verifier ?? false, releveLe: regle?.releve_le || null,
+        parametresAVerifier: regle?.parametres_a_verifier ?? [], paysAVerifier: resumePlateforme?.pays_a_verifier === true,
         ...(bloc.bloc ? { bloc: bloc.bloc } : {}),
       },
       unites, forme, format,

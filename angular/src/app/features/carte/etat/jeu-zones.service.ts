@@ -101,6 +101,7 @@ export class JeuZonesService {
   readonly nationaleMoins: Signal<boolean> = computed(() => estNationaleMoins(this._recette(), this._sources()));
   /** Le registre `plateformes_geo`, lu une fois par page. */
   readonly plateformes: Signal<readonly PlateformeGeo[]> = this.registre.plateformes;
+  readonly poids = this.registre.poids;  // revue T6 (I-9) : les mécanismes de poids, pour leurs « à vérifier »
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */
   readonly erreur: Signal<string | null> = computed(() => this._erreur() ?? this.lectureJeu.erreur() ?? this.registre.erreur());
 
