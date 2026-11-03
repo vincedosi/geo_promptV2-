@@ -13,8 +13,9 @@
  *   d'extension : un volume d'inventaire par CP le remplacera sans toucher à la formule ;
  * - `classe(u)` : le poids de classe (1 pour la classe unique `zone` d'un jeu de zone) ;
  * - `HORS_ZONE` (E3) entre dans la somme comme une unité : part 1 (elle porte toute la population de son volume),
- *   volume = populations totales des CP NON retenus du référentiel, classe = 0 en mode `strict`, le plancher national en
- *   mode `national` (`plan.ts`, `LigneHorsZone`).
+ *   volume = populations totales des CP PEUPLÉS NON retenus du référentiel, RESTREINT À L'UNIVERS DE LA ZONE (D35,
+ *   `universDeZone` : métropole ou France entière), classe = 0 en mode `strict` (part prévue 0, la part observée y est
+ *   le taux de fuite, `docs/rebid-v2.md`), le plancher national en mode `national` (`plan.ts`, `LigneHorsZone`).
  *
  * En V1, `part × volume` = population en zone : la part prévue est la part de population en zone (× classe), la
  * quantité que l'ancien mode exclusif produisait. LE MULTIPLICATEUR N'Y ENTRE PAS : un écrêtage (E4 (3)) change ce qui
@@ -31,6 +32,28 @@
  * Une unité dont le volume ou la part est inconnu (liste exacte sans carreau, ARB-3) a une part prévue `null`, jamais
  * 0 : 0 se lirait « rien de prévu » et déclencherait une alerte de sous-pression qu'aucune diffusion ne lèverait.
  */
+
+import type { Recette } from './recette';
+
+/**
+ * D35 : l'univers d'où se lit le volume de `HORS_ZONE` — la métropole (`METRO`) ou la France entière (`FR`), les codes
+ * de `volumes_attendus_cp_univers` (sql/337).
+ */
+export type UniversVolume = 'METRO' | 'FR';
+
+/** Le préfixe des codes postaux des DROM (971 à 976). Un fait géographique, pas une règle de plateforme. */
+const PREFIXE_CP_DROM = '97';
+
+/**
+ * D35 : l'univers de la zone. Une zone PAYS le dit elle-même (son code) ; toute autre zone est en France entière dès
+ * qu'une de ses unités CP (couverture ou liste exacte) est dans un DROM, en métropole sinon. Une zone de métropole
+ * n'impute donc à `HORS_ZONE` aucun habitant des DROM : avant D35 le volume se lisait sur la France entière quelle que
+ * soit la zone (+1 190 909,5 habitants, Martinique et La Réunion, sur Toulouse).
+ */
+export function universDeZone(codes: readonly string[], recette: Recette | null | undefined): UniversVolume {
+  if (recette?.type === 'pays') return recette.code;
+  return codes.some((c) => c.startsWith(PREFIXE_CP_DROM)) ? 'FR' : 'METRO';
+}
 
 /** Q9 = A : le volume attendu d'une unité est sa population totale en V1. */
 export const VOLUME_ATTENDU = 'population_totale' as const;
@@ -55,7 +78,7 @@ export interface UnitePrevue {
 /** La ligne `HORS_ZONE`, vue par la part prévue. */
 export interface HorsZonePrevue {
   part: number;
-  /** Populations totales des CP non retenus du référentiel ; `null` si non lues. */
+  /** Populations totales des CP peuplés non retenus de l'univers de la zone (D35) ; `null` si non lues. */
   volume: number | null;
   classe: number;
 }

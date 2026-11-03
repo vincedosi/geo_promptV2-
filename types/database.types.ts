@@ -9238,6 +9238,10 @@ export type Database = {
       vider_population_carreau: { Args: never; Returns: Json }
       vider_zones_risque: { Args: { p_avant?: string }; Returns: Json }
       volumes_attendus_cp: { Args: { p_codes: string[] }; Returns: Json }
+      volumes_attendus_cp_univers: {
+        Args: { p_codes: string[]; p_univers: string }
+        Returns: Json
+      }
       zone_dessin: { Args: { p_geojson: Json }; Returns: Json }
       zone_difference: {
         Args: { p_base: string; p_retires: string[] }

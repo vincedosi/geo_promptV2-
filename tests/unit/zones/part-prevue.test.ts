@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { planCpDeZone, type VolumesAttendus } from '@/lib/zones/plan-jeu-zone';
-import { partsPrevues, poidsPrevu, REPARTITION_GROUPE, VOLUME_ATTENDU } from '@/lib/zones/part-prevue';
+import { partsPrevues, poidsPrevu, REPARTITION_GROUPE, universDeZone, VOLUME_ATTENDU } from '@/lib/zones/part-prevue';
 import { FACTEUR_HORS_ZONE_NATIONAL } from '@/lib/zones/plan';
 import type { LigneCouverture } from '@/lib/zones/couverture';
 
@@ -93,6 +93,37 @@ describe('A8 — la somme se fait par UNITÉ CP (groupe), puis se répartit à p
     const meme = planCpDeZone(LIGNES, 20, 'exclusif', new Map(), undefined, {}, vol);
     const divise = planCpDeZone(LIGNES, 20, 'exclusif', new Map(), undefined, { poids_groupe_cp: 'divise' }, vol);
     expect(parts(divise.lignes)).toEqual(parts(meme.lignes));
+  });
+});
+
+describe('D35 — le volume HORS_ZONE est restreint à l’univers de la zone (métropole ou France entière)', () => {
+  it('universDeZone : une zone qui ne touche aucun DROM est en métropole ; un code en 97 la met en France entière', () => {
+    expect(universDeZone(['31000', '31100', '20000'], null)).toBe('METRO');
+    expect(universDeZone(['75001', '97200'], null)).toBe('FR');
+    expect(universDeZone(['97133'], null)).toBe('FR');
+    // Aucune unité connue (couverture vide) : la métropole, l’univers d’un ciblage sans DROM.
+    expect(universDeZone([], null)).toBe('METRO');
+  });
+
+  it('universDeZone : une zone PAYS dit elle-même son univers, quelles que soient ses unités', () => {
+    expect(universDeZone(['75001'], { v: 1, type: 'pays', code: 'FR' })).toBe('FR');
+    expect(universDeZone(['75001'], { v: 1, type: 'pays', code: 'METRO' })).toBe('METRO');
+    expect(universDeZone(['31000'], { v: 1, type: 'rayon_point', lon: 1.44, lat: 43.6, rayon_m: 6000 })).toBe('METRO');
+  });
+
+  it('planCpDeZone fige l’univers du volume sur la ligne HORS_ZONE ; sans volumes (tests), `null`', () => {
+    const avec = planCpDeZone(EXEMPLE, 20, 'pondere', new Map(), undefined, {}, { ...VOL, univers: 'METRO' });
+    expect(avec.resume.multiplicateur.hors_zone).toMatchObject({ mode: 'national', univers: 'METRO', volume: 1_000_000 - 50_000 });
+    const sans = planCpDeZone(EXEMPLE, 20, 'pondere', new Map());
+    expect(sans.resume.multiplicateur.hors_zone).toMatchObject({ univers: null, volume: null });
+  });
+
+  it('strict : poids 0 et part prévue 0, même avec le volume de l’univers ; national : part prévue > 0 avec ce volume', () => {
+    const strict = planCpDeZone(EXEMPLE, 20, 'exclusif', new Map(), undefined, {}, { ...VOL, univers: 'METRO' });
+    expect(strict.resume.multiplicateur.hors_zone).toMatchObject({ mode: 'strict', multiplicateur: 0, classe: 0, part_prevue: 0, univers: 'METRO' });
+    const national = planCpDeZone(EXEMPLE, 20, 'pondere', new Map(), undefined, {}, { ...VOL, univers: 'METRO' });
+    expect(national.resume.multiplicateur.hors_zone.multiplicateur).toBeGreaterThan(0);
+    expect(national.resume.multiplicateur.hors_zone.part_prevue).toBeGreaterThan(0);
   });
 });
 

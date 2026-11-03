@@ -218,7 +218,7 @@ type RebidResult = {
 }
 ```
 
-**Entrées : la ligne `HORS_ZONE` (amendement E3).** `cps` contient les CP retenus du plan **et** une ligne pseudo-CP `cp = 'HORS_ZONE'`, sans département (elle ne se rattache à aucun `corr_dep` et suit sa propre correction : `lambda` vaut 1 pour elle, `corr(HORS_ZONE) = corr_cp_brut(HORS_ZONE)`). Son poids est 0 en mode strict (il reste 0 après correction et n'entre pas dans la moyenne), le plancher en mode national (section 3.2). Sa `part_plan` se calcule comme celle des autres lignes, avec pour volume attendu la somme des populations totales des CP non retenus du référentiel. Toute impression livrée sur un CP absent du plan est imputée à `HORS_ZONE` (`livre_cum`, `livre_fenetre`). Il n'existe qu'une définition du plan, la même que dans le plan de corrections (ticket A1).
+**Entrées : la ligne `HORS_ZONE` (amendement E3).** `cps` contient les CP retenus du plan **et** une ligne pseudo-CP `cp = 'HORS_ZONE'`, sans département (elle ne se rattache à aucun `corr_dep` et suit sa propre correction : `lambda` vaut 1 pour elle, `corr(HORS_ZONE) = corr_cp_brut(HORS_ZONE)`). Son poids est 0 en mode strict (il reste 0 après correction et n'entre pas dans la moyenne), le plancher en mode national (section 3.2). Sa `part_plan` se calcule comme celle des autres lignes, avec pour volume attendu la somme des populations totales des CP peuplés non retenus du référentiel, restreinte à l’univers de la zone, métropole ou France entière (D35, sql/337 ; sa part observée, en mode strict, est le taux de fuite). Toute impression livrée sur un CP absent du plan est imputée à `HORS_ZONE` (`livre_cum`, `livre_fenetre`). Il n'existe qu'une définition du plan, la même que dans le plan de corrections (ticket A1).
 
 ---
 

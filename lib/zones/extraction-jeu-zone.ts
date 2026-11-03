@@ -59,6 +59,7 @@ import {
   type PlanPlateforme, type ReglagePlan, type SortiePoids, type VolumesAttendus,
 } from './plan-jeu-zone';
 import { lireVolumesAttendus } from './part-prevue-serveur';
+import { universDeZone } from './part-prevue';
 import { lireGroupesCp } from './groupes';
 import { lireRecette, recetteVue } from './recette-schema';
 import type { PlateformeGeo, PlateformePoids } from './plateformes';
@@ -487,10 +488,12 @@ async function planCp(
   if (estEchec(cp)) return cp;
   const r = ctx.recette;
   const liste = r && exactitude(r, 'cp') === 'exacte' ? unitesConstitutives(r)?.codes : undefined;
-  // A8 : les volumes attendus (population totale, Q9 = A) des unités et du référentiel, pour la part prévue E5.
+  // A8 : les volumes attendus (population totale, Q9 = A) des unités et du référentiel, pour la part prévue E5 ; D35 :
+  // le référentiel restreint à l'univers de la zone (métropole, ou France entière dès qu'elle touche un DROM).
+  const codes = [...cp.lignes.map((l) => l.code), ...(liste ?? [])];
   let volumes: VolumesAttendus;
   try {
-    volumes = await lireVolumesAttendus(ctx.supabase, [...cp.lignes.map((l) => l.code), ...(liste ?? [])]);
+    volumes = await lireVolumesAttendus(ctx.supabase, codes, universDeZone(codes, r));
   } catch (e) {
     return panne('volumes attendus', e);
   }

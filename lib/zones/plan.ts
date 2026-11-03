@@ -200,8 +200,9 @@ export const FACTEUR_HORS_ZONE_NATIONAL = 0.8;
  * porte toute la population de son volume) ; `classe` = son poids dans l'échelle des bruts (part × classe des unités,
  * étape (1) de E4) : 0 en strict, `FACTEUR_HORS_ZONE_NATIONAL` × le plus petit brut retenu en national — le plancher
  * AVANT normalisation et écrêtage, donc indépendant de l'écrêtage, comme la part prévue des unités. `volume` (populations
- * totales des CP non retenus du référentiel) et `part_prevue` sont posés par l'extraction (`planCpDeZone`), qui seule
- * lit le référentiel. Figée dans `zone_set_extractions.resume_plan` (sql/306), lue par `lireHorsZone`.
+ * totales des CP peuplés non retenus du référentiel, restreint à l'`univers` de la zone, D35) et `part_prevue` sont posés
+ * par l'extraction (`planCpDeZone`), qui seule lit le référentiel. Figée dans `zone_set_extractions.resume_plan`
+ * (sql/306), lue par `lireHorsZone`. Mode strict : poids 0, part prévue 0, sa part observée est le taux de fuite.
  */
 interface LigneHorsZone {
   code: typeof CODE_HORS_ZONE;
@@ -210,6 +211,8 @@ interface LigneHorsZone {
   part: 1;
   classe: number;
   volume?: number | null;
+  /** D35 : l'univers du volume (métropole ou France entière) ; `null` quand le volume n'a pas été lu. */
+  univers?: 'METRO' | 'FR' | null;
   part_prevue?: number | null;
 }
 

@@ -7,7 +7,9 @@
  * - `hors_zone_extraction` / `lireHorsZone`, LE lecteur partagé : volume = référentiel − unités retenues (ruling 2) ;
  * - `rattacher` recopie `part_prevue` dans `bidding_zone_configs`, et `refresh_campaign_rollups` la donne telle quelle
  *   à `campaign_cp_rollup.planned_share` (le groupe ne pèse plus six fois) ;
- * - un plan SANS part prévue (chemin ⑥ hors jeu de zone) garde m ÷ Σ m, inchangé.
+ * - un plan SANS part prévue (chemin ⑥ hors jeu de zone) garde m ÷ Σ m, inchangé ;
+ * - D35 (sql/337) : le volume HORS_ZONE se lit sur les CP peuplés de l'UNIVERS de la zone (métropole ou France entière),
+ *   avec les attendus de référence Toulouse et composite.
  *
  * Seuls l'appelant et les quotas sont simulés. Un espace `[ESSAI A8]` est créé puis supprimé, avec ses jeux,
  * extractions, campagnes et stratégies (cascades).
@@ -17,6 +19,10 @@ import { NextRequest } from 'next/server';
 import { creerClientTest } from './_client';
 import { psql, psqlLignes } from './_psql';
 import { lireHorsZone, lireVolumesAttendus } from '@/lib/zones/part-prevue-serveur';
+import { universDeZone } from '@/lib/zones/part-prevue';
+import { planCpDeZone } from '@/lib/zones/plan-jeu-zone';
+import { lireGroupesCp } from '@/lib/zones/groupes';
+import type { LigneCouverture } from '@/lib/zones/couverture';
 
 const sb = creerClientTest();
 const LONG = 120_000;
@@ -139,9 +145,11 @@ describe('extraction : part prévue figée par code, ligne HORS_ZONE dans resume
     expect(hz).toMatchObject({ code: 'HORS_ZONE', mode: 'strict', multiplicateur: 0, part: 1, classe: 0, part_prevue: 0 });
     const retenus = psql(`select string_agg(code_postal, ',') from public.zone_set_extraction_cp
       where extraction_id = '${extStrict}' and retenu and code_postal = code_canonique;`).split(',');
-    const v = await lireVolumesAttendus(sb as never, retenus);
+    // D35 : Toulouse ne touche aucun DROM → le référentiel est celui de la MÉTROPOLE.
+    const v = await lireVolumesAttendus(sb as never, retenus, 'METRO');
     const volumeRetenus = retenus.reduce((t, c) => t + (v.par_code.get(c) ?? 0), 0);
     expect(hz!.volume).toBeCloseTo(v.total - volumeRetenus, 6);
+    expect(hz!.univers).toBe('METRO');
     expect(v.total).toBeGreaterThan(60_000_000);
   });
 
@@ -156,6 +164,67 @@ describe('extraction : part prévue figée par code, ligne HORS_ZONE dans resume
   it('extraction inconnue : null, pas d’erreur', async () => {
     expect(await lireHorsZone(sb as never, '00000000-0000-4000-8000-0000000000a8')).toBeNull();
   });
+});
+
+describe('D35 : volume HORS_ZONE = CP peuplés non retenus de l’univers de la zone (métropole ou France entière)', () => {
+  const sommeInd = (filtre: string) => Number(psql(`
+    select sum((populations ->> 'ind')::numeric) from public.cp_population_totale_e7
+     where (populations ->> 'ind')::numeric > 0 ${filtre};`));
+
+  it('volumes_attendus_cp_univers : METRO = CP peuplés hors DROM, FR = tous ; l’écart est la population des DROM carroyés', async () => {
+    const metro = await lireVolumesAttendus(sb as never, ['31000'], 'METRO');
+    const fr = await lireVolumesAttendus(sb as never, ['31000'], 'FR');
+    expect(metro.univers).toBe('METRO');
+    expect(fr.univers).toBe('FR');
+    expect(metro.total).toBeCloseTo(sommeInd(`and code_departement not like '97%'`), 6);
+    expect(fr.total).toBeCloseTo(sommeInd(''), 6);
+    expect(fr.total - metro.total).toBeCloseTo(sommeInd(`and code_departement like '97%'`), 6);
+    expect(fr.total - metro.total).toBeGreaterThan(1_000_000);
+    // Le volume d'une unité demandée ne dépend pas de l'univers.
+    expect(metro.par_code.get('31000')).toBe(fr.par_code.get('31000'));
+  });
+
+  it('univers inconnu : erreur 22023, jamais un total par défaut', async () => {
+    const { error } = await sb.rpc('volumes_attendus_cp_univers', { p_codes: ['31000'], p_univers: 'DROM' });
+    expect(error?.code).toBe('22023');
+  });
+
+  it('volumes_attendus_cp (avant D35) reste la France entière : enveloppe mince de la jumelle', async () => {
+    const { data, error } = await sb.rpc('volumes_attendus_cp', { p_codes: ['31000'] });
+    expect(error).toBeNull();
+    expect(Number((data as { total: number }).total)).toBeCloseTo(sommeInd(''), 6);
+  });
+
+  it('national : la part prévue HORS_ZONE est formée avec le volume de la métropole', async () => {
+    const hz = await lireHorsZone(sb as never, extNational);
+    expect(hz).toMatchObject({ mode: 'national', univers: 'METRO' });
+    const strict = await lireHorsZone(sb as never, extStrict);
+    expect(hz!.volume).toBeCloseTo(strict!.volume as number, 6);
+  });
+
+  // Attendus de référence (règle 9), base locale du 03/11 après C25. Avant D35 : Toulouse 63 286 585 hab. et 96,69 %
+  // (France entière, DROM carroyés compris) ; la composite touche 971 à 974, elle reste en France entière, inchangée.
+  it('attendu D35 — Toulouse 6 km, seuil 10, national : 62 095 675,5 hab. hors zone (métropole), part prévue 96,63 %', async () => {
+    const hz = await lireHorsZone(sb as never, extNational);
+    expect(hz!.volume).toBeCloseTo(62_095_675.5, 1);
+    expect(hz!.part_prevue).toBeCloseTo(0.96630, 4);
+    expect((await lireHorsZone(sb as never, extStrict))).toMatchObject({ univers: 'METRO', volume: hz!.volume, part_prevue: 0, multiplicateur: 0 });
+  });
+
+  it('attendu D35 — composite (2 zones), seuil 20, national : France entière, 46 056 075,5 hab. hors zone, part prévue 41,98 %', async () => {
+    const { data, error } = await sb.rpc('couverture_zone', {
+      p_zone_id: '919ca65d-665a-43f6-834e-ea9f2eb68c72', p_org_id: '00000000-0000-0000-0000-000000000001', p_cible: 'ind', p_decoupage: 'cp',
+    });
+    expect(error).toBeNull();
+    const lignes = (data as { lignes: LigneCouverture[] }).lignes;
+    const codes = lignes.map((l) => l.code);
+    expect(universDeZone(codes, null)).toBe('FR');
+    const volumes = await lireVolumesAttendus(sb as never, codes, universDeZone(codes, null));
+    const plan = planCpDeZone(lignes, 20, 'pondere', await lireGroupesCp(sb as never), undefined, {}, volumes);
+    expect(plan.resume.multiplicateur.hors_zone).toMatchObject({ mode: 'national', univers: 'FR' });
+    expect(plan.resume.multiplicateur.hors_zone.volume).toBeCloseTo(46_056_075.5, 1);
+    expect(plan.resume.multiplicateur.hors_zone.part_prevue).toBeCloseTo(0.41980, 4);
+  }, LONG);
 });
 
 describe('suivi : planned_share = part prévue (jeu de zone), m ÷ Σ m sinon', () => {

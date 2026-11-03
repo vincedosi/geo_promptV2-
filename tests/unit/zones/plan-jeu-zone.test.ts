@@ -266,9 +266,10 @@ describe('A1 — la ligne HORS_ZONE (E3) et le mode figé', () => {
   it('exclusif → mode strict : HORS_ZONE à 0, hors des CP réels du plan', () => {
     const { lignes, resume } = planCpDeZone(DEUX, 20, 'exclusif', new Map());
     // Attendu changé par A8 (était `{ code, mode, multiplicateur }`) : la ligne porte sa part prévue E5 — part 1, classe 0
-    // en strict, volume inconnu sans référentiel (tests) ; classe 0 → part prévue 0 quel que soit le volume.
+    // en strict, volume inconnu sans référentiel (tests) ; classe 0 → part prévue 0 quel que soit le volume. Attendu
+    // changé par D35 : + `univers` du volume, `null` quand aucun référentiel n'a été lu.
     expect(resume.multiplicateur.hors_zone).toEqual({
-      code: 'HORS_ZONE', mode: 'strict', multiplicateur: 0, part: 1, classe: 0, volume: null, part_prevue: 0,
+      code: 'HORS_ZONE', mode: 'strict', multiplicateur: 0, part: 1, classe: 0, volume: null, univers: null, part_prevue: 0,
     });
     expect(lignes.some((l) => l.code_postal === 'HORS_ZONE')).toBe(false);
   });

@@ -35,7 +35,7 @@ import {
 } from './plan';
 import type { PlateformePoids } from './plateformes';
 import { canoniques, developperUnites, membresDe, unitesDeGroupes } from './unite-cp';
-import { REPARTITION_GROUPE, VOLUME_ATTENDU, partsPrevues, type UnitePrevue } from './part-prevue';
+import { REPARTITION_GROUPE, VOLUME_ATTENDU, partsPrevues, type UnitePrevue, type UniversVolume } from './part-prevue';
 
 /** La classe unique des codes postaux retenus d'un jeu de zone (`MOTIF_CLASSE`). */
 const CLASSE_ZONE = 'zone';
@@ -51,12 +51,15 @@ export interface ReglagePlan {
 }
 
 /**
- * Les volumes attendus du référentiel (A8, E5 ; `volumes_attendus_cp`, sql/306) : celui de chaque unité CP demandée et
- * le total du référentiel, d'où se déduit le volume de `HORS_ZONE` (total − unités retenues).
+ * Les volumes attendus du référentiel (A8, E5 ; `volumes_attendus_cp_univers`, sql/337) : celui de chaque unité CP
+ * demandée et le total des CP peuplés de l'UNIVERS de la zone (D35 : métropole ou France entière), d'où se déduit le
+ * volume de `HORS_ZONE` (total de l'univers − unités retenues).
  */
 export interface VolumesAttendus {
   par_code: ReadonlyMap<string, number>;
   total: number;
+  /** L'univers du total (D35) ; absent = France entière, la lecture d'avant D35 (tests). */
+  univers?: UniversVolume;
 }
 
 /** Le refus de `reglageDuPlan` : une phrase, prête pour un 422. */
@@ -176,7 +179,8 @@ export function planCpDeZone(
   const bilan = plan.multiplicateur as BilanMultiplicateur;
 
   // A8 : la part prévue, découplée du multiplicateur — unités retenues seulement (la classe unique `zone` pèse 1), plus
-  // HORS_ZONE (volume = référentiel − unités retenues). Une unité retenue sans volume connu : `null`, hors de la somme.
+  // HORS_ZONE (volume = CP peuplés de l'univers de la zone − unités retenues, D35). Une unité retenue sans volume
+  // connu : `null`, hors de la somme.
   const volumeDe = (c: CpZone): number | null => {
     const v = volumes ? volumes.par_code.get(c.code_postal) ?? null : c.pop_totale;
     return v !== null && v > 0 ? v : null;
@@ -225,7 +229,10 @@ export function planCpDeZone(
         moyenne_apres_ecretage: effectifs.length > 0 ? Math.round((effectifs.reduce((t, x) => t + x, 0) / effectifs.length) * 1000) / 1000 : null,
         n_ecretes: [...journal.values()].reduce((t, a) => t + a.n, 0),
         ajustements: [...journal.values()],
-        hors_zone: { ...bilan.hors_zone, volume: volumeHorsZone, part_prevue: prevues.hors_zone },
+        // D35 : l'univers du volume est figé avec lui (`resume_plan`, lu par `lireHorsZone`) ; `null` sans volumes.
+        hors_zone: {
+          ...bilan.hors_zone, volume: volumeHorsZone, univers: volumes ? volumes.univers ?? 'FR' : null, part_prevue: prevues.hors_zone,
+        },
       },
       // A8 : comment la part prévue a été formée (figé dans `resume_plan`, sql/306). `unites_sans_part` : unités retenues
       // dont la part prévue est `null` (volume ou population inconnus) — dites, pas comptées à 0.
