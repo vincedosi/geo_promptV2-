@@ -239,14 +239,37 @@ describe('B9 (ARB-7) — la maille par défaut sur les simulations en mémoire',
     const rien = () => undefined;
     const attente = defautsDe(regles, anneau, undefined, (_p, c) => (c.maille === 'cp' ? cpVide : undefined), () => false).dv360!;
     expect(attente).toMatchObject({ maille: 'cp', critere: 'en_attente' });
-    expect(texteDefaut(attente)).toBe('Codes postaux par défaut, provisoirement : simulation des autres mailles en cours.');
+    expect(texteDefaut(attente)).toBe('Codes postaux par défaut (export manuel), provisoirement : simulation des autres mailles en cours.');
     const d = defautsDe(regles, anneau, undefined, (_p, c) => (c.maille === 'cp' ? cpVide : pavage10), () => false).dv360!;
     expect(d).toMatchObject({ maille: 'cercle', critere: 'couverture_cible', simulation: { couverture: 90, taux_utile: 75 } });
-    expect(texteDefaut(d)).toBe('Cercles par défaut : couverture 90 %, taux utile 75 %, contre 0 % / — en codes postaux.');
+    expect(texteDefaut(d)).toBe('Cercles par défaut (export manuel) : couverture 90 %, taux utile 75 %, contre 0 % / — en codes postaux (export manuel).');
     expect(choixDeBase(null, regles, anneau, { dv360: d })).toEqual({ dv360: { maille: 'cercle', seuil: 20, rayon_m: 10_000 } });
     // Le pavage refusé : la maille sort de la course, les CP restent, sous la cible.
     const refus = defautsDe(regles, anneau, REGLAGES_DEFAUT_REPLI, (_p, c) => (c.maille === 'cp' ? cpVide : rien()), (_p, c) => c.maille === 'cercle').dv360!;
-    expect(texteDefaut(refus)).toBe('Codes postaux par défaut : couverture 0 %, taux utile — (aucune maille n’atteint 80 % de couverture).');
+    expect(texteDefaut(refus)).toBe('Codes postaux par défaut (export manuel) : couverture 0 %, taux utile — (aucune maille n’atteint 80 % de couverture).');
+  });
+});
+
+describe('B16 — le défaut dit son mode de poussée', () => {
+  // La forme du registre au 02/11 (sql/322) : DV360 / CP poussé par API, son script de poids non branché (E2) ; cercles
+  // DV360 en export manuel. Lignes de test : les vraies valeurs se lisent dans `plateformes_geo` / `plateformes_poids`.
+  const regles = [ligne({ plateforme: 'dv360', maille: 'cp', poussee_branchee: true }), ligne({ plateforme: 'dv360', maille: 'cercle' })];
+  const poids = [{ plateforme: 'dv360', maille: 'cp', mecanisme: 'script', branche: false }] as const;
+  const rayon5km = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 5000, part_retenue: 1 } as const;
+
+  it('rayon 5 km sur DV360 : le CP, poussé par API, se simule ; la ligne du défaut dit le mode de chacune', () => {
+    expect(choixASimuler(regles, 'dv360', rayon5km, null, [...poids]).map((s) => s.choix)).toEqual([{ maille: 'cp', seuil: 20 }]);
+    const attente = defautsDe(regles, rayon5km, undefined, () => undefined, () => false, null, [...poids]).dv360!;
+    // Provisoire : le départage seul, où la poussée passe avant l'exactitude (ruling B16).
+    expect(texteDefaut(attente)).toBe('Codes postaux par défaut (ciblage par API, poids en export manuel), provisoirement : '
+      + 'simulation des autres mailles en cours.');
+    const d = defautsDe(regles, rayon5km, undefined, () => couverture('cp', 'v1'), () => false, null, [...poids]).dv360!;
+    expect(d).toMatchObject({ maille: 'cercle', poussee: 'manuel', comparee: { maille: 'cp', poussee: 'ciblage_api' } });
+    expect(texteDefaut(d)).toBe('Cercles par défaut (export manuel) : couverture 100 %, taux utile 100 %, contre 60 % / 60 % en '
+      + 'codes postaux (ciblage par API, poids en export manuel).');
+    // Un script branché : le CP part entièrement par API.
+    const api = defautsDe(regles, rayon5km, undefined, () => couverture('cp', 'v1'), () => false, null, [{ ...poids[0], branche: true }]).dv360!;
+    expect(texteDefaut(api)).toContain('en codes postaux (poussée API).');
   });
 });
 

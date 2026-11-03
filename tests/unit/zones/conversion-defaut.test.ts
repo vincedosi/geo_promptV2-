@@ -5,8 +5,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  REGLAGES_DEFAUT_REPLI, choisirDefaut, departageParFinesse, mailleParDefaut, mailleSure, simulationDe, simulationsRequises,
-  type Departage, type Simulations,
+  REGLAGES_DEFAUT_REPLI, choisirDefaut, departageParFinesse, departageParPoussee, mailleParDefaut, mailleSure, modePoussee,
+  simulationDe, simulationsRequises, type Departage, type MecanismePoussee, type Simulations,
 } from '@/lib/zones/conversion-defaut';
 import { appliquerSeuil, resumeExact } from '@/lib/zones/conversion';
 import type { PlateformeGeo } from '@/lib/zones/plateformes';
@@ -51,7 +51,7 @@ describe('B9 — les trois cas du ticket', () => {
     expect(cp).toEqual({ couverture: 0, taux_utile: null });
     const d = choisirDefaut(REGLES, 'dv360', ANNEAU, { cp, cercle: { couverture: 88, taux_utile: 41 } }, R);
     expect(d).toMatchObject({ maille: 'cercle', critere: 'couverture_cible', simulation: { couverture: 88, taux_utile: 41 } });
-    expect(d?.comparee).toEqual({ maille: 'cp', simulation: { couverture: 0, taux_utile: null } });
+    expect(d?.comparee).toEqual({ maille: 'cp', poussee: 'manuel', simulation: { couverture: 0, taux_utile: null } });
   });
 
   it('liste de 40 CP sur Meta → CP proposé (exact, « à vérifier »), pas cercles', () => {
@@ -62,7 +62,7 @@ describe('B9 — les trois cas du ticket', () => {
     expect(simulationsRequises(REGLES, 'meta', LISTE_40_CP)).toEqual(['cercle']);
     const d = choisirDefaut(REGLES, 'meta', LISTE_40_CP, { cercle: { couverture: 93, taux_utile: 58 } }, R);
     expect(d).toMatchObject({ maille: 'cp', critere: 'couverture_cible', simulation: { couverture: 100, taux_utile: 100 } });
-    expect(d?.comparee).toEqual({ maille: 'cercle', simulation: { couverture: 93, taux_utile: 58 } });
+    expect(d?.comparee).toEqual({ maille: 'cercle', poussee: 'manuel', simulation: { couverture: 93, taux_utile: 58 } });
   });
 
   it('E1 : un CP à 95 % couvrant 10 % contre des cercles à 70 % couvrant 90 % → cercles proposés', () => {
@@ -73,7 +73,7 @@ describe('B9 — les trois cas du ticket', () => {
     expect(cp).toEqual({ couverture: 10, taux_utile: 95 });
     const d = choisirDefaut(REGLES, 'dv360', DESSIN, { cp, cercle: { couverture: 90, taux_utile: 70 } }, R);
     expect(d).toMatchObject({ maille: 'cercle', critere: 'couverture_cible', couverture_cible: 80 });
-    expect(d?.comparee).toEqual({ maille: 'cp', simulation: { couverture: 10, taux_utile: 95 } });
+    expect(d?.comparee).toEqual({ maille: 'cp', poussee: 'manuel', simulation: { couverture: 10, taux_utile: 95 } });
   });
 });
 
@@ -103,20 +103,20 @@ describe('B9 — le critère en deux temps', () => {
     const sims: Simulations = { cp: { couverture: 90, taux_utile: 72 }, cercle: { couverture: 92, taux_utile: 75 } };
     const cerclesDabord: Departage = (a, b) => (a.maille === 'cercle' ? 0 : 1) - (b.maille === 'cercle' ? 0 : 1);
     expect(choisirDefaut(REGLES, 'dv360', DESSIN, sims, R)?.maille).toBe('cp');
-    expect(choisirDefaut(REGLES, 'dv360', DESSIN, sims, R, cerclesDabord)?.maille).toBe('cercle');
+    expect(choisirDefaut(REGLES, 'dv360', DESSIN, sims, R, [], cerclesDabord)?.maille).toBe('cercle');
     const ecartees: Simulations = { cp: { couverture: 90, taux_utile: 81 }, cercle: { couverture: 92, taux_utile: 75 } };
-    expect(choisirDefaut(REGLES, 'dv360', DESSIN, ecartees, R, cerclesDabord)?.maille).toBe('cp');
+    expect(choisirDefaut(REGLES, 'dv360', DESSIN, ecartees, R, [], cerclesDabord)?.maille).toBe('cp');
   });
   it('simulation manquante : défaut provisoire par l’ordre de finesse, dit « en attente »', () => {
     expect(choisirDefaut(REGLES, 'dv360', DESSIN, { cp: { couverture: 90, taux_utile: 80 } }, R)).toEqual({
-      maille: 'cp', critere: 'en_attente', couverture_cible: 80,
+      maille: 'cp', poussee: 'manuel', critere: 'en_attente', couverture_cible: 80,
     });
   });
   it('simulation refusée (pavage refusé, lecture en échec) : la maille sort de la course', () => {
     expect(choisirDefaut(REGLES, 'dv360', DESSIN, { cp: { couverture: 30, taux_utile: 80 }, cercle: 'refusee' }, R))
       .toMatchObject({ maille: 'cp', critere: 'couverture_max' });
     expect(choisirDefaut(REGLES, 'dv360', DESSIN, { cp: 'refusee', cercle: 'refusee' }, R))
-      .toEqual({ maille: 'cp', critere: 'sans_simulation', couverture_cible: 80 });
+      .toEqual({ maille: 'cp', poussee: 'manuel', critere: 'sans_simulation', couverture_cible: 80 });
   });
   it('une maille exacte sûre ne se simule pas : rien à lire (zone pays, disque entier en France)', () => {
     const pays: Recette = { v: 1, type: 'pays', code: 'METRO' };
@@ -153,5 +153,57 @@ describe('E9 — « sûre » ne regarde que les paramètres qui conditionnent la
     const cercle = ligne({ plateforme: 'dv360', maille: 'cercle', parametres_a_verifier: ['rayon_min_m'] });
     expect(departageParFinesse(cp, cercle, DESSIN)).toBeLessThan(0);
     expect(mailleParDefaut([cercle, cp], 'dv360', DESSIN)).toBe('cp');
+  });
+});
+
+describe('B16 — la poussée branchée, 2e critère du départage (après « sûre avant à vérifier »)', () => {
+  // La forme du registre au 02/11 : DV360 / CP poussé par API (`poussee_branchee`, sql/322), ses deux mécanismes de
+  // poids non branchés (`plateformes_poids.branche`, E2) ; les cercles DV360 sans poussée (export manuel).
+  const BRANCHEES = REGLES.map((l) => (l.plateforme === 'dv360' && l.maille === 'cp' ? { ...l, poussee_branchee: true } : l));
+  const POIDS: MecanismePoussee[] = [
+    { plateforme: 'dv360', maille: 'cp', mecanisme: 'multiplicateur', branche: false },
+    { plateforme: 'dv360', maille: 'cp', mecanisme: 'script', branche: false },
+    { plateforme: 'meta', maille: 'cp', mecanisme: 'aucun', branche: false },
+  ];
+  const cpDv360 = BRANCHEES.find((l) => l.plateforme === 'dv360' && l.maille === 'cp')!;
+  const cercleDv360 = BRANCHEES.find((l) => l.plateforme === 'dv360' && l.maille === 'cercle')!;
+  const RAYON_5KM: Recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 5_000, part_retenue: 1 };
+
+  it('modePoussee : registre géo d’abord, puis les mécanismes de poids de la maille (E2)', () => {
+    expect(modePoussee(cercleDv360, POIDS)).toBe('manuel');
+    expect(modePoussee(cpDv360, POIDS)).toBe('ciblage_api');
+    expect(modePoussee(cpDv360, POIDS.map((p) => (p.mecanisme === 'script' ? { ...p, branche: true } : p)))).toBe('api');
+    // Une maille sans mécanisme de poids (ou `aucun`) : le ciblage seul part, il est poussé par API.
+    expect(modePoussee(cpDv360, [])).toBe('api');
+    const cpMeta = { ...BRANCHEES.find((l) => l.plateforme === 'meta' && l.maille === 'cp')!, poussee_branchee: true };
+    expect(modePoussee(cpMeta, POIDS)).toBe('api');
+    // Un mécanisme branché ne pousse rien si le ciblage géo lui-même ne l'est pas.
+    expect(modePoussee(cercleDv360, [{ plateforme: 'dv360', maille: 'cercle', mecanisme: 'script', branche: true }])).toBe('manuel');
+  });
+
+  it('rayon 5 km sur DV360 : le défaut proposé porte son mode de poussée, et celui de la comparée', () => {
+    // Le CP, poussé par API, passe devant les cercles exacts au départage : il doit être simulé.
+    expect(simulationsRequises(BRANCHEES, 'dv360', RAYON_5KM, POIDS)).toEqual(['cp']);
+    const d = choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: { couverture: 92, taux_utile: 70 } }, R, POIDS);
+    expect(d).toMatchObject({ maille: 'cercle', poussee: 'manuel', critere: 'couverture_cible' });
+    expect(d?.comparee).toEqual({ maille: 'cp', poussee: 'ciblage_api', simulation: { couverture: 92, taux_utile: 70 } });
+  });
+
+  it('à taux utile égal (± 5 points), la maille poussée par API l’emporte ; hors de l’écart, le taux', () => {
+    const dansLEcart = choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: { couverture: 97, taux_utile: 96 } }, R, POIDS);
+    expect(dansLEcart).toMatchObject({ maille: 'cp', poussee: 'ciblage_api' });
+    expect(dansLEcart?.comparee).toMatchObject({ maille: 'cercle', poussee: 'manuel' });
+    expect(choisirDefaut(BRANCHEES, 'dv360', RAYON_5KM, { cp: { couverture: 97, taux_utile: 94 } }, R, POIDS)?.maille).toBe('cercle');
+    // Sans poussée au registre (avant sql/322) : l'ordre de B9, le cercle exact.
+    expect(choisirDefaut(REGLES, 'dv360', RAYON_5KM, {}, R, POIDS)).toMatchObject({ maille: 'cercle', poussee: 'manuel' });
+  });
+
+  it('« sûre avant à vérifier » reste le 1er critère : une maille poussée mais « à vérifier » cède à une sûre', () => {
+    const cpAVerifier = { ...cpDv360, a_verifier: true };
+    expect(departageParPoussee(POIDS)(cpAVerifier, cercleDv360, DESSIN)).toBeGreaterThan(0);
+    expect(departageParPoussee(POIDS)(cpDv360, cercleDv360, RAYON_5KM)).toBeLessThan(0);
+    // Le mode « poussée API » complet passe devant « ciblage API, poids manuels ».
+    const cercleApi = { ...cercleDv360, poussee_branchee: true };
+    expect(departageParPoussee(POIDS)(cercleApi, cpDv360, DESSIN)).toBeLessThan(0);
   });
 });

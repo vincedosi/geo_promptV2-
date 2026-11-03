@@ -30,7 +30,8 @@ const _types: [
   Egal<S.Avertissement, A.Avertissement>,
   Egal<SD.DefautExplique, AD.DefautExplique>,
   Egal<SD.Simulations, AD.Simulations>,
-] = [true, true, true, true, true, true];
+  Egal<SD.MecanismePoussee, AD.MecanismePoussee>,
+] = [true, true, true, true, true, true, true];
 void _types;
 
 /** Le code d'un fichier sans son en-tête (premier commentaire de bloc) ni ses lignes d'import. */
@@ -95,10 +96,15 @@ describe('conversion d’une zone : Angular = serveur', () => {
       { v: 1, type: 'codes_postaux', codes: ['13001', '13002'] },
       { v: 1, type: 'dessin' },
     ];
+    const POIDS_POUSSEE: SD.MecanismePoussee[][] = [
+      [],
+      [{ plateforme: 'dv360', maille: 'cp', mecanisme: 'script', branche: false }],
+      [{ plateforme: 'dv360', maille: 'cp', mecanisme: 'script', branche: true }, { plateforme: 'meta', maille: 'cp', mecanisme: 'aucun', branche: false }],
+    ];
     const regles = [
       ligne({ plateforme: 'meta', maille: 'cercle', limites: { rayon_min_m: 1_000, rayon_max_m: 10_000, max_unites: 2 } }),
       ligne({ plateforme: 'meta', maille: 'cp', a_verifier: true }),
-      ligne({ plateforme: 'dv360', maille: 'cp' }), ligne({ plateforme: 'dv360', maille: 'cercle' }),
+      ligne({ plateforme: 'dv360', maille: 'cp', poussee_branchee: true }), ligne({ plateforme: 'dv360', maille: 'cercle' }),
       ligne({ plateforme: 'ttd', maille: 'polygone', a_verifier: true }), ligne({ plateforme: 'ttd', maille: 'cp', a_verifier: true }),
       ligne({ plateforme: 'tiktok', maille: 'commune', limites: { pop_min_groupe: 1_000, max_unites: 1 } }),
       ligne({ plateforme: 'tiktok', maille: 'cercle', disponible: false }),
@@ -110,13 +116,20 @@ describe('conversion d’une zone : Angular = serveur', () => {
       for (const p of SP.PLATEFORMES) {
         expect(AD.mailleParDefaut(regles, p, r)).toBe(SD.mailleParDefaut(regles, p, r));
         expect(AD.simulationsRequises(regles, p, r)).toEqual(SD.simulationsRequises(regles, p, r));
-        for (const sims of SIMULATIONS) {
-          expect(AD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI)).toEqual(SD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI));
+        // B16 : les mêmes réponses avec les mécanismes de poids du registre (branchés ou non).
+        for (const poids of POIDS_POUSSEE) {
+          expect(AD.mailleParDefaut(regles, p, r, poids)).toBe(SD.mailleParDefaut(regles, p, r, poids));
+          expect(AD.simulationsRequises(regles, p, r, poids)).toEqual(SD.simulationsRequises(regles, p, r, poids));
+          for (const sims of SIMULATIONS) {
+            expect(AD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI, poids))
+              .toEqual(SD.choisirDefaut(regles, p, r, sims, SD.REGLAGES_DEFAUT_REPLI, poids));
+          }
         }
       }
       for (const m of SP.MAILLES) expect(A.avertissementsDisque(r, m)).toEqual(S.avertissementsDisque(r, m));
     }
     for (const l of regles) expect(AD.mailleSure(l)).toBe(SD.mailleSure(l));
+    for (const l of regles) for (const poids of POIDS_POUSSEE) expect(AD.modePoussee(l, poids)).toBe(SD.modePoussee(l, poids));
     expect(AD.simulationDe(A.appliquerSeuil(lignes, 130, 10))).toEqual(SD.simulationDe(S.appliquerSeuil(lignes, 130, 10)));
     for (const l of regles) {
       expect(A.verifierLimites(A.appliquerSeuil(lignes, 130, 10), l)).toEqual(S.verifierLimites(S.appliquerSeuil(lignes, 130, 10), l));

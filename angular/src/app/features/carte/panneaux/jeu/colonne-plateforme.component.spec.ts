@@ -44,7 +44,7 @@ describe('mg-colonne-plateforme', () => {
     // B9 : le pavage que DV360 simule pour décider de son défaut, moins bon : le CP reste, et la ligne le dit.
     http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
     await stable();
-    expect(texte(el, '[data-defaut]')).toBe('Codes postaux par défaut : couverture 90 %, taux utile 45 %, contre 90 % / 30 % en cercles.');
+    expect(texte(el, '[data-defaut]')).toBe('Codes postaux par défaut (export manuel) : couverture 90 %, taux utile 45 %, contre 90 % / 30 % en cercles (export manuel).');
     expect(texte(el, '[data-unites]')).toBe('2 / 3');
     expect(texte(el, '[data-taux]')).toBe('45,0 %');
     expect(texte(el, '[data-manques]')).toBe('100 (10,0 % de la zone)');

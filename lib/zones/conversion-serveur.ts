@@ -25,7 +25,7 @@ type ClientAdmin = ReturnType<typeof createAdminClient>;
 
 /** Les colonnes d'une ligne de `plateformes_geo` — une chaîne LITTÉRALE : supabase-js en déduit le type des lignes. */
 const COLONNES_PLATEFORMES_GEO =
-  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays, pays_a_verifier, poids_groupe_cp, parametres_a_verifier, polygone_sommets_max, polygone_morceaux_max, pop_min_unite_comportement, pop_min_groupe_comportement';
+  'plateforme, maille, libelle, natif, disponible, limites, doc_url, releve_le, a_verifier, note, ordre, codes_pays, pays_a_verifier, poids_groupe_cp, parametres_a_verifier, polygone_sommets_max, polygone_morceaux_max, pop_min_unite_comportement, pop_min_groupe_comportement, poussee_branchee';
 
 /**
  * Les règles des plateformes demandées (toutes sans filtre : `GET /api/zones/plateformes`), triées par `ordre` et
@@ -50,16 +50,18 @@ const COLONNES_PLATEFORMES_POIDS =
 
 /**
  * Les mécanismes de poids des plateformes demandées à une maille (`plateformes_poids`, sql/305, A1, amendement E2),
- * validés par le schéma. Bornée par construction (clé primaire) et par `MAX_PLATEFORMES_POIDS + 1` lue. Lève sur une
- * erreur de lecture ou une ligne hors schéma, comme `lireRegles`.
+ * validés par le schéma — à TOUTES les mailles sans `maille` (B16 : `GET /api/zones/plateformes`, mode de poussée).
+ * Bornée par construction (clé primaire) et par `MAX_PLATEFORMES_POIDS + 1` lue. Lève sur une erreur de lecture ou une
+ * ligne hors schéma, comme `lireRegles`.
  */
 export async function lirePoids(
-  supabase: ClientAdmin, plateformes: readonly string[], maille: string,
+  supabase: ClientAdmin, plateformes: readonly string[], maille?: string,
 ): Promise<PlateformePoids[]> {
-  const { data, error } = await supabase.from('plateformes_poids').select(COLONNES_PLATEFORMES_POIDS)
-    .in('plateforme', [...new Set(plateformes)])
-    .eq('maille', maille)
+  const requete = supabase.from('plateformes_poids').select(COLONNES_PLATEFORMES_POIDS)
+    .in('plateforme', [...new Set(plateformes)]);
+  const { data, error } = await (maille === undefined ? requete : requete.eq('maille', maille))
     .order('plateforme', { ascending: true })
+    .order('maille', { ascending: true })
     .order('mecanisme', { ascending: true })
     .limit(MAX_PLATEFORMES_POIDS + 1);
   if (error) throw new Error(`lecture de plateformes_poids : ${error.message}`);

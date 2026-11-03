@@ -1,13 +1,13 @@
 import { DestroyRef, Injectable, type Signal, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CouvertureApi } from '../data/couverture.api';
-import { type DetailJeuZone, JeuxApi, type ModePlan, type ReponsePlateformes } from '../data/jeux.api';
+import { type DetailJeuZone, JeuxApi, type ModePlan } from '../data/jeux.api';
 import { MODE_PLAN_DEFAUT_ZONE } from '../../risques/logique/jeu';
 import { CIBLE_PAR_DEFAUT, type Decoupage, type ResultatCouverture, lireCible, lireZoneAnalyse } from '../logique/analyses/couverture';
 import { messageErreurCouverture } from '../logique/analyses/couverture-erreurs';
 import {
-  type BilanPlateforme, type ResultatCercles, bilanDe, cerclesCourants, choixASimuler, choixDeBase, choixNeuf, cleCouverture, couverturesCourantes,
-  daterCouvertures, defautsDe, lectureRequise, parPlateforme, rangerCouverture,
+  type BilanPlateforme, type ResultatCercles, bilanDe, cerclesCourants, choixDeBase, choixNeuf, cleCouverture, couverturesCourantes,
+  daterCouvertures, lectureRequise, parPlateforme, rangerCouverture,
 } from '../logique/jeu/bilan';
 import {
   type ChoixMaille, type ChoixParPlateforme, PARAM_EXTRACTION, PARAM_JEU, PARAM_MAILLES, PARAM_ZONE_JEU, type ParametresJeu, SEUIL_PAR_DEFAUT,
@@ -18,6 +18,7 @@ import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateform
 import type { Recette } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
 import { jeuPerdu, lireJeuDeZone } from './jeu-zones-lecture';
+import { RegistrePlateformes } from './jeu-zones-registre';
 import { TachesJeu, cleTache } from './jeu-zones-taches';
 import { LectureAnnulable } from './lecture-annulable';
 
@@ -68,7 +69,7 @@ export class JeuZonesService {
   private readonly _relectureZone = signal(0);
   private readonly _erreur = signal<string | null>(null);
   private readonly lectureJeu = new LectureAnnulable<DetailJeuZone>(messageErreurCouverture);
-  private readonly lecturePlateformes = new LectureAnnulable<ReponsePlateformes>(messageErreurCouverture);
+  private readonly registre = new RegistrePlateformes();
   /** La file des conversions et leurs échecs (T0 des finitions) ; une zone introuvable la retire, message gardé. */
   private readonly taches = new TachesJeu((message) => {
     this.choisirZone(null);
@@ -93,13 +94,13 @@ export class JeuZonesService {
   /** Le mode de plan : le choisi (enregistré par « Enregistrer les réglages »), sinon celui du jeu, sinon exclusif (ARB-2, A1). */
   readonly modePlan: Signal<ModePlan> = computed(() => this._modeChoisi() ?? this.jeu()?.jeu.mode_plan ?? MODE_PLAN_DEFAUT_ZONE);
   /** Le registre `plateformes_geo`, lu une fois par page. */
-  readonly plateformes: Signal<readonly PlateformeGeo[]> = computed(() => this.lecturePlateformes.resultat()?.plateformes ?? []);
+  readonly plateformes: Signal<readonly PlateformeGeo[]> = this.registre.plateformes;
   /** Un message qui ne tient pas à une plateforme (zone ou jeu introuvable, registre illisible) ; `null` sinon. */
-  readonly erreur: Signal<string | null> = computed(() => this._erreur() ?? this.lectureJeu.erreur() ?? this.lecturePlateformes.erreur());
+  readonly erreur: Signal<string | null> = computed(() => this._erreur() ?? this.lectureJeu.erreur() ?? this.registre.erreur());
 
   /** B9 (ARB-7) : défaut et raison par plateforme, sur les simulations EN MÉMOIRE (`defautsDe`) ; vide pour un jeu ouvert. */
-  readonly defauts: Signal<ReturnType<typeof defautsDe>> = computed(() => (this.jeu() ? {} : defautsDe(this.plateformes(), this._recette(),
-    this.lecturePlateformes.resultat()?.reglages_defaut, (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)), this._surface())));
+  readonly defauts: Signal<ReturnType<RegistrePlateformes['defauts']>> = computed(() => (this.jeu() ? {} : this.registre.defauts(this._recette(),
+    (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)), this._surface())));
   /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (`defauts`), seuil 20 %. */
   private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts(), this._surface()));
 
@@ -174,7 +175,7 @@ export class JeuZonesService {
 
   /** Lit le registre des plateformes, une fois par page, à l'arrivée d'une zone ou d'un jeu (effet du constructeur). */
   private chargerPlateformes(): void {
-    if (!this.detruit) this.lecturePlateformes.chargerUneFois(() => this.api.plateformes());
+    if (!this.detruit) this.registre.charger(() => this.api.plateformes());
   }
 
   /**
@@ -274,7 +275,7 @@ export class JeuZonesService {
     const actuel = this.choix()[plateforme];
     if (this.detruit || !zone || !actuel || !this._recetteConnue()) return;
     const cible = this.cible();
-    const simulations = this.jeu() || this._reglages()[plateforme] ? [] : choixASimuler(this.plateformes(), plateforme, this._recette(), this._surface())
+    const simulations = this.jeu() || this._reglages()[plateforme] ? [] : this.registre.aSimuler(plateforme, this._recette(), this._surface())
       .filter((s) => !this.taches.erreur(this.tache(plateforme, s.choix, s.ligne))).map((s) => s.choix);
     for (const c of [actuel, ...simulations]) {
       const ligne = this.regle(plateforme, c.maille);

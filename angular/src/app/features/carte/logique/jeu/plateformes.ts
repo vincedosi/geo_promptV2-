@@ -60,4 +60,6 @@ export interface PlateformeGeo {
   /** B13 (sql/318) : le comportement de `limites.pop_min_unite` / `pop_min_groupe` ; `null` ou absent sans minimum. */
   pop_min_unite_comportement?: (typeof COMPORTEMENTS_POPULATION)[number] | null | undefined;
   pop_min_groupe_comportement?: (typeof COMPORTEMENTS_POPULATION)[number] | null | undefined;
+  /** B16 (sql/322) : le ciblage géo de cette maille est-il poussé par API ? Absent = non (`modePoussee`). */
+  poussee_branchee?: boolean | undefined;
 }

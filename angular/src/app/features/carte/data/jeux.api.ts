@@ -5,7 +5,7 @@ import type { Extraction } from '../../risques/data/jeux-zones.api';
 import type { MODES_PLAN } from '../../risques/logique/jeu';
 import type { ResultatCercles } from '../logique/jeu/bilan';
 import type { Avertissement } from '../logique/jeu/conversion';
-import type { ReglagesDefaut } from '../logique/jeu/conversion-defaut';
+import type { MecanismePoussee, ReglagesDefaut } from '../logique/jeu/conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
 
@@ -177,9 +177,14 @@ export interface ExtractionCreee {
   version: number;
 }
 
-/** `GET /api/zones/plateformes` : le registre `plateformes_geo` et les réglages de la maille par défaut (sql/315). */
+/**
+ * `GET /api/zones/plateformes` : le registre `plateformes_geo`, les mécanismes de poids de toutes les mailles
+ * (`plateformes_poids`, B16 : le mode de poussée du défaut) et les réglages de la maille par défaut (sql/315).
+ */
 export interface ReponsePlateformes {
   plateformes: PlateformeGeo[];
+  /** B16 : absent (réponse d'avant B16) = aucun mécanisme lu, le mode de poussée ne lit que `poussee_branchee`. */
+  poids?: MecanismePoussee[];
   reglages_defaut?: ReglagesDefaut;
 }
 

@@ -4784,6 +4784,7 @@ export type Database = {
           polygone_sommets_max: number | null
           pop_min_groupe_comportement: string | null
           pop_min_unite_comportement: string | null
+          poussee_branchee: boolean
           releve_le: string
         }
         Insert: {
@@ -4805,6 +4806,7 @@ export type Database = {
           polygone_sommets_max?: number | null
           pop_min_groupe_comportement?: string | null
           pop_min_unite_comportement?: string | null
+          poussee_branchee?: boolean
           releve_le: string
         }
         Update: {
@@ -4826,6 +4828,7 @@ export type Database = {
           polygone_sommets_max?: number | null
           pop_min_groupe_comportement?: string | null
           pop_min_unite_comportement?: string | null
+          poussee_branchee?: boolean
           releve_le?: string
         }
         Relationships: []

@@ -68,9 +68,9 @@ export function mailleSure(l: PlateformeGeo): boolean {
 const FINESSE: readonly Maille[] = ['polygone', 'iris', 'cp', 'cercle', 'commune', 'departement', 'pays'];
 
 /**
- * Le DÉPARTAGE de deux mailles (négatif : `a` d'abord) — le point d'extension de B16, qui y branchera le mode de
- * poussée (`plateformes_geo.poussee_branchee`). Il ordonne les mailles à taux utile égal à ± l'écart de départage, et
- * c'est tout l'ordre du défaut provisoire (simulations pas encore lues).
+ * Le DÉPARTAGE de deux mailles (négatif : `a` d'abord). Il ordonne les mailles à taux utile égal à ± l'écart de
+ * départage, et c'est tout l'ordre du défaut provisoire (simulations pas encore lues). Celui de la règle est
+ * `departageParPoussee` (B16) ; un appelant peut en passer un autre.
  */
 export type Departage = (a: PlateformeGeo, b: PlateformeGeo, recette: Recette) => number;
 
@@ -90,6 +90,45 @@ export const departageParFinesse: Departage = (a, b, recette) => {
   return ra[0] - rb[0] || ra[1] - rb[1] || ra[2] - rb[2];
 };
 
+/**
+ * B16 : un mécanisme de poids d'une maille, réduit à ce que lit le mode de poussée — une ligne de `plateformes_poids`
+ * (sql/305, amendement E2 ; le serveur la valide par `PlateformePoidsSchema`). `mecanisme` vaut `aucun` quand la maille
+ * ne transmet aucun poids à la plateforme.
+ */
+export interface MecanismePoussee {
+  plateforme: Plateforme;
+  maille: Maille;
+  mecanisme: string;
+  branche: boolean;
+}
+
+/**
+ * B16 : comment la maille part chez la plateforme — `api` (tout est poussé par API), `ciblage_api` (le ciblage géo est
+ * poussé par API, les poids du plan partent en export manuel), `manuel` (export manuel). Lu dans le registre seul :
+ * `plateformes_geo.poussee_branchee` (sql/322) pour le ciblage, puis — pour une maille qui porte des poids, c.-à-d. un
+ * mécanisme autre que `aucun` — `plateformes_poids.branche` (E2) : un seul mécanisme branché suffit.
+ */
+export type ModePoussee = 'api' | 'ciblage_api' | 'manuel';
+
+export function modePoussee(l: PlateformeGeo, poids: readonly MecanismePoussee[]): ModePoussee {
+  if (!l.poussee_branchee) return 'manuel';
+  const mecanismes = poids.filter((p) => p.plateforme === l.plateforme && p.maille === l.maille && p.mecanisme !== 'aucun');
+  return mecanismes.length === 0 || mecanismes.some((p) => p.branche) ? 'api' : 'ciblage_api';
+}
+
+const RANG_POUSSEE: Readonly<Record<ModePoussee, number>> = { api: 0, ciblage_api: 1, manuel: 2 };
+
+/**
+ * B16 (ruling du 02/11) : LE départage de la règle — une maille sûre (E9) d'abord, puis la poussée branchée (`api`,
+ * puis `ciblage_api`, puis `manuel`), puis l'ordre de `departageParFinesse` (exacte, plus fine, pays devant). Sans
+ * aucune poussée au registre, il rend exactement l'ordre de `departageParFinesse`.
+ */
+export function departageParPoussee(poids: readonly MecanismePoussee[]): Departage {
+  return (a, b, recette) => (mailleSure(a) ? 0 : 1) - (mailleSure(b) ? 0 : 1)
+    || RANG_POUSSEE[modePoussee(a, poids)] - RANG_POUSSEE[modePoussee(b, poids)]
+    || departageParFinesse(a, b, recette);
+}
+
 /** Les mailles candidates : natives, disponibles, et qui ont un sens pour la recette (`mailleSansObjet`, A-3). */
 function candidates(lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette): PlateformeGeo[] {
   return lignes.filter((l) => l.plateforme === plateforme && l.natif && l.disponible && mailleSansObjet(recette, l.maille) === null);
@@ -102,7 +141,8 @@ const estExacte = (l: PlateformeGeo, recette: Recette) => exactitude(recette, l.
  * peut l'être. `null` si la plateforme n'a aucune maille achetable.
  */
 export function mailleParDefaut(
-  lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, departage: Departage = departageParFinesse,
+  lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, poids: readonly MecanismePoussee[] = [],
+  departage: Departage = departageParPoussee(poids),
 ): Maille | null {
   return [...candidates(lignes, plateforme, recette)].sort((a, b) => departage(a, b, recette))[0]?.maille ?? null;
 }
@@ -115,7 +155,8 @@ export function mailleParDefaut(
  * (polygone exact, tout « à vérifier »), les cercles seuls pour une liste de CP sur Meta (CP exact, « à vérifier »).
  */
 export function simulationsRequises(
-  lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, departage: Departage = departageParFinesse,
+  lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, poids: readonly MecanismePoussee[] = [],
+  departage: Departage = departageParPoussee(poids),
 ): Maille[] {
   const toutes = candidates(lignes, plateforme, recette);
   const exacte = toutes.filter((l) => estExacte(l, recette)).sort((a, b) => departage(a, b, recette))[0];
@@ -129,19 +170,22 @@ export function simulationsRequises(
  * - `en_attente` : une simulation requise n'est pas encore lue — défaut provisoire par le départage ;
  * - `sans_simulation` : aucune ne peut l'être (toutes refusées) — le départage parmi les autres.
  * `comparee` : la meilleure des autres mailles simulées (« contre 10 % / 95 % en CP »), absente s'il n'y en a pas.
+ * `poussee` (B16) : le mode de poussée de la maille, et de la comparée — la ligne d'explication le dit.
  */
 export interface DefautExplique {
   maille: Maille;
+  poussee: ModePoussee;
   critere: 'couverture_cible' | 'couverture_max' | 'en_attente' | 'sans_simulation';
   couverture_cible: number;
   simulation?: Simulation;
-  comparee?: { maille: Maille; simulation: Simulation };
+  comparee?: { maille: Maille; poussee: ModePoussee; simulation: Simulation };
 }
 
 /**
  * LA règle de la maille par défaut (ARB-7 = A, E1). Parmi les candidates (natives, disponibles, avec un sens pour la
  * recette), celles dont la couverture simulée atteint la couverture cible ; parmi elles, le taux utile maximal, à
- * ± `ecart_departage` points près départagé par `departage` (l'ordre de finesse sans B16). Si aucune n'atteint la
+ * ± `ecart_departage` points près départagé par `departage` (B16 : sûre, puis poussée branchée, puis finesse — les
+ * mécanismes de poids `poids` en entrent). Si aucune n'atteint la
  * cible : la couverture maximale (départagée à égalité). Une maille exacte vaut 100 % / 100 % sans lecture ; une
  * maille dont la simulation n'est pas requise (`simulationsRequises`) ne peut pas gagner et n'est pas comparée.
  * Le « à vérifier » n'écarte plus une maille (relecture du ticket : une liste de CP sur Meta, CP « à vérifier », doit
@@ -149,14 +193,16 @@ export interface DefautExplique {
  */
 export function choisirDefaut(
   lignes: readonly PlateformeGeo[], plateforme: Plateforme, recette: Recette, simulations: Simulations,
-  reglages: ReglagesDefaut, departage: Departage = departageParFinesse,
+  reglages: ReglagesDefaut, poids: readonly MecanismePoussee[] = [], departage: Departage = departageParPoussee(poids),
 ): DefautExplique | null {
   const toutes = candidates(lignes, plateforme, recette);
   if (toutes.length === 0) return null;
   const cible = reglages.couverture_cible;
-  const requises = simulationsRequises(lignes, plateforme, recette, departage);
+  const poussee = (m: Maille) => modePoussee(toutes.find((l) => l.maille === m) as PlateformeGeo, poids);
+  const requises = simulationsRequises(lignes, plateforme, recette, poids, departage);
   if (requises.some((m) => simulations[m] === undefined)) {
-    return { maille: mailleParDefaut(lignes, plateforme, recette, departage) as Maille, critere: 'en_attente', couverture_cible: cible };
+    const maille = mailleParDefaut(lignes, plateforme, recette, poids, departage) as Maille;
+    return { maille, poussee: poussee(maille), critere: 'en_attente', couverture_cible: cible };
   }
   const simulees = toutes.flatMap((l) => {
     const s = estExacte(l, recette) ? EXACTE : simulations[l.maille];
@@ -164,8 +210,8 @@ export function choisirDefaut(
   });
   if (simulees.length === 0) {
     const restantes = toutes.filter((l) => simulations[l.maille] !== 'refusee');
-    const maille = mailleParDefaut(restantes.length > 0 ? restantes : toutes, plateforme, recette, departage) as Maille;
-    return { maille, critere: 'sans_simulation', couverture_cible: cible };
+    const maille = mailleParDefaut(restantes.length > 0 ? restantes : toutes, plateforme, recette, poids, departage) as Maille;
+    return { maille, poussee: poussee(maille), critere: 'sans_simulation', couverture_cible: cible };
   }
   const taux = (s: Simulation) => s.taux_utile ?? 0;
   const atteint = simulees.filter((x) => x.s.couverture >= cible);
@@ -186,7 +232,8 @@ export function choisirDefaut(
     return ca[0] - cb[0] || ca[1] - cb[1] || departage(a.l, b.l, recette);
   })[0];
   return {
-    maille: retenue.l.maille, critere: atteint.length > 0 ? 'couverture_cible' : 'couverture_max', couverture_cible: cible,
-    simulation: retenue.s, ...(autre ? { comparee: { maille: autre.l.maille, simulation: autre.s } } : {}),
+    maille: retenue.l.maille, poussee: modePoussee(retenue.l, poids),
+    critere: atteint.length > 0 ? 'couverture_cible' : 'couverture_max', couverture_cible: cible, simulation: retenue.s,
+    ...(autre ? { comparee: { maille: autre.l.maille, poussee: modePoussee(autre.l, poids), simulation: autre.s } } : {}),
   };
 }

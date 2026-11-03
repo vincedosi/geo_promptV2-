@@ -9,7 +9,11 @@
  * B9 (ARB-7) : puis les deux réglages de la maille par défaut (`reglages_conversion`, sql/315 : couverture cible,
  * écart de départage) par `lireReglagesDefaut`, rendus sous `reglages_defaut` — qui ne fait jamais échouer la route
  * (repli `REGLAGES_DEFAUT_REPLI`, dit au journal).
- * Pas de quota : une lecture de ≤ 24 lignes et une de 2, gardées 5 minutes par le navigateur
+ * B16 : entre les deux, les mécanismes de poids de toutes les mailles (`plateformes_poids`, sql/305, amendement E2) par
+ * `lirePoids`, rendus sous `poids` : avec `plateformes_geo.poussee_branchee` (sql/322), ils disent le mode de poussée
+ * de chaque maille (`modePoussee`), critère et texte de la maille par défaut. Leur lecture en échec est un 500, comme
+ * celle du registre : servir le registre sans eux ferait annoncer « poussée API » des poids qui partent à la main.
+ * Pas de quota : une lecture de ≤ 24 lignes, une de ≤ 112 et une de 2, gardées 5 minutes par le navigateur
  * (`private` : réservée à un utilisateur connecté). La table n'appartient à aucun espace ; l'espace actif n'est exigé
  * que par cohérence avec les autres routes de ⑤.
  */
@@ -17,8 +21,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/auth';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone } from '@/lib/zones/session-zones';
-import type { PlateformeGeo } from '@/lib/zones/plateformes';
-import { lireRegles, lireReglagesDefaut } from '@/lib/zones/conversion-serveur';
+import { PLATEFORMES, type PlateformeGeo, type PlateformePoids } from '@/lib/zones/plateformes';
+import { lirePoids, lireRegles, lireReglagesDefaut } from '@/lib/zones/conversion-serveur';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +45,12 @@ export async function GET(req: NextRequest) {
     // Erreur Postgres, borne dépassée ou ligne hors schéma : le détail reste dans le journal.
     return echec('lecture', e);
   }
+  let poids: PlateformePoids[];
+  try {
+    poids = await lirePoids(supabase, PLATEFORMES);
+  } catch (e) {
+    return echec('lecture des mécanismes de poids', e);
+  }
   const reglages_defaut = await lireReglagesDefaut(supabase);
-  return NextResponse.json({ plateformes, reglages_defaut }, { headers: { 'Cache-Control': 'private, max-age=300' } });
+  return NextResponse.json({ plateformes, poids, reglages_defaut }, { headers: { 'Cache-Control': 'private, max-age=300' } });
 }

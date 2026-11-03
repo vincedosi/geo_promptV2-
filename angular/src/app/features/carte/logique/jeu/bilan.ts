@@ -6,7 +6,7 @@ import {
 } from './conversion';
 import { avertissementsEcartes, controlerPopulation, populationDeForme } from './conversion-population';
 import {
-  type DefautExplique, REGLAGES_DEFAUT_REPLI, type ReglagesDefaut, type Simulations, choisirDefaut, mailleParDefaut, simulationDe,
+  type DefautExplique, type MecanismePoussee, REGLAGES_DEFAUT_REPLI, type ReglagesDefaut, type Simulations, choisirDefaut, mailleParDefaut, simulationDe,
   simulationsRequises,
 } from './conversion-defaut';
 import { avertissementsRayon } from './conversion-rayon';
@@ -114,11 +114,13 @@ export function choixDeBase(
 /**
  * B9 : les choix à SIMULER pour décider du défaut d'une plateforme (`simulationsRequises`) — chacun tel que le défaut le
  * deviendrait (seuil par défaut, rayon par défaut), donc chiffré par la MÊME lecture que le choix une fois adopté.
+ * `poids` (B16) : les mécanismes de poids du registre — le mode de poussée entre au départage, donc dans ce qui est requis.
  */
 export function choixASimuler(
   regles: readonly PlateformeGeo[], p: Plateforme, recette: Recette | null, surface_km2?: number | null,
+  poids: readonly MecanismePoussee[] = [],
 ): { choix: ChoixMaille; ligne: PlateformeGeo }[] {
-  return simulationsRequises(regles, p, recette ?? SANS_RECETTE).flatMap((m) => {
+  return simulationsRequises(regles, p, recette ?? SANS_RECETTE, poids).flatMap((m) => {
     const ligne = regles.find((l) => l.plateforme === p && l.maille === m);
     return ligne ? [{ choix: choixNeuf(m, SEUIL_PAR_DEFAUT, undefined, ligne, recette, surface_km2, regles), ligne }] : [];
   });
@@ -129,22 +131,24 @@ export function choixASimuler(
  * celle que requiert le choix simulé) — aucune requête ici. Une simulation sans lecture et en échec (`echec`) est
  * `refusee` ; sans lecture ni échec, elle manque, et le défaut reste provisoire (`en_attente`). `reglages` : ceux de
  * `reglages_conversion` (sql/315) rendus par la route ; absents (réponse d'avant sql/315), leur repli documenté.
+ * `poids` (B16) : les mécanismes de poids rendus par la route (`plateformes_poids`) — le mode de poussée du défaut.
  */
 export function defautsDe(
   regles: readonly PlateformeGeo[], recette: Recette | null, reglages: ReglagesDefaut | undefined,
   lu: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => ResultatCouverture | ResultatCercles | undefined,
   echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => boolean, surface_km2?: number | null,
+  poids: readonly MecanismePoussee[] = [],
 ): Partial<Record<Plateforme, DefautExplique>> {
   const sortie: Partial<Record<Plateforme, DefautExplique>> = {};
   for (const p of PLATEFORMES) {
     const simulations: Simulations = {};
-    for (const { choix, ligne } of choixASimuler(regles, p, recette, surface_km2)) {
+    for (const { choix, ligne } of choixASimuler(regles, p, recette, surface_km2, poids)) {
       const b = bilanDe(choix, ligne, recette, lu(p, choix, ligne));
       // B13 : une maille que le minimum de population du registre refuse n'est pas un défaut possible.
       if (b) simulations[choix.maille] = b.avertissements.some((a) => a.refus) ? 'refusee' : simulationDe(b.resume);
       else if (echec(p, choix, ligne)) simulations[choix.maille] = 'refusee';
     }
-    const d = choisirDefaut(regles, p, recette ?? SANS_RECETTE, simulations, reglages ?? REGLAGES_DEFAUT_REPLI);
+    const d = choisirDefaut(regles, p, recette ?? SANS_RECETTE, simulations, reglages ?? REGLAGES_DEFAUT_REPLI, poids);
     if (d) sortie[p] = d;
   }
   return sortie;

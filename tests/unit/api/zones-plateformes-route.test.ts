@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * refuse n'est pas servie ; `Cache-Control: private, max-age=300` (règles stables, propres à l'utilisateur connecté) ;
  * le détail Postgres ne sort pas de la route. B9 : les réglages de la maille par défaut (`reglages_conversion`,
  * sql/315) suivent sous `reglages_defaut`, avec le repli documenté si leur lecture échoue — jamais un 500 pour eux.
+ * B16 : les mécanismes de poids (`plateformes_poids`, E2), toutes mailles, sous `poids` — le mode de poussée du défaut
+ * en dépend ; leur lecture en échec est un 500 (un mode « poussée API » faux plutôt qu'un refus dit, non).
  */
 type Profil = { id: string; role: string; organization_id: string | null } | null;
 const ORG = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
@@ -17,6 +19,7 @@ vi.mock('@/lib/api/middleware', () => ({ requireAuth: async () => profil }));
 const lectures: { table: string; colonnes?: string; tri?: [string, unknown]; borne?: number; cles?: unknown }[] = [];
 let reponse: { data: unknown; error: unknown } = { data: [], error: null };
 let reponseReglages: { data: unknown; error: unknown } = { data: [], error: null };
+let reponsePoids: { data: unknown; error: unknown } = { data: [], error: null };
 vi.mock('@/lib/auth', () => ({
   createAdminClient: () => ({
     from(table: string) {
@@ -25,8 +28,10 @@ vi.mock('@/lib/auth', () => ({
       const c = {
         select(colonnes: string) { l.colonnes = colonnes; return c; },
         order(col: string, o: unknown) { l.tri = [col, o]; return c; },
-        limit(n: number) { l.borne = n; return Promise.resolve(reponse); },
-        in(col: string, cles: unknown) { l.cles = [col, cles]; return Promise.resolve(reponseReglages); },
+        limit(n: number) { l.borne = n; return Promise.resolve(table === 'plateformes_poids' ? reponsePoids : reponse); },
+        in(col: string, cles: unknown) { l.cles = [col, cles]; return c; },
+        eq() { throw new Error('B16 : les mécanismes de poids se lisent à toutes les mailles'); },
+        then(ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) { return Promise.resolve(reponseReglages).then(ok, ko); },
       };
       return c;
     },
@@ -34,7 +39,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 const { GET } = await import('@/app/api/zones/plateformes/route');
-const { MAX_PLATEFORMES_GEO } = await import('@/lib/zones/plateformes');
+const { MAX_PLATEFORMES_GEO, MAX_PLATEFORMES_POIDS, PLATEFORMES } = await import('@/lib/zones/plateformes');
 const { REGLAGES_DEFAUT_REPLI } = await import('@/lib/zones/conversion-defaut');
 const requete = () => new Request('http://localhost/api/zones/plateformes') as never;
 
@@ -43,10 +48,16 @@ const ligne = (ordre: number, maille = 'cp') => ({
   doc_url: 'https://developers.google.com/x', releve_le: '2026-10-14', a_verifier: false, note: null, ordre,
 });
 
+const POIDS = {
+  plateforme: 'dv360', maille: 'cp', mecanisme: 'script', valeur_min: null, valeur_max: null, pas: null, nb_max_entrees: 2000,
+  nb_paliers_max: null, poids_groupe_cp: 'meme', branche: false, parametres_a_verifier: ['nb_max_entrees'], note: null, releve_le: '2026-10-31',
+};
+
 beforeEach(() => {
   profil = { id: 'u1', role: 'client', organization_id: ORG };
   reponse = { data: [ligne(10), ligne(20, 'cercle')], error: null };
   reponseReglages = { data: [{ cle: 'couverture_cible_defaut', valeur: 75 }, { cle: 'ecart_departage_defaut', valeur: 3 }], error: null };
+  reponsePoids = { data: [POIDS], error: null };
   lectures.length = 0;
 });
 
@@ -69,7 +80,8 @@ describe('GET /api/zones/plateformes', () => {
     expect(r.status).toBe(200);
     expect(r.headers.get('Cache-Control')).toBe('private, max-age=300');
     expect(lectures).toEqual([{ table: 'plateformes_geo', colonnes: expect.any(String), tri: ['ordre', { ascending: true }],
-      borne: MAX_PLATEFORMES_GEO + 1 }, { table: 'reglages_conversion', colonnes: 'cle, valeur',
+      borne: MAX_PLATEFORMES_GEO + 1 }, { table: 'plateformes_poids', colonnes: expect.any(String), tri: ['mecanisme', { ascending: true }],
+      cles: ['plateforme', [...PLATEFORMES]], borne: MAX_PLATEFORMES_POIDS + 1 }, { table: 'reglages_conversion', colonnes: 'cle, valeur',
       cles: ['cle', ['couverture_cible_defaut', 'ecart_departage_defaut']] }]);
     const corps = await r.json() as { plateformes: { ordre: number; limites: unknown }[] };
     expect(corps.plateformes.map(p => p.ordre)).toEqual([10, 20]);
@@ -91,6 +103,17 @@ describe('GET /api/zones/plateformes', () => {
     r = await GET(requete());
     expect((await r.json() as { reglages_defaut: unknown }).reglages_defaut).toEqual({ ...REGLAGES_DEFAUT_REPLI, ecart_departage: 3 });
     expect(err).toHaveBeenCalledTimes(2);
+    err.mockRestore();
+  });
+
+  it('B16 : les mécanismes de poids de toutes les mailles, sous poids ; leur lecture en échec : 500 dit', async () => {
+    const corps = await (await GET(requete())).json() as { poids: unknown };
+    expect(corps.poids).toEqual([POIDS]);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    reponsePoids = { data: null, error: { message: 'relation "plateformes_poids" does not exist' } };
+    const r = await GET(requete());
+    expect(r.status).toBe(500);
+    expect(await r.text()).not.toContain('relation');
     err.mockRestore();
   });
 

@@ -101,6 +101,12 @@ export const PlateformeGeoSchema = z.object({
    */
   pop_min_unite_comportement: z.enum(COMPORTEMENTS_POPULATION).nullable().optional(),
   pop_min_groupe_comportement: z.enum(COMPORTEMENTS_POPULATION).nullable().optional(),
+  /**
+   * B16 (sql/322) : le ciblage géo de cette maille est-il poussé par API par le produit (vrai seulement là où le code de
+   * poussée existe : DV360 au CP au 02/11) ? Absent (anciennes lectures, fixtures) = non. Lu par `modePoussee`
+   * (`conversion-defaut.ts`), qui y ajoute `plateformes_poids.branche` pour une maille qui porte des poids (E2).
+   */
+  poussee_branchee: z.boolean().optional(),
 });
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;
