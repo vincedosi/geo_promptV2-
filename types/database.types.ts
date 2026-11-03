@@ -8298,6 +8298,18 @@ export type Database = {
           ville: string
         }[]
       }
+      pavage_cercles_en_cache: {
+        Args: {
+          p_cible: string
+          p_max_cercles?: number
+          p_org_id: string
+          p_pop_min?: number
+          p_rayon_m: number
+          p_seuil: number
+          p_zone_id: string
+        }
+        Returns: Json
+      }
       paver_cercles: {
         Args: {
           p_cible: string
@@ -8311,6 +8323,19 @@ export type Database = {
         }
         Returns: Json
       }
+      paver_cercles_cache: {
+        Args: {
+          p_cible: string
+          p_max_cercles?: number
+          p_org_id: string
+          p_pop_min?: number
+          p_rayon_m: number
+          p_seuil: number
+          p_zone_id: string
+        }
+        Returns: Json
+      }
+      paver_cercles_md5: { Args: never; Returns: string }
       plateformes_geo_limites_valides: {
         Args: { p_limites: Json }
         Returns: boolean

@@ -84,7 +84,7 @@ describe('JeuZonesService — une zone pays (⑤ finitions, T4 ; relecture 2)', 
 describe('⑤ — la recette arrive APRÈS le registre (relecture 2, le vrai panneau)', () => {
   it('rien ne se lit ni ne s’écrit tant que la recette est inconnue ; arrivée « pays », la forme seule', async () => {
     const liste = new Subject<{ zones: ZoneCustomResume[] }>();
-    const { http, jeu, router, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => liste });
+    const { http, jeu, router, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: () => liste });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE_PAYS });
     await stable();
     // Registre lu, recette inconnue : aucun choix, aucune conversion, aucun `?mailles=` écrit.

@@ -8,7 +8,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * - l'ordre : session → paramètres → quota → règle de la plateforme → RPC ; une requête invalide ne touche pas la base ;
  * - un rayon hors des bornes de la PLATEFORME est refusé (400) AVANT la RPC, qui n'a que des bornes de sécurité ;
  * - les limites passées à la RPC sont celles de la ligne lue ; l'espace est celui de la session ;
- * - chaque refus de `paver_cercles` a son statut et son message français (`MESSAGES_CONVERSION`), chiffres compris.
+ * - chaque refus de `paver_cercles` a son statut et son message français (`MESSAGES_CONVERSION`), chiffres compris ;
+ * - D33 (sql/338) : un pavage EN CACHE (`pavage_cercles_en_cache`, clé = limites de la ligne, pas la plateforme) est
+ *   servi sans jeton ni pavage ; absent, le jeton puis `paver_cercles_cache` (qui l'écrit), les essais de B10 en
+ *   `paver_cercles`.
  */
 const ZONE = '3f2504e0-4f89-11d3-9a0c-0305e82c3309';
 
@@ -42,6 +45,14 @@ const PAVAGE = {
   population: 5000, couverte: 4000, manques: 1000, hors_zone: 800, achetee: 4800, taux_utile: 83.3, n_carreaux: 200,
   motif_vide: null, territoires_non_carroyes: [], reference: {}, calcule_le: '2026-10-24T10:00:00Z',
 };
+
+/** D33 : la même réponse pour le premier pavage (`paver_cercles_cache`) et pour les essais de B10 (`paver_cercles`). */
+function pavage(r: (typeof etat.reponses)[string]): void {
+  etat.reponses.paver_cercles = r;
+  etat.reponses.paver_cercles_cache = r;
+}
+/** Les pavages demandés (le premier par le cache, les essais en direct), sans la lecture du cache. */
+const pavages = () => etat.rpcs.filter((r) => r.nom !== 'pavage_cercles_en_cache');
 
 beforeEach(() => {
   reinitialiser();
@@ -90,11 +101,12 @@ describe('session, paramètres, quota — rien en base', () => {
     expect((await r.json()).error).toMatch(/^[A-ZÉ]/);
     expect(etat.quotas).toEqual([]); expect(etat.lectures).toEqual([]); expect(etat.rpcs).toEqual([]);
   });
-  it('quota épuisé : 429, rien lu', async () => {
+  it('quota épuisé (rien en cache) : 429 — la règle et le cache lus, aucun pavage', async () => {
     etat.quotaOk = false;
     expect((await appel(ZONE)).status).toBe(429);
     expect(etat.quotas).toEqual(['geo:rl:conversion:u1']);
-    expect(etat.lectures).toEqual([]); expect(etat.rpcs).toEqual([]);
+    expect(etat.lectures.map((l) => l.table)).toEqual(['plateformes_geo']);
+    expect(etat.rpcs.map((r) => r.nom)).toEqual(['pavage_cercles_en_cache']);
   });
 });
 
@@ -122,31 +134,56 @@ describe('les règles de la plateforme, lues en base', () => {
 
 describe('paver_cercles', () => {
   it('200 : les limites de Meta (200 cercles) et l’espace de la session partent à la RPC', async () => {
-    etat.reponses.paver_cercles = { data: PAVAGE, error: null };
+    pavage({ data: PAVAGE, error: null });
     const r = await appel(ZONE, '?cible=ind&rayon=10000&seuil=20&plateforme=meta&org=autre');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual(PAVAGE);
-    expect(etat.rpcs).toEqual([{ nom: 'paver_cercles', args: {
-      p_zone_id: ZONE, p_org_id: ORG, p_cible: 'ind', p_rayon_m: 10000, p_seuil: 20, p_pop_min: undefined, p_max_cercles: 200,
+    // D33 : le cache lu d'abord (absent), puis le pavage qui l'écrit — mêmes arguments, la plateforme n'y est pas.
+    const args = { p_zone_id: ZONE, p_org_id: ORG, p_cible: 'ind', p_rayon_m: 10000, p_seuil: 20, p_pop_min: undefined, p_max_cercles: 200 };
+    expect(etat.rpcs).toEqual([{ nom: 'pavage_cercles_en_cache', args }, { nom: 'paver_cercles_cache', args }]);
+  });
+  it('D33 : un pavage en cache est servi tel quel, sans jeton ni pavage', async () => {
+    etat.reponses.pavage_cercles_en_cache = { data: { ...PAVAGE, cache: true }, error: null };
+    const r = await appel(ZONE, '?cible=ind&rayon=5000&seuil=20&plateforme=dv360');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ...PAVAGE, cache: true });
+    expect(etat.quotas).toEqual([]);
+    expect(etat.rpcs).toEqual([{ nom: 'pavage_cercles_en_cache', args: {
+      p_zone_id: ZONE, p_org_id: ORG, p_cible: 'ind', p_rayon_m: 5000, p_seuil: 20, p_pop_min: 1000, p_max_cercles: undefined,
     } }]);
   });
+  it('D33 : un refus géométrique en cache (zone trop vaste) : 422, sans jeton ni pavage', async () => {
+    etat.reponses.pavage_cercles_en_cache = { data: { refus: 'zone_trop_vaste', motif: 'rayon', cache: true }, error: null };
+    const r = await appel(ZONE);
+    expect(r.status).toBe(422);
+    expect((await r.json()).refus).toBe('zone_trop_vaste');
+    expect(etat.quotas).toEqual([]);
+    expect(etat.rpcs.map((c) => c.nom)).toEqual(['pavage_cercles_en_cache']);
+  });
+  it('D33 : lecture du cache en échec : 500 neutre, aucun jeton', async () => {
+    etat.reponses.pavage_cercles_en_cache = { data: null, error: { code: 'XX000', message: 'secret' } };
+    const r = await appel(ZONE);
+    expect(r.status).toBe(500);
+    expect(JSON.stringify(await r.json())).not.toContain('secret');
+    expect(etat.quotas).toEqual([]);
+  });
   it('DV360 : la population minimale d’un cercle, sans plafond', async () => {
-    etat.reponses.paver_cercles = { data: PAVAGE, error: null };
+    pavage({ data: PAVAGE, error: null });
     await appel(ZONE, '?cible=ind&rayon=5000&seuil=30&plateforme=dv360');
-    expect(etat.rpcs[0].args).toMatchObject({ p_rayon_m: 5000, p_seuil: 30, p_pop_min: 1000, p_max_cercles: undefined });
+    expect(pavages()[0].args).toMatchObject({ p_rayon_m: 5000, p_seuil: 30, p_pop_min: 1000, p_max_cercles: undefined });
   });
   it('B13 : un minimum en `avertissement` au registre ne filtre rien au pavage', async () => {
     etat.tables.plateformes_geo = { data: REGLES.map((r) => (r.plateforme === 'dv360' ? { ...r, pop_min_unite_comportement: 'avertissement' } : r)), error: null };
-    etat.reponses.paver_cercles = { data: PAVAGE, error: null };
+    pavage({ data: PAVAGE, error: null });
     await appel(ZONE, '?cible=ind&rayon=5000&seuil=30&plateforme=dv360');
-    expect(etat.rpcs[0].args).toMatchObject({ p_pop_min: undefined });
+    expect(pavages()[0].args).toMatchObject({ p_pop_min: undefined });
   });
   it('422 trop_de_cercles : le nombre, le plafond, et le plus petit rayon qui passe (B10), cherché un pavage à la fois', async () => {
     // n ∝ 1 / r² : 481 cercles à 10 km → il faut r ≥ 15,51 km, soit 16 km au pas de 500 m.
-    etat.reponses.paver_cercles = (args) => {
+    pavage((args) => {
       const n = Math.ceil(481 * (10_000 / (args.p_rayon_m as number)) ** 2);
       return { data: n > 200 ? { refus: 'trop_de_cercles', n_cercles: n, plafond: 200 } : { ...PAVAGE, n_cercles: n }, error: null };
-    };
+    });
     const r = await appel(ZONE);
     expect(r.status).toBe(422);
     const corps = await r.json();
@@ -156,26 +193,27 @@ describe('paver_cercles', () => {
       rayon_propose: { rayon_m: 16_000, au_pas: true },
     });
     expect(corps.rayon_propose.n_cercles).toBeLessThanOrEqual(200);
-    // Le premier pavage, puis au plus six essais — tous aux limites de la ligne lue.
-    expect(etat.rpcs.length).toBeLessThanOrEqual(7);
-    expect(etat.rpcs.length).toBe(1 + corps.rayon_propose.essais);
+    // Le premier pavage (par le cache, D33), puis au plus six essais — tous aux limites de la ligne lue.
+    expect(pavages().length).toBeLessThanOrEqual(7);
+    expect(pavages().length).toBe(1 + corps.rayon_propose.essais);
+    expect(pavages().map((c) => c.nom)).toEqual(['paver_cercles_cache', ...Array(corps.rayon_propose.essais).fill('paver_cercles')]);
     for (const c of etat.rpcs) expect(c.args).toMatchObject({ p_max_cercles: 200, p_seuil: 20 });
     // Tour 1 (I-1) : UN jeton de quota par pavage, la requête comprise — le quota borne les pavages, pas les requêtes.
-    expect(etat.quotas).toHaveLength(etat.rpcs.length);
+    expect(etat.quotas).toHaveLength(pavages().length);
     expect(new Set(etat.quotas)).toEqual(new Set(['geo:rl:conversion:u1']));
   });
   it('quota épuisé pendant la recherche : arrêt, le meilleur connu et le dernier rayon essayé, dits', async () => {
     let appels = 0;
-    etat.reponses.paver_cercles = (args) => {
+    pavage((args) => {
       appels += 1;
       if (appels === 2) etat.quotaOk = false; // le jeton du 3e pavage sera refusé
       const n = Math.ceil(481 * (10_000 / (args.p_rayon_m as number)) ** 2);
       return { data: n > 200 ? { refus: 'trop_de_cercles', n_cercles: n, plafond: 200 } : { ...PAVAGE, n_cercles: n }, error: null };
-    };
+    });
     const r = await appel(ZONE);
     expect(r.status).toBe(422);
     const corps = await r.json();
-    expect(etat.rpcs).toHaveLength(2);
+    expect(pavages()).toHaveLength(2);
     expect(corps).toMatchObject({ refus: 'trop_de_cercles', n_cercles: 481, rayon_propose: { au_pas: false } });
     expect(corps.interrompue).toMatchObject({ cause: 'quota', dernier_rayon_m: corps.rayon_propose.rayon_m });
   });
@@ -187,7 +225,7 @@ describe('paver_cercles', () => {
     expect(s).toContain('BUDGET_RECHERCHE_RAYON_MS');
   });
   it('422 trop_de_cercles sans rayon sous le plafond jusqu’au maximum de la plateforme : rien de proposé, dit', async () => {
-    etat.reponses.paver_cercles = { data: { refus: 'trop_de_cercles', n_cercles: 5_000_000, plafond: 200 }, error: null };
+    pavage({ data: { refus: 'trop_de_cercles', n_cercles: 5_000_000, plafond: 200 }, error: null });
     const corps = await (await appel(ZONE)).json();
     expect(corps).toMatchObject({ rayon_propose: null, sans_proposition: { motif: 'aucun_sous_plafond', rayon_max_m: 80_000 } });
   });
@@ -195,15 +233,15 @@ describe('paver_cercles', () => {
     ['zone_introuvable', 404], ['cible_inconnue', 422], ['zone_trop_vaste', 422], ['trop_de_candidates', 422],
     ['couverture_non_construite', 503],
   ])('refus %s : %i', async (refus, statut) => {
-    etat.reponses.paver_cercles = { data: { refus }, error: null };
+    pavage({ data: { refus }, error: null });
     const r = await appel(ZONE);
     expect(r.status).toBe(statut);
     expect((await r.json()).refus).toBe(refus);
   });
   it('22023 (borne de sécurité de la RPC, ex. TTD sans borne) : 400 ; autre erreur : 500 sans détail', async () => {
-    etat.reponses.paver_cercles = { data: null, error: { code: '22023', message: 'rayon hors bornes' } };
+    pavage({ data: null, error: { code: '22023', message: 'rayon hors bornes' } });
     expect((await appel(ZONE, '?cible=ind&rayon=300000&seuil=20&plateforme=ttd')).status).toBe(400);
-    etat.reponses.paver_cercles = { data: null, error: { code: 'XX000', message: 'secret' } };
+    pavage({ data: null, error: { code: 'XX000', message: 'secret' } });
     const r = await appel(ZONE);
     expect(r.status).toBe(500);
     expect(JSON.stringify(await r.json())).not.toContain('secret');

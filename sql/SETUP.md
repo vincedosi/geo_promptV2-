@@ -128,6 +128,7 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `carreau_couverture_controle` | 268 | Certificat de complétude de `carreau_couverture` (une ligne : comptes de `carreaux_filosofi`, de la table et du journal), posé en fin de construction ; `service_role` en lecture seule (seule `certifier_carreau_couverture` l'écrit) |
 | `carreau_couverture_e7` (vue), `carreau_couverture_e7_lots`, `unite_population_totale_e7`, `cp_population_totale_e7`, `denominateur_menages_min_e7` | 332 | C25 (E7) : colonnes `_e7` de `carreau_couverture` (commune = IRIS[0:5], département de la commune, CP le plus proche des carreaux sans CP), posées sur les seuls carreaux qui changent ; vue `coalesce(x_e7, x)` et dénominateurs jumeaux lus par le découpage (département majoritaire du CP). Remplis par `scripts/construire_carreau_couverture_e7.mjs`. À fusionner au merge |
 | `couverture_zone_cache` | 270 | Cache des chiffrages de couverture par (zone, cible, découpage) ; servi seulement si la zone est de l'espace et que sa forme et la base n'ont pas changé ; cascade à la suppression de la zone |
+| `pavage_cercles_cache` | 338 | Cache des pavages en cercles par (zone, cible, rayon, seuil, minimum par cercle, plafond) ; servi seulement si la zone est de l'espace et que sa forme, la base et la définition de `paver_cercles` n'ont pas changé ; pavages et refus géométriques seuls ; cascade à la suppression de la zone |
 
 ## Fonctions RPC actives (état final)
 
@@ -157,6 +158,9 @@ Exécuter via `supabase db push` ou manuellement dans le Dashboard :
 | `couverture_geometrie()` | 269 | Couverture d'une zone de l'espace (lecture seule, `jsonb`) : population de la cible telle quelle, ou par CP / IRIS avec la part de chaque territoire ; ≤ 100 000 km², ≤ 400 000 carreaux ; refuse sans table certifiée |
 | `couverture_zone_en_cache()` | 270 | Le chiffrage en cache s'il est encore valide (espace, `updated_at`, date de construction, certificat), sinon `NULL` |
 | `couverture_zone()` | 270 | Le cache, sinon `couverture_geometrie` ; écrit le cache pour un chiffrage, jamais pour un refus |
+| `pavage_cercles_en_cache()` | 338 | Le pavage en cache s'il est encore valide (espace, `updated_at`, base, md5 de `paver_cercles`), sinon `NULL` |
+| `paver_cercles_cache()` | 338 | Le cache, sinon `paver_cercles` ; écrit le pavage ou un refus géométrique (D33) |
+| `paver_cercles_md5()` | 338 | md5 de la définition courante de `paver_cercles` (péremption du cache) |
 | `construire_denominateur_iris()` | 267 | Maille `iris` d'`unite_population_totale` construite depuis `carreau_couverture` (même règle que le numérateur, jamais `iris.population`) ; efface et réécrit la seule maille `iris`, ≈ 18 s ; refuse sans table certifiée (`carreau_couverture_complete`, 268) |
 | `resoudre_perimetre()` | 253, 265 | Le périmètre de ① en géométrie (département et région sur `geom_perimetre`, sql/265), avec les refus de bornes ; garde commune des calculs de zones |
 | `creer_zone_recette()` · `remplacer_geometrie_zone()` · `zone_referencee()` | 253 | Écrit une zone à recette (`custom_geo_zones.recette`), remplace sa forme en place, dit si elle est citée (plan, jeu, composite) |

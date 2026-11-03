@@ -45,7 +45,8 @@ const LARGEUR_COLONNES = 900;
  *
  * ── AUCUNE LECTURE À L'OUVERTURE ─────────────────────────────────────────
  * Sans zone, rien ne part : ni registre, ni liste, ni couverture (P-h). Le panneau reste MONTÉ (P-e) et l'état vit
- * dans le service de la page : ⑤ → ① → ⑤ retrouve tout.
+ * dans le service de la page : ⑤ → ① → ⑤ retrouve tout. D33 : hors de ⑤ (panneau gardé, invisible), l'effet ne
+ * demande RIEN — conversions et simulations de maille ne partent qu'avec ⑤ à l'écran.
  *
  * Pied (T12) : enregistrer (`mg-enregistrer-jeu`), extraire (`mg-extractions-jeu`, jeu enregistré), bibliothèque des
  * jeux de l'espace (`mg-bibliotheque-jeux`, lue à sa première ouverture).
@@ -181,6 +182,9 @@ export class PanneauJeuComponent {
     // hors suivi. La date : une zone recalculée vide les conversions sans changer aucun choix — sans elle, rien ne repart.
     effect(() => {
       const ouvertes = this.ouvertes();
+      // D33 : conversions et simulations de maille à l'OUVERTURE de ⑤ seulement — le panneau reste monté hors de son
+      // étape (A1) ; un recalcul de la zone en ③ ou une largeur changée en ④ ne lancent rien, revenir en ⑤ relance.
+      if (this.parcours.vue() !== 'jeu') return;
       // Une zone non activable ne demande aucune conversion (décision du 02/11).
       if (!this.jeu.zoneId() || this.tropFin()) return;
       this.jeu.maj();

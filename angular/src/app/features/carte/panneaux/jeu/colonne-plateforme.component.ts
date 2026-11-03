@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { formaterDecimal, formaterNombre } from '../../../../core/format/nombre';
 import { IconeComponent } from '../../../../ui/icone/icone.component';
 import { DilutionComponent } from '../../../risques/etapes/zones/dilution.component';
@@ -18,6 +18,9 @@ import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIV
 import { PALIERS_CSS } from '../analyse/tableau-couverture-zone.component';
 import { texteParametresAVerifier } from '../../logique/jeu/parametres-a-verifier';
 import { ChoixMailleComponent } from './choix-maille.component';
+
+/** D33 (décision du 03/11) : au-delà de ce délai, une simulation de maille en vol est dite « en cours ». */
+const DELAI_ATTENTE_SIMULATION_S = 1; // un délai d’écran, pas une borne de plateforme
 
 /**
  * ⑤ Jeu de zones — la colonne d'UNE plateforme (lot 5, T10) : sa maille, son seuil (et son rayon pour le cercle), et
@@ -222,11 +225,34 @@ export class ColonnePlateformeComponent {
   });
   /** C28 (amendement E9) : les bornes « à vérifier » de la ligne choisie, chacune avec sa valeur ou « non relevé ». */
   protected readonly parametresAVerifier = computed(() => texteParametresAVerifier(this.ligne()));
-  /** B9 (ARB-7, Q7 = A) : la ligne qui explique la maille par défaut, tant que c'est elle qui est choisie ; sinon `null`. */
+  /** D33 : le défaut est PROVISOIRE (une simulation de maille en vol) ; la phrase d'attente n'est dite qu'après une seconde. */
+  private readonly enAttente = computed(() => this.jeu.defauts()[this.plateforme()]?.critere === 'en_attente');
+  private readonly attenteLongue = signal(false);
+  /**
+   * B9 (ARB-7, Q7 = A) : la ligne qui explique la maille par défaut, tant que c'est elle qui est choisie ; sinon `null`.
+   * D33 : en attente de simulation, rien la première seconde (le défaut provisoire est déjà là, chiffré), puis
+   * « provisoirement : simulation des autres mailles en cours » jusqu'au défaut décidé.
+   */
   protected readonly defautTexte = computed(() => {
     const d = this.jeu.defauts()[this.plateforme()];
-    return d && d.maille === this.choix()?.maille ? texteDefaut(d) : null;
+    if (!d || d.maille !== this.choix()?.maille) return null;
+    return d.critere === 'en_attente' && !this.attenteLongue() ? null : texteDefaut(d);
   });
+
+  constructor() {
+    let minuterie: ReturnType<typeof setTimeout> | null = null;
+    const arreter = () => {
+      if (minuterie !== null) clearTimeout(minuterie);
+      minuterie = null;
+    };
+    effect(() => {
+      const attente = this.enAttente();
+      arreter();
+      this.attenteLongue.set(false);
+      if (attente) minuterie = setTimeout(() => this.attenteLongue.set(true), DELAI_ATTENTE_SIMULATION_S * 1e3);
+    });
+    inject(DestroyRef).onDestroy(arreter);
+  }
   /** Les codes ciblés par une plateforme au pays (« FR, GP, MQ… ») ; `null` pour une autre maille. */
   protected readonly codesPays = computed(() => this.bilan()?.pays?.map((u) => u.code).join(', ') || null);
   /** Une ligne par territoire, dès qu'il y en a plus d'un (« France entière ») : sa population, ou « non carroyée ». */

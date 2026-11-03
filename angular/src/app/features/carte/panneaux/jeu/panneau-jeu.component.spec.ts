@@ -2,6 +2,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import type { ZoneCustomResume } from '../../data/zones-custom.api';
+import { ParcoursService } from '../../etat/parcours.service';
 import { REGISTRE, Z1, Z2, couvertureCp, monterJeu, pavageMoinsBon, urlCouverture, urlSimulationCercles } from '../../testing/jeu-factice';
 import { PanneauJeuComponent } from './panneau-jeu.component';
 
@@ -33,7 +34,7 @@ describe('mg-panneau-jeu', () => {
   });
 
   it('une zone : le registre lu une fois, puis la couverture de la SEULE colonne ouverte (empilées)', async () => {
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: listerZ1 });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
@@ -60,7 +61,7 @@ describe('mg-panneau-jeu', () => {
   it('C29 : la case « catégorie d’annonces spéciale » relève le rayon minimal de Meta lu au registre, dit avec sa valeur', async () => {
     const registre = REGISTRE.map((l) => (l.plateforme === 'meta' && l.maille === 'cercle'
       ? { ...l, limites: { ...l.limites, rayon_min_categorie_speciale: 15000 }, parametres_a_verifier: ['rayon_min_categorie_speciale' as const] } : l));
-    const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
+    const { el, http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: listerZ1 });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: registre });
     await stable();
     const meta = () => jeu.plateformes().find((l) => l.plateforme === 'meta' && l.maille === 'cercle')!;
@@ -78,7 +79,7 @@ describe('mg-panneau-jeu', () => {
 
   it('900 px et plus : les quatre colonnes côte à côte, toutes ouvertes, chacune demande sa conversion (une à la fois)', async () => {
     largeurPanneau(1000);
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: listerZ1 });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     expect(el.querySelector('[data-colonnes]')!.classList).toContain('grid-cols-4');
@@ -92,7 +93,7 @@ describe('mg-panneau-jeu', () => {
 
   it('bandeau : zone, plateformes chiffrées, meilleur taux d’utile', async () => {
     const lister = () => of({ zones: [{ id: Z1, name: 'Lycées 5 km', recette: null, updated_at: 'v1' } as unknown as ZoneCustomResume] });
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
@@ -103,7 +104,7 @@ describe('mg-panneau-jeu', () => {
 
   it('la recette donnée par la liste change l’exactitude : une liste de CP se lit « forme », exacte au CP', async () => {
     const zone = { id: Z1, name: 'CP', recette: { v: 1, type: 'codes_postaux', codes: ['13001', '13002'], unites_constitutives: { maille: 'cp', codes: ['13001', '13002'], groupes_partiels: 0 } }, updated_at: 'v1' } as unknown as ZoneCustomResume;
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
     await stable();
     http.expectOne(urlCouverture(Z1, 'forme')).flush({ ...couvertureCp, decoupage: 'forme', lignes: [] });
@@ -117,7 +118,7 @@ describe('mg-panneau-jeu', () => {
       id: Z1, name: 'Lycées 100 m', updated_at: 'v1',
       recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '35' } },
     } as unknown as ZoneCustomResume;
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: () => of({ zones: [zone] }) });
     for (const r of http.match('/api/zones/plateformes')) r.flush({ plateformes: REGISTRE });
     await stable();
     http.expectNone((r) => r.url.includes('/couverture') || r.url.includes('/cercles'));
@@ -134,7 +135,7 @@ describe('mg-panneau-jeu', () => {
       { id: 's1', name: 'Lycées 100 m', recette: { v: 1, type: 'rayon_poi', categorie: 'lycee', rayon_m: 100, perimetre: { type: 'departement', code: '35' } } },
       { id: 's2', name: 'Dessin', recette: { v: 1, type: 'dessin' } },
     ] as unknown as ZoneCustomResume[];
-    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: () => of({ zones }) });
+    const { el, http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: () => of({ zones }) });
     for (const r of http.match('/api/zones/plateformes')) r.flush({ plateformes: REGISTRE });
     await stable();
     http.expectNone((r) => r.url.includes('/couverture') || r.url.includes('/cercles'));
@@ -153,5 +154,51 @@ describe('mg-panneau-jeu', () => {
     el.querySelector<HTMLButtonElement>('[data-proposee]')!.click();
     await stable();
     expect(jeu.zoneId()).toBe(Z2);
+  });
+  describe('D33 : les simulations de maille ne partent qu’à l’ouverture de ⑤', () => {
+    const conversions = (http: HttpTestingController) => http.match((r) => r.url.includes('/couverture') || r.url.includes('/cercles'));
+
+    it('panneau monté par une URL d’une autre étape (①) : le registre seul, aucune conversion ni simulation ; ⑤ ouvert, elles partent', async () => {
+      const { http, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?zoneJeu=${Z1}`, { lister: listerZ1 });
+      http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+      await stable();
+      expect(conversions(http)).toHaveLength(0);
+      TestBed.inject(ParcoursService).choisir('jeu');
+      await stable();
+      http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+      await stable();
+      http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
+      await stable();
+      http.verify();
+    });
+
+    it('⑤ quitté pour ③ (panneau gardé) : une zone recalculée ne lance RIEN, ni en ③ ni en ④ ; revenir en ⑤ relit la nouvelle forme', async () => {
+      const { http, jeu, stable } = await monterJeu(BANC, PanneauJeuComponent, `/carte?etape=jeu&zoneJeu=${Z1}`, { lister: listerZ1 });
+      http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+      await stable();
+      http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+      await stable();
+      http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
+      await stable();
+      http.verify();
+      const parcours = TestBed.inject(ParcoursService);
+      parcours.choisir('zones');
+      await stable();
+      // Recalcul en ③ : la nouvelle date vide les conversions de l'ancienne forme — rien n'est redemandé en ③.
+      jeu.choisirZone(Z1, null, 'v2');
+      await stable();
+      expect(conversions(http)).toHaveLength(0);
+      // ④ : pas davantage.
+      parcours.choisir('analyse');
+      await stable();
+      expect(conversions(http)).toHaveLength(0);
+      parcours.choisir('jeu');
+      await stable();
+      http.expectOne(urlCouverture(Z1, 'cp')).flush({ ...couvertureCp, zone_maj: 'v2' });
+      await stable();
+      http.expectOne(urlSimulationCercles(Z1)).flush(pavageMoinsBon(Z1));
+      await stable();
+      http.verify();
+    });
   });
 });

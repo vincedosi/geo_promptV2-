@@ -1,14 +1,16 @@
 /**
  * GET /api/zones/[id]/cercles?cible=&rayon=&seuil=&plateforme= — une zone de l'espace actif pavée en cercles pour UNE
  * plateforme (lot 5, T8 ; plan A-8) : les cercles retenus au seuil et la perte exacte sur leur union
- * (`paver_cercles`, sql/276). Une lecture : rien n'est enregistré, et rien n'est mis en cache — le résultat dépend du
- * rayon et du seuil, que l'écran règle (la réglette de rayon ne requête qu'au relâchement, P-h).
+ * (`paver_cercles`, sql/276). Rien n'est enregistré ; D33 (sql/338) : le pavage est GARDÉ en cache par (version de la
+ * zone, cible, rayon, seuil, limites de la ligne) — les simulations de maille de ⑤ (B9) pavent au rayon par défaut à
+ * chaque ouverture, et un pavage refait coûte 0,3 à 1,9 s (mesuré le 03/11). Un refus ne s'y écrit jamais.
  *
- * Ordre (SÉQUENTIEL) : session (`requireAuth`, 401 / 403) → id UUID (404) et paramètres Zod (400), rien en base →
- * quota `geo:rl:conversion` (429) → la règle `(plateforme, cercle)` lue dans `plateformes_geo` : couple absent, maille
- * indisponible ou rayon hors des bornes de la PLATEFORME → 400 avant tout calcul (la RPC n'a que des bornes de
- * sécurité, [1 000, 200 000] m) → `paver_cercles` avec les limites de la ligne (`max_unites`, `pop_min_unite`) —
- * jamais du client (§ 16.2-3, Review Focus 5).
+ * Ordre (SÉQUENTIEL, au plus trois appels en base avant le pavage) : session (`requireAuth`, 401 / 403) → id UUID
+ * (404) et paramètres Zod (400), rien en base → la règle `(plateforme, cercle)` lue dans `plateformes_geo` : couple
+ * absent, maille indisponible ou rayon hors des bornes de la PLATEFORME → 400 avant tout calcul (la RPC n'a que des
+ * bornes de sécurité, [1 000, 200 000] m) → `pavage_cercles_en_cache` (D33 : servi s'il est valide, SANS jeton) →
+ * quota `geo:rl:conversion` (429) → `paver_cercles_cache` avec les limites de la ligne (`max_unites`,
+ * `pop_min_unite`) — jamais du client (§ 16.2-3, Review Focus 5) ; il relit le cache, sinon pave et l'écrit.
  *
  * L'ESPACE est celui de la session (`espaceDeZone`), jamais un paramètre : une zone d'un autre espace rend 404.
  * Statuts des refus : 404 `zone_introuvable`, 503 `couverture_non_construite`, 422 sinon (`trop_de_cercles` porte
@@ -34,7 +36,7 @@ import { createQuota } from '@/lib/api/rate-limit';
 import { espaceDeZone, idDeZone } from '@/lib/zones/session-zones';
 import { RequeteCouvertureSchema, repondreCouverture } from '@/lib/zones/couverture';
 import { MESSAGES_CONVERSION } from '@/lib/zones/conversion';
-import { BUDGET_RECHERCHE_RAYON_MS, lireRegles, paverAvecProposition, refusDuChoix } from '@/lib/zones/conversion-serveur';
+import { BUDGET_RECHERCHE_RAYON_MS, lireRegles, paverAvecProposition, pavageEnCache, refusDuChoix } from '@/lib/zones/conversion-serveur';
 import { PLATEFORMES } from '@/lib/zones/plateformes';
 
 export const dynamic = 'force-dynamic';
@@ -73,9 +75,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const { cible, rayon, seuil, plateforme } = p.data;
 
-  const refusQuota = await quotaConversion(s.espace.userId);
-  if (refusQuota) return refusQuota;
-
   const supabase = createAdminClient();
   let regle;
   try {
@@ -87,11 +86,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const refus = refusDuChoix({ plateforme, maille: 'cercle', rayon_m: rayon }, regle);
   if (refus || !regle) return NextResponse.json({ error: refus }, { status: 400 });
 
+  // D33 : un pavage en cache ne coûte qu'une lecture de clé primaire, et aucun jeton (comme une couverture, sql/270).
+  const demande = { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil };
+  const cache = await pavageEnCache(supabase, demande, regle);
+  if (cache.error || cache.data !== null) return repondreCouverture(cache, MESSAGES_CONVERSION, 'zones/cercles cache', ECHEC);
+
+  const refusQuota = await quotaConversion(s.espace.userId);
+  if (refusQuota) return refusQuota;
+
   // Tour 1 (I-1) : chaque essai de la recherche du rayon proposé paie un jeton, dans le budget de temps de la requête.
   const garde = {
     reste_ms: () => BUDGET_RECHERCHE_RAYON_MS - (Date.now() - arrivee),
     consommer: async () => (await quotaConversion(s.espace.userId)) === null,
   };
-  const pavage = await paverAvecProposition(supabase, { zoneId: id, orgId: s.espace.orgId, cible, rayon_m: rayon, seuil }, regle, garde);
+  const pavage = await paverAvecProposition(supabase, demande, regle, garde, 'paver_cercles_cache');
   return repondreCouverture(pavage, MESSAGES_CONVERSION, 'zones/cercles', ECHEC, 'Rayon ou seuil hors des bornes du calcul.');
 }

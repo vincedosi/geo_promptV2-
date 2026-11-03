@@ -136,8 +136,19 @@ interface DemandePavage { zoneId: string; orgId: string; cible: string; rayon_m:
  * (plafond de cercles, Meta : refus `trop_de_cercles` chiffré). Rend la réponse brute de supabase-js ;
  * `repondreCouverture` la traduit.
  */
-export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo) {
-  return supabase.rpc('paver_cercles', {
+export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo, rpc: RpcPavage = 'paver_cercles') {
+  return supabase.rpc(rpc, argumentsPavage(d, regle));
+}
+
+/**
+ * D33 (sql/338) : `paver_cercles_cache` pave comme `paver_cercles` et ÉCRIT le pavage au cache ; `pavage_cercles_en_cache`
+ * le lit seul (sans calcul, `null` si absent ou périmé). La clé est faite des MÊMES arguments : la plateforme n'y entre
+ * que par ses limites, deux plateformes aux mêmes limites partagent la ligne.
+ */
+type RpcPavage = 'paver_cercles' | 'paver_cercles_cache';
+
+function argumentsPavage(d: DemandePavage, regle: PlateformeGeo) {
+  return {
     p_zone_id: d.zoneId,
     p_org_id: d.orgId,
     p_cible: d.cible,
@@ -146,7 +157,12 @@ export function paverPourPlateforme(supabase: ClientAdmin, d: DemandePavage, reg
     // `undefined` : la clé n'est pas envoyée, la RPC garde son défaut — aucune limite écrite ici.
     p_pop_min: popMinPavage(regle),
     p_max_cercles: regle.limites.max_unites,
-  });
+  };
+}
+
+/** D33 : le pavage EN CACHE pour cette demande et ces limites, s'il est encore valide (`data` = `null` sinon). */
+export function pavageEnCache(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo) {
+  return supabase.rpc('pavage_cercles_en_cache', argumentsPavage(d, regle));
 }
 
 /**
@@ -167,11 +183,15 @@ export const BUDGET_RECHERCHE_RAYON_MS = 40_000;
  * rendu tel quel. Un essai en échec est journalisé et arrête la recherche ; le refus d'origine reste rendu.
  *
  * `garde` (tour 1, I-1) : `consommer` prend un jeton du quota de la route avant CHAQUE essai, `reste_ms` le temps qui
- * reste au budget `BUDGET_RECHERCHE_RAYON_MS` — la route les fournit.
+ * reste au budget `BUDGET_RECHERCHE_RAYON_MS` — la route les fournit. `rpc` (D33) : `paver_cercles_cache` pour la
+ * route de ⑤, qui écrit le pavage au cache ; un refus n'y est jamais écrit.
  */
-export async function paverAvecProposition(supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo, garde?: GardeRecherche) {
+export async function paverAvecProposition(
+  supabase: ClientAdmin, d: DemandePavage, regle: PlateformeGeo, garde?: GardeRecherche, rpc: RpcPavage = 'paver_cercles',
+) {
   const avant = garde?.reste_ms();
-  const pavage = await paverPourPlateforme(supabase, d, regle);
+  // D33 : le pavage DEMANDÉ peut passer par le cache (`rpc`) ; les essais de la recherche, à d'autres rayons, non.
+  const pavage = await paverPourPlateforme(supabase, d, regle, rpc);
   const o = pavage.data as { refus?: unknown; n_cercles?: unknown; plafond?: unknown } | null;
   if (pavage.error || o?.refus !== 'trop_de_cercles' || typeof o.n_cercles !== 'number' || typeof o.plafond !== 'number') return pavage;
   const duree_ms = garde && avant !== undefined ? Math.max(0, avant - garde.reste_ms()) : 0;

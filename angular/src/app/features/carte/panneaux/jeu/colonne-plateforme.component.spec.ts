@@ -17,6 +17,20 @@ async function colonne(plateforme: string, registre: PlateformeGeo[] = REGISTRE)
 const texte = (el: HTMLElement, sel: string) => el.querySelector(sel)?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('mg-colonne-plateforme', () => {
+  it('D33 : simulation en attente — rien n’est dit la première seconde, puis « simulation en cours » et le défaut provisoire', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    http.expectOne(urlCouverture(Z1, 'cp')).flush(couvertureCp);
+    await stable();
+    // La simulation des cercles est en vol : défaut provisoire (CP), chiffré, sans phrase d'attente avant une seconde.
+    http.expectOne(urlSimulationCercles(Z1));
+    expect(jeu.defauts().dv360?.critere).toBe('en_attente');
+    expect(texte(el, '[data-taux]')).toBe('45,0 %');
+    expect(el.querySelector('[data-defaut]')).toBeNull();
+    await new Promise((r) => setTimeout(r, 1100));
+    await stable();
+    expect(texte(el, '[data-defaut]')).toBe('Codes postaux par défaut (export manuel), provisoirement : simulation des autres mailles en cours.');
+  });
   it('A4 (ARB-3) : une unité à population inconnue ENTIÈRE dans la zone est retenue et dite sur une ligne à part', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');
