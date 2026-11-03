@@ -130,6 +130,14 @@ describe('textes Q-J de la couverture (T8)', () => {
     expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] })).toContain('Guadeloupe');
     expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [] })).toBeNull();
   });
+  it('C21 round 1 : zone nationale moins une zone qui recouvre un DROM non carroyé → ses unités restent, et c’est dit', () => {
+    const a = avertissementNonCarroye({
+      motif_vide: null, territoires_non_carroyes: [], inconnues_recouvertes: [{ code: '973', nom: 'Guyane' }],
+    });
+    expect(a).toContain('Guyane');
+    expect(a).toContain('restent dans la zone');
+    expect(avertissementNonCarroye({ motif_vide: null, territoires_non_carroyes: [], inconnues_recouvertes: [] })).toBeNull();
+  });
   it('ligneHorsTerritoire : CP / IRIS, jamais en forme ni à zéro', () => {
     const h = { n_carreaux: 12, population: 1786 };
     expect(ligneHorsTerritoire({ decoupage: 'cp', hors_territoire: h, cible: 'ind' })).toContain(`${formaterNombre(1786)} habitants hors code postal (12 carreaux)`);

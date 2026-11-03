@@ -24,9 +24,9 @@ import { lireCorps } from '@/lib/api/valider-corps';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { lireCopie, modeDuplication } from '@/lib/zones/dupliquer';
 import { MESSAGES_REFUS } from '@/lib/zones/recette';
-import { estRecettePays } from '@/lib/zones/couverture';
+import { estNationaleMoins, estRecettePays } from '@/lib/zones/couverture';
 import {
-  espaceDeZone, estNationaleMoins, executerDansEspace, idDeZone, lireCreation, quotaZones, recetteAEcrire, repondreResolue, reponseRefus, zoneIntrouvable,
+  espaceDeZone, executerDansEspace, idDeZone, lireCreation, quotaZones, recetteAEcrire, repondreResolue, reponseRefus, zoneIntrouvable,
 } from '@/lib/zones/session-zones';
 
 export const dynamic = 'force-dynamic';

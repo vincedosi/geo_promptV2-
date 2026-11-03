@@ -188,6 +188,19 @@ describe('C21 — France métropolitaine moins un rayon de 30 km autour de Lyon 
     expect(cp.lignes.filter((l) => l.pop_en_zone !== null).reduce((s, l) => s + l.pop_en_zone!, 0)).toBe(cp.population);
   }, LONG);
 
+  it('round 1 : un DROM non carroyé recouvert par la géométrie retirée garde ses lignes, et est NOMMÉ', () => {
+    // FR moins un disque de 20 km dans la Guyane (non carroyée) : ses unités restent (population inconnue), dites.
+    const r = psql(`with g as (select ST_SetSRID(ST_GeomFromGeoJSON((public.zone_rayon(-52.33, 4.93, 20000)->'geometry')::text), 4326) g),
+                         j as (select public.couverture_pays_moins_jsonb('FR', 'ind', 'cp', (select g from g)) j)
+                    select (j->'inconnues_recouvertes')::text || '|' ||
+                           (select count(*) from jsonb_array_elements(j->'lignes') e where e->>'pop_en_zone' is null and e->>'code' like '973%') || '|' ||
+                           (public.couverture_pays_moins_jsonb('METRO', 'ind', 'cp', (select g from g)) -> 'inconnues_recouvertes')::text
+                      from j;`).split('|');
+    expect(r[0]).toBe('[{"nom": "Guyane", "code": "973"}]');
+    expect(Number(r[1])).toBeGreaterThan(0);
+    expect(r[2]).toBe('[]');
+  }, LONG);
+
   it('la zone pays seule est inchangée : couverture_pays_jsonb = l’enveloppe sans retrait', () => {
     const r = psql(`select (public.couverture_pays_jsonb('METRO', 'ind', 'cp') - 'calcule_le')
                          = (public.couverture_pays_moins_jsonb('METRO', 'ind', 'cp', null) - 'calcule_le'),

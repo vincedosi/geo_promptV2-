@@ -4,7 +4,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireTout } from '@/lib/supabase/lire-tout';
-import { refusZonePays } from '@/lib/zones/couverture';
+import { refusZoneSansCodes } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +37,8 @@ export async function GET(
   // Une zone pays n'a pas de codes (sql/296) : « 0 code » se lirait comme une zone vide. La recette n'est lue que pour
   // ce refus : la réponse garde ses clés d'avant.
   const { recette, ...zone } = data;
-  const refusPays = refusZonePays(recette);
+  // C21 round 1 (I-1) : une zone nationale moins zones locales non plus (sql/326) — jamais une liste vide sans le dire.
+  const refusPays = await refusZoneSansCodes(supabase, id, zone.org_id, recette);
   if (refusPays) return refusPays;
 
   // bbox : PostGIS geometry → tableau [minLng, minLat, maxLng, maxLat] propre

@@ -42,6 +42,7 @@ let bmw = '';
 let bretagne = '';
 let zoneBmw = '';
 let pays = '';
+let paysMoins = '';
 
 function appel(corps: Record<string, unknown>) {
   return POST(new NextRequest('http://localhost:3000/api/isochrone-battle-v2', {
@@ -82,6 +83,17 @@ beforeAll(async () => {
   if (e3) throw new Error(e3.message);
   pays = (cree as { id: string }).id;
   zonesCreees.push(pays);
+  // C21 round 1 : France métropolitaine moins la Bretagne (sql/326), créée comme le fait POST /api/zones.
+  const { data: diff, error: e4 } = await sb.rpc('zone_difference', { p_base: pays, p_retires: [bretagne] });
+  if (e4) throw new Error(e4.message);
+  const { data: cree2, error: e5 } = await sb.rpc('creer_zone_recette', {
+    p_nom: '[ESSAI C21] France métropolitaine moins la Bretagne', p_org_id: marine, p_cree_par: null,
+    p_recette: { v: 1, type: 'combinaison', operation: 'difference', zones: [pays, bretagne] },
+    p_geometry_geojson: JSON.stringify((diff as { geometry: unknown }).geometry),
+  });
+  if (e5) throw new Error(e5.message);
+  paysMoins = (cree2 as { id: string }).id;
+  zonesCreees.unshift(paysMoins);  // supprimée avant ses opérandes
 }, 120_000);
 
 afterAll(async () => {
@@ -146,6 +158,15 @@ describe('bataille V2 sur une zone enregistrée (sql/297)', () => {
     const res = await appel({ category: 'cirfa', zone_id: pays, paliers: [10] });
     expect(res.status).toBe(422);
     expect((await res.json()).error).toBe('Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).');
+  });
+
+  it('C21 : zone nationale moins zones locales → la même phrase de zone nationale, pas zone_trop_vaste', async () => {
+    espaceActif = marine;
+    const res = await appel({ category: 'cirfa', zone_id: paysMoins, paliers: [10] });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error: 'Sur toute la France, la bataille se lance depuis l’étape ① (France métropolitaine).', refus: 'zone_pays',
+    });
   });
 
   it('sans session → 401', async () => {

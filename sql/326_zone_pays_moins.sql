@@ -364,7 +364,18 @@ begin
   -- C21 : ce que le retrait a ôté, et ce qu'il n'a pas pu ôter (absent de l'agrégat national : sans CP, hors du pays).
   || case when v_moins then jsonb_build_object('retire', jsonb_build_object(
        'n_carreaux', v_ret_n, 'population', round(v_ret_p),
-       'hors_national', jsonb_build_object('n_carreaux', v_hors_n, 'population', round(v_hors_p))))
+       'hors_national', jsonb_build_object('n_carreaux', v_hors_n, 'population', round(v_hors_p))),
+       -- C21 round 1 : les territoires non carroyés du pays (A4) que la géométrie retirée recouvre. Sans carreau, le
+       -- retrait ne peut pas les chiffrer : leurs lignes (population inconnue) RESTENT, et l'écran le dit
+       -- (`avertissementNonCarroye`). Au plus trois contours testés (FR : 971, 973, 976 ; METRO : aucun).
+       'inconnues_recouvertes', (
+         select coalesce(jsonb_agg(jsonb_build_object('code', rd.code_dept, 'nom', rd.nom_dept) order by rd.code_dept), '[]'::jsonb)
+           from public.ref_departements rd
+          where rd.code_region is not null
+            and public.pays_contient_code(p_code, rd.code_dept)
+            and not exists (select 1 from public.unite_population_totale u
+                             where u.maille = 'departement' and u.code = rd.code_dept)
+            and ST_Intersects(coalesce(rd.geom_perimetre, rd.geom), p_retire)))
      else '{}'::jsonb end;
 end
 $fn$;
@@ -444,6 +455,10 @@ begin
     -- C21 : les agrégats nationaux moins l'UNION des zones retirées (une zone qui en chevauche une autre n'est retirée
     -- qu'une fois). Les opérandes ne peuvent être supprimées tant que la zone les cite (`zone_referencee`) ; une
     -- opérande manquante est refusée plutôt que de retirer moins.
+    -- LE CACHE (round 1) : ce chiffrage lit la forme des zones RETIRÉES, mais le cache ne se valide que sur la date de
+    -- CETTE zone (`zone_maj` = son `updated_at`, `couverture_zone_en_cache`). C'est sûr tant que `zone_referencee`
+    -- (sql/253) interdit de recalculer ou de supprimer une zone citée par une combinaison : une zone retirée ne change
+    -- pas tant que celle-ci la cite. Si cette garde tombait, le cache servirait un retrait périmé.
     select array_agg(distinct (e.v)::uuid) into v_retires
       from jsonb_array_elements_text(v_recette->'zones') with ordinality as e(v, i) where e.i > 1;
     select ST_Union(ST_MakeValid(g.geometry)), count(*) into v_retire, v_trouves
@@ -578,5 +593,9 @@ comment on function public.compter_zone_pays(uuid, uuid) is
 
 revoke all on function public.compter_zone_pays(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.compter_zone_pays(uuid, uuid) to service_role;
+
+-- Round 1 : un chiffrage « nationale moins » d'avant la clé `inconnues_recouvertes` n'est plus servi (cache
+-- régénérable, borné aux lignes qui portent `retire`). Rejouable : au second passage, rien à supprimer.
+delete from public.couverture_zone_cache c where c.resultat ? 'retire' and not (c.resultat ? 'inconnues_recouvertes');
 
 notify pgrst, 'reload schema';

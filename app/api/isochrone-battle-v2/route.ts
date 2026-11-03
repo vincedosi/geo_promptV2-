@@ -31,7 +31,7 @@ import { paquetsDeCles } from '@/lib/isochrones/paquets-cles';
 import { formaterNombre } from '@/lib/format/nombre';
 import { requireAuth } from '@/lib/api/middleware';
 import { espaceDeZone, zoneIntrouvable } from '@/lib/zones/session-zones';
-import { estRecettePays } from '@/lib/zones/couverture';
+import { estNationaleMoins, estRecettePays } from '@/lib/zones/couverture';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,7 +133,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Lecture de la zone impossible.' }, { status: 500 });
     }
     if (!z) return zoneIntrouvable();
-    if (estRecettePays(z.recette)) {
+    // C21 round 1 : une zone nationale moins zones locales (sql/326) est nationale elle aussi — même phrase.
+    if (estRecettePays(z.recette) || await estNationaleMoins(createAdminClient(), z.id, s.espace.orgId, z.recette)) {
       return NextResponse.json({ error: REFUS_ZONE_PAYS, refus: 'zone_pays' }, { status: 422 });
     }
     zone = { id: z.id, version: Date.parse(z.updated_at), orgId: s.espace.orgId };

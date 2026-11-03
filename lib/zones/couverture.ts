@@ -12,6 +12,7 @@
  * Pas de 409 : aucun refus de ce calcul ne dépend d'un conflit d'état de la zone (elle est lue telle quelle).
  */
 import { NextResponse } from 'next/server';
+import type { createAdminClient } from '@/lib/auth';
 import { z } from 'zod';
 import { createQuota } from '@/lib/api/rate-limit';
 import { formaterNombre } from '@/lib/format/nombre';
@@ -117,6 +118,45 @@ export function estRecettePays(recette: unknown): boolean {
 export function refusZonePays(recette: unknown): NextResponse | null {
   if (!estRecettePays(recette)) return null;
   return NextResponse.json({ error: MESSAGE_ZONE_PAYS_PLATEFORMES, refus: 'zone_pays' }, { status: 422 });
+}
+
+/**
+ * C21 round 1 (I-1) : une zone « nationale moins zones locales » n'a pas de liste de codes non plus (`compter_zone_pays`,
+ * sql/326 : ≈ 5 900 CP, aucun écrit) ; elle s'achète par l'extraction de ⑤, au CP ou au département, que
+ * `couverture_pays_moins_jsonb` chiffre.
+ */
+export const MESSAGE_ZONE_NATIONALE_MOINS = 'Zone nationale moins des zones locales : sa liste de codes n’est pas matérialisée. '
+  + 'Achetez-la à l’étape ⑤ (extraction par code postal ou par département).';
+
+/**
+ * C21 : la zone est-elle « nationale moins zones locales » (une différence dont la première zone est une zone pays,
+ * `zone_pays_moins_base`, sql/326) ? Aucune lecture pour une recette qui n'est pas une différence. Une lecture en échec
+ * répond VRAI : l'appelant refuse ou compte comme une zone pays, jamais une lecture nationale ni un fichier vide.
+ */
+export async function estNationaleMoins(
+  supabase: ReturnType<typeof createAdminClient>, zoneId: string, orgId: string, recette: unknown,
+): Promise<boolean> {
+  const r = recette as { type?: unknown; operation?: unknown } | null | undefined;
+  if (r?.type !== 'combinaison' || r.operation !== 'difference') return false;
+  const res = await supabase.rpc('zone_pays_moins_base', { p_zone_id: zoneId, p_org_id: orgId });
+  if (res.error) {
+    console.error('[zones] zone_pays_moins_base :', res.error.message);
+    return true;
+  }
+  return typeof res.data === 'string';
+}
+
+/**
+ * Le refus des lectures par CODES (export, détail) d'une zone sans `custom_geo_zone_codes` : 422 `zone_pays` pour une
+ * zone pays, 422 `zone_nationale_moins` pour une zone nationale moins zones locales (C21 round 1), sinon `null`.
+ */
+export async function refusZoneSansCodes(
+  supabase: ReturnType<typeof createAdminClient>, zoneId: string, orgId: string, recette: unknown,
+): Promise<NextResponse | null> {
+  const pays = refusZonePays(recette);
+  if (pays) return pays;
+  if (!(await estNationaleMoins(supabase, zoneId, orgId, recette))) return null;
+  return NextResponse.json({ error: MESSAGE_ZONE_NATIONALE_MOINS, refus: 'zone_nationale_moins' }, { status: 422 });
 }
 
 /**

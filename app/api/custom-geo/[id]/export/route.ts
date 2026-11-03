@@ -6,7 +6,7 @@ import { buildZoneBiddingScript, buildWeightedZoneBiddingScript } from '@/lib/di
 import { toSlug } from '@/lib/custom-geo/slug';
 import { checkZoneAccess } from '@/lib/campaigns/access';
 import { lireCodesDeZone } from '@/lib/custom-geo/codes-zone';
-import { refusZonePays } from '@/lib/zones/couverture';
+import { refusZoneSansCodes } from '@/lib/zones/couverture';
 import { refusActivationServeur } from '@/lib/zones/activation-serveur';
 
 export const dynamic = 'force-dynamic';
@@ -68,8 +68,9 @@ export async function GET(
     .select('name, recette, org_id')
     .eq('id', id)
     .single();
-  // Une zone pays n'a pas de codes : un fichier vide se lirait comme une zone vide (sql/296).
-  const refusPays = refusZonePays(zone?.recette);
+  // Une zone pays (sql/296) ou nationale moins zones locales (C21, sql/326) n'a pas de codes : un fichier vide (l'en-tête
+  // seul) se lirait comme une zone vide.
+  const refusPays = zone ? await refusZoneSansCodes(supabase, id, zone.org_id, zone.recette) : null;
   if (refusPays) return refusPays;
   // B8 (décision du 02/11, tour 3 N-1/N-2) : un fichier DSP ACTIVE la zone. Un rayon sous le minimum d'activation (le
   // sien ou celui d'une source de combinaison) serait élargi en silence aux codes postaux qu'il touche : refusé, valeur

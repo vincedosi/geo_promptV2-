@@ -106,6 +106,12 @@ export interface ResultatCouverture {
    */
   motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'carreaux_tous_ecartes' | null;
   territoires_non_carroyes: Array<{ code: string; nom: string }>;
+  /**
+   * C21 round 1 (sql/326) : zone nationale moins zones locales — les territoires non carroyés du pays que les zones
+   * retirées recouvrent. Le retrait ne peut pas les chiffrer : leurs unités (population inconnue) restent dans la zone.
+   * Absent pour toute autre zone.
+   */
+  inconnues_recouvertes?: Array<{ code: string; nom: string }>;
   reference: { source: string; millesime: number | string | null; population_france: number; n_carreaux_france: number };
   base_construite_le: string;
   calcule_le: string;
@@ -249,7 +255,16 @@ export function phraseMinimumMenages(r: { min_menages?: number; n_carreaux: numb
 }
 
 /** Une zone qui DÉBORDE sur un territoire non carroyé, mais compte des habitants ailleurs : l'avertir. */
-export function avertissementNonCarroye(r: Pick<ResultatCouverture, 'motif_vide' | 'territoires_non_carroyes'>): string | null {
+export function avertissementNonCarroye(
+  r: Pick<ResultatCouverture, 'motif_vide' | 'territoires_non_carroyes'> & Partial<Pick<ResultatCouverture, 'inconnues_recouvertes'>>,
+): string | null {
+  // C21 round 1 : une zone nationale moins des zones qui recouvrent un territoire non carroyé — jamais en silence.
+  const recouverts = r.inconnues_recouvertes ?? [];
+  if (recouverts.length > 0) {
+    const noms = recouverts.map((t) => t.nom || t.code).join(', ');
+    return `Les zones retirées recouvrent ${recouverts.length > 1 ? 'des territoires' : 'un territoire'} que le carroyage Filosofi ne couvre pas (${noms}) : `
+      + 'leur population est inconnue, le retrait ne peut pas la chiffrer, et leurs unités restent dans la zone.';
+  }
   if (r.motif_vide !== null || r.territoires_non_carroyes.length === 0) return null;
   return `La zone touche ${nomsNonCarroyes(r)}, que le carroyage Filosofi ne couvre pas : ses habitants n’y sont pas comptés.`;
 }
