@@ -125,3 +125,46 @@ Dernière passe (B16 tour 1) : `tsc` 0 ; unitaires 3 274/3 274 ; intégration 68
 2. **Plan commun** : le retirer quand ⑥/⑦ liront le plan par plateforme ? Le refus d'une règle de groupe divergente entre plateformes tomberait avec lui.
 3. **Charge** : garder les lectures de simulation ajoutées par B9 et B16 (2 à 3 lectures par zone ouverte, une à la fois) ?
 4. Les 4 questions du lot 1 restent ouvertes (mécanisme TTD, volume HORS_ZONE, contours DROM, polygone simplifié).
+
+---
+
+# Lot 3 : rédaction
+
+Tickets de rédaction seule : C17, C22, C23, C26, C27, plus le report dans le Word des comportements du lot 1 (question 1 du lot 2). Aucun fichier de `lib/`, `app/`, `sql/` ou `angular/` modifié. Tickets de code du lot 3 (C18 à C21, C24, C25, C28, C29) non traités ici.
+
+Document : `C:\GENESIS\methodologie-decoupage-zones-dentsu-explore.docx` (hors dépôt). Copie avant modification : `methodologie-decoupage-zones-dentsu-explore.avant-lot3.docx`. Validation XSD passée (426 → 429 paragraphes), rendu PDF relu.
+
+## Report du lot 1
+
+| Ticket | Sections du Word |
+|---|---|
+| B11 | Essentiel ; § 2.3 (part comparée sans arrondi, part > 0 à seuil 0) ; § 2.5 |
+| A2 | § 2.4 (le groupe est l'unité de la maille CP) ; § 2.7 (même multiplicateur pour les membres, plus de division) |
+| A1 | § 2.7 : formules brut / normalisation / écrêtage, mécanismes de `plateformes_poids`, ligne HORS_ZONE, mode exclusif par défaut ; encadré « point ambigu » remplacé par « Mode du plan » |
+| A8 | § 2.7 : part prévue découplée du multiplicateur (66,7 % / 33,3 % sur l'exemple) |
+| A3 | § 2.4 (exactitude du cercle) ; § 2.5 encadré « Disque en frontière » (Strasbourg 20 km, Clermont-Ferrand 5 km) |
+| A4 | § 2.3 (unité à population inconnue achetable, tolérance 0,95, ligne à part au bilan) ; § 2.6 (101 départements dont 3 inconnus ; 6 074 unités CP dont 65 inconnues) ; § 4.1 |
+| A5 | § 1.3 (encadré « À la conversion ») ; § 2.3 ; § 4.1 |
+| A6 | § 2.5 (population et minimum sur le disque, union dédoublonnée, chevauchement mesuré CIRFA 5 km, plafond 240 000 km²) ; § 4.2 |
+| A7 | § 2.4 (polygone exact sauf simplifié) ; § 3.2 (bornes TTD 20 000 / 2 000, valeurs de test) ; § 3.4 (contrôle, paliers 5/10/25/50 m, refus, perte et gain) ; § 4.2 |
+| — | § 4.4 : les trois points ambigus levés remplacés par une ligne « Points levés » |
+
+Notes de bas de page mises à jour : 14, 18, 21, 28, 30, 35, 36, 37, 44.
+
+## Tickets
+
+| Ticket | Fait | Valeurs mesurées (base locale, lecture seule, 03/11) |
+|---|---|---|
+| C17 | § 2.1 et § 4.1 : « 63,8 M » = France carroyée (métropole + Martinique + La Réunion) ; écart avec la zone « France métropolitaine » expliqué (§ 2.1) | `unite_population_totale` (département) : 98 départements, 2 324 577 carreaux, **63 783 569** hab. ; métropole 62 592 659, 972 : 306 745, 974 : 884 165. `cp_population_totale` : 5 956 CP de métropole, **62 528 975** (= `couverture_pays_jsonb('METRO','ind','forme')`), 53 CP d'outre-mer 1 182 806 |
+| C22 | § 1 : les cinq étapes ① Périmètre, ② Données, ③ Zones, ④ Analyse, ⑤ Jeu de zones (libellés de `LIBELLE_ETAPE_CARTE`), ⑥-⑧ hors champ ; figure 1 redessinée en « Phase 1 » à « Phase 5 », légende refaite | — |
+| C23 | Ligne de datation unique en tête ; « au 31 octobre 2026 » retiré du titre du § 3.2 et du sommaire | Registre 14/10, pays 30/10, `plateformes_poids` 31/10 |
+| C26 | § 1.2 : 547 779 et 636 299 km² qualifiés « surface du référentiel de contours », distincte des 543 940 km² officiels | — |
+| C27 | § 2.5 : The Trade Desk ajouté aux plateformes en cercles, « à vérifier » | `plateformes_geo` ttd / cercle : natif, disponible, `a_verifier` = vrai, `limites` = {} (aucun rayon relevé) |
+
+## Écarts trouvés
+
+- **C17, constat du fil d'Ariane infirmé** : « 63,8 M est inexact » venait d'une somme par CP (63 711 780). La somme par département, sur tous les carreaux, donne 63 783 569 : 63,8 M est juste pour la France carroyée.
+- **Deux totaux métropole** : 62 592 659 par département, 62 528 975 par CP. Écart de 63 684 habitants (0,1 %) : les carreaux de métropole qu'aucun contour de CP ne contient. Non vérifié carreau par carreau (balayage complet de `carreau_couverture`, pas d'index sur `code_postal`).
+- **Écart DROM** : 1 190 910 par département, 1 182 806 par CP (8 104 hab.).
+- **Mineur A5 (lot 1) écrit dans le Word** : la couverture par rayon de ④ n'applique pas encore le minimum de 11 ménages.
+- **Laissé tel quel** (tickets de code pas encore faits) : § 4.1 arrondis (C18, −230 hab. sur 895 CP) ; § 1.2 intersection limitée à 2 zones (C20) ; glossaire (C24) ; note Meta catégorie spéciale (C29).
