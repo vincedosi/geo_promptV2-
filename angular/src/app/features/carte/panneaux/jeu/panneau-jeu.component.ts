@@ -9,7 +9,9 @@ import type { ZoneCustomResume } from '../../data/zones-custom.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { ParcoursService } from '../../etat/parcours.service';
 import { ZoneAnalyseeService } from '../../etat/zone-analysee.service';
+import { populationDeForme } from '../../logique/jeu/conversion-population';
 import { NOM_PLATEFORME, texteCategorieSpeciale } from '../../logique/jeu/ecran';
+import { textePopulationForme } from '../../logique/jeu/ecran-population';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { PLATEFORMES, type Plateforme } from '../../logique/jeu/plateformes';
 import { phraseMinimumMenages } from '../../logique/analyses/couverture';
@@ -155,7 +157,8 @@ export class PanneauJeuComponent {
     return r ? phraseMinimumMenages(r) : null;
   });
   protected readonly formeTexte = computed(() => [
-    this.population() === null ? null : `${formaterNombre(this.population())} habitants carroyés`,
+    // Revue T6 (I-3, ARB-3) : un territoire non carroyé ne fait pas « 0 habitants carroyés ».
+    this.population() === null ? null : textePopulationForme(this.population() ?? 0, !!this.lecture() && populationDeForme(this.lecture()!) === null, 'habitants carroyés'),
     this.surface() === null ? null : `${formaterNombre(Math.round(this.surface() ?? 0))} km²`,
   ].filter(Boolean).join(' · '));
 

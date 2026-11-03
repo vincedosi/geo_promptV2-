@@ -44,6 +44,17 @@ describe('mg-enregistrer-jeu', () => {
     expect(el.querySelector('[data-message]')?.textContent?.trim()).toBe('Jeu enregistré.');
   });
 
+  it('revue T6 (I-6) : des défauts provisoires (jamais simulés, colonnes repliées) se disent AVANT d’enregistrer', async () => {
+    const { el, http, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}&mailles=dv360.cp.30`, { entrees: { nomPropose: 'Z' }, recette: null });
+    http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+    await stable();
+    // DV360 a un choix explicite ; TTD au polygone exact n'a rien à simuler ; Meta et TikTok n'ont jamais été chiffrées.
+    expect(el.querySelector('[data-provisoires]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Maille par défaut provisoire, encore non chiffrée, pour Meta et TikTok : elle sera enregistrée telle quelle. '
+      + 'Ouvrez la colonne de la plateforme pour la chiffrer.');
+    expect(el.querySelector<HTMLButtonElement>('[data-enregistrer]')!.disabled).toBe(false);
+  });
+
   it('P-c : un POST qui répond après un changement de zone n’est ni adopté ni dit « Jeu enregistré. » (revue finale, point 4)', async () => {
     const { el, http, jeu, stable } = await monterJeu(BANC, EnregistrerJeuComponent, `/carte?zoneJeu=${Z1}`, { entrees: { nomPropose: 'Lycées 5 km' }, recette: null });
     http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });

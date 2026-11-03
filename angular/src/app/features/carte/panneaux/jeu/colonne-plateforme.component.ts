@@ -14,6 +14,7 @@ import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
   texteChevauchement, texteDefaut, texteDiffusionInconnue, texteRayonDefaut, texteUnitePays,
 } from '../../logique/jeu/ecran';
+import { textePopulationForme } from '../../logique/jeu/ecran-population';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
 import { PALIERS_CSS } from '../analyse/tableau-couverture-zone.component';
@@ -48,6 +49,7 @@ const DELAI_ATTENTE_SIMULATION_S = 1; // un délai d’écran, pas une borne de 
     <button type="button" data-entete-colonne (click)="basculer.emit()" [attr.aria-expanded]="ouverte()" [disabled]="!repliable()"
       class="flex w-full items-center gap-2 bg-transparent px-3 py-2.5 text-left enabled:cursor-pointer">
       <span class="flex-1 text-[12px] font-medium text-primary">{{ nom() }}</span>
+      @if (!ouverte() && enAttente()) { <span data-provisoire class="text-[10px] text-tertiary">défaut provisoire</span> }
       @if (!ouverte() && bilan()) { <span class="font-mono text-[11px] text-secondary">{{ tauxTexte() }}</span> }
       @if (repliable()) { <mg-icone [nom]="ouverte() ? 'chevron-haut' : 'chevron-bas'" [taille]="14" [trait]="1.5" class="shrink-0 text-tertiary" /> }
     </button>
@@ -105,7 +107,7 @@ const DELAI_ATTENTE_SIMULATION_S = 1; // un délai d’écran, pas une borne de 
           @if (b.resume.exacte) {
             <div data-exacte class="flex flex-col gap-1">
               <span class="text-[12px] text-primary">Exacte : aucune perte</span>
-              <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ nombre(b.resume.population) }} {{ libellePopulation() }}</span>
+              <span class="font-mono text-[11px] text-secondary">{{ unitesTexte() }} · {{ populationTexte() }}</span>
               @if (diffusionTotale(); as d) {
                 <span data-diffusion-totale class="text-[11px] text-secondary">Diffusion achetée, population totale : <span class="font-mono text-primary">{{ nombre(d) }}</span></span>
               }
@@ -227,7 +229,7 @@ export class ColonnePlateformeComponent {
   /** C28 (amendement E9) : les bornes « à vérifier » de la ligne choisie, chacune avec sa valeur ou « non relevé ». */
   protected readonly parametresAVerifier = computed(() => texteParametresAVerifier(this.ligne()));
   /** D33 : le défaut est PROVISOIRE (une simulation de maille en vol) ; la phrase d'attente n'est dite qu'après une seconde. */
-  private readonly enAttente = computed(() => this.jeu.defauts()[this.plateforme()]?.critere === 'en_attente');
+  protected readonly enAttente = computed(() => this.jeu.defauts()[this.plateforme()]?.critere === 'en_attente');
   private readonly attenteLongue = signal(false);
   /**
    * B9 (ARB-7, Q7 = A) : la ligne qui explique la maille par défaut, tant que c'est elle qui est choisie ; sinon `null`.
@@ -237,7 +239,8 @@ export class ColonnePlateformeComponent {
   protected readonly defautTexte = computed(() => {
     const d = this.jeu.defauts()[this.plateforme()];
     if (!d || d.maille !== this.choix()?.maille) return null;
-    return d.critere === 'en_attente' && !this.attenteLongue() ? null : texteDefaut(d);
+    // Revue T6 (I-7) : une simulation en échec se dit tout de suite, sans attendre la seconde de D33.
+    return d.critere === 'en_attente' && !this.attenteLongue() && !d.echecs?.length ? null : texteDefaut(d);
   });
 
   constructor() {
@@ -268,6 +271,11 @@ export class ColonnePlateformeComponent {
   protected readonly diffusionTotale = computed(() => this.bilan()?.resume.diffusion_population_totale ?? null);
   /** C24 round 1 : une maille exacte chiffre la CIBLE quand elle n'est pas la population totale — le libellé le dit. */
   protected readonly libellePopulation = computed(() => (this.jeu.cible() === 'ind' ? 'habitants carroyés' : 'habitants carroyés de la cible'));
+  /** Revue T6 (I-3, ARB-3) : la population d'une maille exacte — « inconnue » en territoire non carroyé, jamais 0. */
+  protected readonly populationTexte = computed(() => {
+    const b = this.bilan();
+    return b?.resume.exacte ? textePopulationForme(b.resume.population, !!b.resume.n_inconnues && !b.pays, this.libellePopulation()) : '';
+  });
   /** A6 (sql/311) : cercles — la somme des disques dépasse la diffusion achetée (chevauchements) ; sinon `null`. */
   protected readonly chevauchement = computed(() => {
     const b = this.bilan();

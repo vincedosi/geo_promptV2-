@@ -419,6 +419,27 @@ describe('mailles exactes : la géométrie de la recette, sans calcul ni seuil',
   });
 });
 
+describe('revue T6 (I-3) : une maille exacte en territoire non carroyé — population inconnue FIGÉE, jamais 0 (ARB-3)', () => {
+  const nonCarroye = { population: 0, surface_km2: 78.5, lignes: [], motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] };
+  it('polygone : l’unité sans population, le résumé compte une unité inconnue', async () => {
+    jeuAvec([{ plateforme: 'ttd', maille: 'polygone', seuil: 0, rayon_m: null }], DESSIN, [regle('ttd', 'polygone')]);
+    etat.reponses.couverture_zone = { data: nonCarroye, error: null };
+    etat.reponses.simplification_polygone_plateforme = { data: {
+      tolerance_m: 50, simplifiee: false, sommets_avant: 33, morceaux_avant: 1, sommets: 33, morceaux: 1, carreaux_bande: 0,
+      perdue: 0, gagnee: 0, min_menages: 0, seuil_perte_affichee: 0.1,
+    }, error: null };
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_unites).toEqual([{ plateforme: 'ttd', maille: 'polygone', retenu: true, pop_en_zone: null, pop_totale: null, part: null }]);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 1, n_inconnues: 1 });
+  });
+  it('liste de codes postaux exacte : chaque code compté inconnu', async () => {
+    jeuAvec([{ plateforme: 'dv360', maille: 'cp', seuil: 20, rayon_m: null }], LISTE, [regle('dv360', 'cp')], UNITES_LISTE);
+    etat.reponses.couverture_zone = (a) => ({ data: a.p_decoupage === 'forme' ? nonCarroye : COUVERTURE, error: null });
+    expect((await extraire()).status).toBe(201);
+    expect(argsCreation().p_resume.plateformes[0]).toMatchObject({ exacte: true, n_unites: 2, n_inconnues: 2 });
+  });
+});
+
 describe('A7 — polygone : simplifié, sommets et morceaux contrôlés contre le registre, perte figée', () => {
   /** La ligne TTD au polygone du seed de sql/312 : 20 000 sommets, 2 000 morceaux, toutes deux « à vérifier ». */
   const ttdPolygone = {

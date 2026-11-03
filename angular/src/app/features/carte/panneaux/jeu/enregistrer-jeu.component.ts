@@ -3,6 +3,7 @@ import type { Subscription } from 'rxjs';
 import { type ChoixPlateforme, type DetailJeuZone, JeuxApi } from '../../data/jeux.api';
 import { JeuZonesService } from '../../etat/jeu-zones.service';
 import { messageErreurCouverture } from '../../logique/analyses/couverture-erreurs';
+import { NOM_PLATEFORME } from '../../logique/jeu/ecran';
 import { PLATEFORMES } from '../../logique/jeu/plateformes';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { BOUTON_CALCUL, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP } from '../analyse/styles-analyse';
@@ -26,6 +27,7 @@ import { BOUTON_CALCUL, ENCART_ERREUR, LIBELLE_CHAMP, LISTE_CHAMP } from '../ana
     <button type="button" data-enregistrer [disabled]="enCours() || !nom().trim() || choix().length === 0" (click)="enregistrer()" [class]="boutonCalcul + ' self-start'">
       {{ enCours() ? 'Enregistrement…' : jeu.jeuId() ? 'Enregistrer les réglages' : 'Enregistrer le jeu' }}
     </button>
+    @if (provisoiresTexte(); as t) { <p data-provisoires role="status" class="m-0 text-[11px] text-secondary">{{ t }}</p> }
     @if (message(); as m) { <p data-message role="status" class="m-0 text-[11px] text-secondary">{{ m }}</p> }
     @if (erreur(); as e) { <div data-erreur role="alert" [class]="encartErreur">{{ e }}</div> }
   `,
@@ -55,6 +57,18 @@ export class EnregistrerJeuComponent {
     return [c.maille === 'cercle' && c.rayon_m !== undefined
       ? { plateforme: p, maille: c.maille, seuil: c.seuil, rayon_m: c.rayon_m } : { plateforme: p, maille: c.maille, seuil: c.seuil }];
   }));
+
+  /**
+   * Revue T6 (I-6) : les défauts PROVISOIRES (aucune simulation faite, colonne repliée) partent tels quels — B9 permet
+   * de les enregistrer, pas sans le dire. `null` s'il n'y en a pas.
+   */
+  protected readonly provisoiresTexte = computed(() => {
+    const noms = this.jeu.provisoires().map((p) => NOM_PLATEFORME[p]);
+    if (noms.length === 0) return null;
+    const liste = noms.length < 2 ? noms[0] : `${noms.slice(0, -1).join(', ')} et ${noms[noms.length - 1]}`;
+    return `Maille par défaut provisoire, encore non chiffrée, pour ${liste} : elle sera enregistrée telle quelle. `
+      + 'Ouvrez la colonne de la plateforme pour la chiffrer.';
+  });
 
   private envoi: Subscription | null = null;
 

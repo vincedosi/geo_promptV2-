@@ -244,6 +244,35 @@ describe('bilan d’une zone pays (⑤ finitions, T4)', () => {
   });
 });
 
+describe('revue T6 (I-3) : une maille exacte en territoire non carroyé — population INCONNUE, jamais 0 (ARB-3)', () => {
+  const guadeloupe = { ...couverture('forme', 'v1', 0), lignes: [], motif_vide: 'territoire_non_carroye', territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }] } as unknown as ResultatCouverture;
+  it('le polygone : une unité à population inconnue, dite comme telle', () => {
+    const b = bilanDe({ maille: 'polygone', seuil: 20 }, ligne({ plateforme: 'ttd', maille: 'polygone' }), { v: 1, type: 'dessin' }, guadeloupe);
+    expect(b?.resume).toMatchObject({ exacte: true, n_unites: 1, n_inconnues: 1 });
+  });
+  it('une liste de codes postaux exacte : chaque code acheté sans chiffre d’habitants', () => {
+    const b = bilanDe({ maille: 'cp', seuil: 20 }, ligne({ plateforme: 'dv360', maille: 'cp' }), liste(['97110', '97120']), guadeloupe);
+    expect(b?.resume).toMatchObject({ exacte: true, n_unites: 2, n_inconnues: 2 });
+  });
+  it('une forme entièrement carroyée : aucune unité inconnue', () => {
+    const b = bilanDe({ maille: 'polygone', seuil: 20 }, ligne({ plateforme: 'ttd', maille: 'polygone' }), { v: 1, type: 'dessin' }, couverture('forme', 'v1'));
+    expect(b?.resume.n_inconnues).toBeUndefined();
+  });
+});
+
+describe('revue T6 (I-10) : découpée en blocs, ⑤ contrôle le minimum BLOC PAR BLOC, comme l’extraction', () => {
+  const tiktok = ligne({ plateforme: 'tiktok', maille: 'commune', limites: { max_unites: 2, pop_min_groupe: 1000 } });
+  const l = (code: string, part: number, pop_en_zone: number, pop_totale: number) =>
+    ({ code, nom: null, commune: null, n_carreaux: 1, pop_en_zone, pop_totale, part, part_brute: part });
+  const zone = { decoupage: 'commune', zone_maj: 'v1', population: 9_250, surface_km2: 100,
+    lignes: [l('a', 90, 4_500, 5_000), l('b', 80, 4_500, 5_000), l('c', 50, 250, 500)] } as unknown as ResultatCouverture;
+  it('3 communes pour 2 par bloc : le bloc 2 (500 personnes) est sous le minimum, la maille entière ne l’est pas', () => {
+    const b = bilanDe({ maille: 'commune', seuil: 20 }, tiktok, { v: 1, type: 'dessin' }, zone);
+    expect(b?.avertissements).toContainEqual({ code: 'pop_min_groupe', limite: 1000, valeur: 500, bloc: 2, plateforme: 'tiktok' });
+    expect(b?.avertissements.filter((a) => a.code === 'pop_min_groupe' && a.bloc === undefined)).toEqual([]);
+  });
+});
+
 describe('B9 (ARB-7) — la maille par défaut sur les simulations en mémoire', () => {
   const regles = [ligne({ plateforme: 'dv360', maille: 'cp' }), ligne({ plateforme: 'dv360', maille: 'cercle', limites: { rayon_min_m: 1500 } })];
   const anneau = { v: 1, type: 'combinaison', operation: 'difference', zones: ['a', 'b'] } as const;

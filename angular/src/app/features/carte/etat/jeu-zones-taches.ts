@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { messageErreurCouverture, refusDeLErreur } from '../logique/analyses/couverture-erreurs';
 import type { ChoixMaille } from '../logique/jeu/mailles-url';
-import { lectureRequise } from '../logique/jeu/bilan';
+import { type EchecSimulation, lectureRequise } from '../logique/jeu/bilan';
 import { rayonPropose, texteTropDeCercles } from '../logique/jeu/ecran';
 import type { Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
 import type { Recette } from '../logique/zones/recette';
@@ -33,7 +33,8 @@ export function cleTache(
  */
 export class TachesJeu {
   private readonly file = new FileLectures();
-  private readonly _erreurs = signal<ReadonlyMap<string, string>>(new Map());
+  /** Revue T6 (I-7) : le message ET la nature de l'échec (transitoire : réseau, quota 429, serveur). */
+  private readonly _erreurs = signal<ReadonlyMap<string, EchecSimulation>>(new Map());
   /** B10 : le rayon proposé avec un refus `trop_de_cercles`, par clé de tâche ; oublié avec l'échec. */
   private readonly _propositions = signal<ReadonlyMap<string, NonNullable<ReturnType<typeof rayonPropose>>>>(new Map());
   /** Le pavage demandé en dernier par plateforme (`zone|cible|rayon|seuil`) : un second `valider` identique n'en relance pas. */
@@ -48,6 +49,11 @@ export class TachesJeu {
 
   /** Le message d'échec de la tâche, s'il y en a un (lu dans un `computed` : suit les échecs). */
   erreur(cle: string): string | undefined {
+    return this._erreurs().get(cle)?.message;
+  }
+
+  /** Revue T6 (I-7) : l'échec de la tâche, message et nature, s'il y en a un (suit les échecs). */
+  echec(cle: string): EchecSimulation | undefined {
     return this._erreurs().get(cle);
   }
 
@@ -59,7 +65,7 @@ export class TachesJeu {
   /** Oublie l'échec précédent de la tâche, puis la met en file (une tâche de même clé est remplacée). */
   ajouter<T>(cle: string, source: () => Observable<T>, succes: (r: T) => void): void {
     this.oublier(cle);
-    this.file.ajouter(cle, source, succes, (e) => this.echec(cle, e));
+    this.file.ajouter(cle, source, succes, (e) => this.noter(cle, e));
   }
 
   /**
@@ -87,14 +93,15 @@ export class TachesJeu {
     this._propositions.set(new Map());
   }
 
-  private echec(cle: string, e: unknown): void {
+  private noter(cle: string, e: unknown): void {
     // Trop de cercles : les chiffres du corps, dans la phrase de l'avertissement (E4) ; sinon la phrase du serveur.
     const message = (e instanceof HttpErrorResponse ? texteTropDeCercles(e.error) : null) ?? messageErreurCouverture(e);
     if (refusDeLErreur(e) === 'zone_introuvable') {
       this.zonePerdue(message);
       return;
     }
-    this._erreurs.update((m) => new Map(m).set(cle, message));
+    const transitoire = !(e instanceof HttpErrorResponse) || e.status === 0 || e.status === 429 || e.status >= 500;
+    this._erreurs.update((m) => new Map(m).set(cle, { message, transitoire }));
     const p = e instanceof HttpErrorResponse ? rayonPropose(e.error) : null;
     if (p) this._propositions.update((m) => new Map(m).set(cle, p));
   }

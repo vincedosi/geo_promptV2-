@@ -10,6 +10,7 @@ import {
   simulationsRequises,
 } from './conversion-defaut';
 import { avertissementsRayon } from './conversion-rayon';
+import { decouperEnBlocs } from './decoupage-blocs';
 import { avertissementsComposition, unitesConstitutives } from './exactitude-composition';
 import { type ChoixMaille, type ChoixParPlateforme, SEUIL_PAR_DEFAUT, ecrireMailles, rayonParDefaut } from './mailles-url';
 import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from './plateformes';
@@ -53,6 +54,15 @@ export interface ResultatCercles {
   ecartes_pop_min?: { n_cercles: number; population_max: number | null };
   motif_vide: 'territoire_non_carroye' | 'aucun_carreau' | 'carreaux_tous_ecartes' | 'aucune_cellule_au_seuil' | null;
 }
+
+/**
+ * Revue T6 (I-7) : une simulation de maille en échec. `transitoire` (réseau, quota 429, serveur 5xx) : la maille reste
+ * en attente, le défaut PROVISOIRE reste affiché avec la raison ; sinon (refus métier) elle sort de la course, dit aussi.
+ */
+export interface EchecSimulation { message: string; transitoire: boolean }
+
+/** Le défaut d'une plateforme et sa raison (`choisirDefaut`), plus les simulations en échec (revue T6, I-7). */
+export type DefautAffiche = DefautExplique & { echecs?: (EchecSimulation & { maille: Maille })[] };
 
 /** Le bilan d'une plateforme pour son choix courant : la perte (ou « exacte ») et les limites dépassées. */
 export interface BilanPlateforme {
@@ -154,27 +164,32 @@ export function choixASimuler(
 /**
  * B9 (ARB-7 = A) : le défaut de chaque plateforme et sa raison (`choisirDefaut`), sur les lectures EN MÉMOIRE (`lu`,
  * celle que requiert le choix simulé) — aucune requête ici. Une simulation sans lecture et en échec (`echec`) est
- * `refusee` ; sans lecture ni échec, elle manque, et le défaut reste provisoire (`en_attente`). `reglages` : ceux de
+ * `refusee` — sauf un échec TRANSITOIRE (revue T6, I-7 : 429, réseau), qui la laisse manquante : le défaut reste
+ * provisoire ; chaque échec est rendu (`echecs`) pour que l'écran le dise. Sans lecture ni échec, elle manque, et le
+ * défaut reste provisoire (`en_attente`). `echec` : `true` = refus sans message. `reglages` : ceux de
  * `reglages_conversion` (sql/315) rendus par la route ; absents (réponse d'avant sql/315), leur repli documenté.
  * `poids` (B16) : les mécanismes de poids rendus par la route (`plateformes_poids`) — le mode de poussée du défaut.
  */
 export function defautsDe(
   regles: readonly PlateformeGeo[], recette: Recette | null, reglages: ReglagesDefaut | undefined,
   lu: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => ResultatCouverture | ResultatCercles | undefined,
-  echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => boolean, surface_km2?: number | null,
+  echec: (p: Plateforme, c: ChoixMaille, ligne: PlateformeGeo) => EchecSimulation | boolean | undefined, surface_km2?: number | null,
   poids: readonly MecanismePoussee[] = [],
-): Partial<Record<Plateforme, DefautExplique>> {
-  const sortie: Partial<Record<Plateforme, DefautExplique>> = {};
+): Partial<Record<Plateforme, DefautAffiche>> {
+  const sortie: Partial<Record<Plateforme, DefautAffiche>> = {};
   for (const p of PLATEFORMES) {
     const simulations: Simulations = {};
+    const echecs: NonNullable<DefautAffiche['echecs']> = [];
     for (const { choix, ligne } of choixASimuler(regles, p, recette, surface_km2, poids)) {
       const b = bilanDe(choix, ligne, recette, lu(p, choix, ligne));
+      const e = b ? undefined : echec(p, choix, ligne);
       // B13 : une maille que le minimum de population du registre refuse n'est pas un défaut possible.
       if (b) simulations[choix.maille] = b.avertissements.some((a) => a.refus) ? 'refusee' : simulationDe(b.resume);
-      else if (echec(p, choix, ligne)) simulations[choix.maille] = 'refusee';
+      else if (e && (e === true || !e.transitoire)) simulations[choix.maille] = 'refusee';
+      if (e && e !== true) echecs.push({ maille: choix.maille, ...e });
     }
     const d = choisirDefaut(regles, p, recette ?? SANS_RECETTE, simulations, reglages ?? REGLAGES_DEFAUT_REPLI, poids);
-    if (d) sortie[p] = d;
+    if (d) sortie[p] = echecs.length > 0 ? { ...d, echecs } : d;
   }
   return sortie;
 }
@@ -297,20 +312,23 @@ export function bilanDe(
     const u = unitesConstitutives(recette);
     const liste = exacte && u?.maille === c.maille;
     const nCodes = liste ? new Set(u.codes).size : 1;
-    // Relecture B13 (I-1) : le cercle exact en territoire non carroyé — population INCONNUE (ARB-3), comme à l'extraction.
-    const popCercle = exacte && c.maille === 'cercle' ? populationDeForme(cv) : cv.population;
+    // Relecture B13 (I-1), revue T6 (I-3) : TOUTE maille exacte (cercle, polygone, composition) en territoire non
+    // carroyé — population INCONNUE (ARB-3), chaque unité achetée comptée inconnue, comme à l'extraction.
+    const popForme = exacte ? populationDeForme(cv) : cv.population;
     // C24 round 1 (I-1) : la population TOTALE de la forme (cible ≠ ind), diffusion et minimum d'une maille exacte.
     const total = cv.population_ind;
-    const popTotale = total === undefined || popCercle === null ? popCercle : total;
+    const popTotale = total === undefined || popForme === null ? popForme : total;
     resume = exacte
-      ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popCercle === null ? { n_inconnues: 1 } : {}),
+      ? { ...resumeExact(cv.population, cv.surface_km2, nCodes), ...(popForme === null ? { n_inconnues: nCodes } : {}),
           ...(total !== undefined ? { diffusion_population_totale: total } : {}) }
       : appliquerSeuil(cv.lignes, cv.population, c.seuil);
     // Des unités constitutives exactes ne disent pas la population de chaque code : aucune unité à comparer (le groupe, si).
     populations = exacte ? (liste ? [] : [popTotale])
       : cv.lignes.filter((l) => estRetenue(l, c.seuil)).map((l) => l.pop_totale_ind ?? l.pop_totale);
   }
-  const p = controlerPopulation(resume, populations, ligne);
+  // Revue T6 (I-10) : une maille découpée en blocs (B14) se contrôle BLOC PAR BLOC, comme à l'extraction.
+  const blocs = resume.exacte || !('lignes' in lu) ? null : decouperEnBlocs(lu.lignes.filter((l) => estRetenue(l, c.seuil)), ligne);
+  const p = controlerPopulation(blocs ? { ...resume, decoupage: blocs.decoupage } : resume, populations, ligne);
   // A3 : le disque d'un rayon autour d'un point qui déborde du territoire (exact → calculé) se dit, comme à l'extraction.
   // B8 : le rayon de la recette hors des bornes de la plateforme (avant → après, exact → calculé), comme à l'extraction.
   // B13 : un refus du registre en tête (l'extraction le refuserait), puis les avertissements.

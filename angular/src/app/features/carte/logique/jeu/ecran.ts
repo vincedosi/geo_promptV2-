@@ -1,5 +1,5 @@
 import { formaterNombre } from '../../../../core/format/nombre';
-import type { ResultatCercles } from './bilan';
+import type { DefautAffiche, ResultatCercles } from './bilan';
 import { type Avertissement, NOMS_PAYS, type Resume } from './conversion';
 import type { DefautExplique, ModePoussee, Simulation } from './conversion-defaut';
 import type { Maille, Plateforme, PlateformeGeo } from './plateformes';
@@ -63,11 +63,25 @@ export const LIBELLE_POUSSEE: Readonly<Record<ModePoussee, string>> = {
  * B9 (ARB-7, Q7 = A) : la ligne qui explique le défaut retenu, avec SES deux chiffres et ceux de la meilleure autre
  * maille simulée — « Cercles par défaut (export manuel) : couverture 91 %, taux utile 71 %, contre 10 % / 95 % en
  * codes postaux (poussée API). » (couverture / taux utile). B16 : le mode de poussée de chacune entre parenthèses.
- * Sous la cible : la raison le dit. Provisoire ou sans simulation : la phrase le dit.
+ * Sous la cible : la raison le dit. Provisoire ou sans simulation : la phrase le dit. Revue T6 (I-7) : une simulation
+ * TRANSITOIREMENT en échec (429, réseau) garde le défaut provisoire et dit pourquoi ; une maille refusée se dit à la fin.
  */
-export function texteDefaut(d: DefautExplique): string {
-  const nom = UNITE_MAILLE[d.maille].plusieurs;
-  const Nom = `${nom.charAt(0).toUpperCase()}${nom.slice(1)} par défaut (${LIBELLE_POUSSEE[d.poussee]})`;
+export function texteDefaut(d: DefautAffiche): string {
+  const transitoires = (d.echecs ?? []).filter((e) => e.transitoire);
+  const refus = (d.echecs ?? []).filter((e) => !e.transitoire)
+    .map((e) => ` ${capitale(UNITE_MAILLE[e.maille].plusieurs)} écartés du choix : ${e.message}`).join('');
+  if (d.critere === 'en_attente' && transitoires.length > 0) {
+    const en = transitoires.map((e) => UNITE_MAILLE[e.maille].plusieurs).join(', ');
+    return `${nomDefaut(d)}, provisoirement : la simulation en ${en} a échoué. ${transitoires.map((e) => e.message).join(' ')}${refus}`;
+  }
+  return `${texteDefautSeul(d)}${refus}`;
+}
+
+const capitale = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+const nomDefaut = (d: DefautExplique) => `${capitale(UNITE_MAILLE[d.maille].plusieurs)} par défaut (${LIBELLE_POUSSEE[d.poussee]})`;
+
+function texteDefautSeul(d: DefautExplique): string {
+  const Nom = nomDefaut(d);
   if (d.critere === 'en_attente') return `${Nom}, provisoirement : simulation des autres mailles en cours.`;
   if (d.critere === 'sans_simulation' || !d.simulation) {
     return `${Nom}, faute de simulation : la plus sûre, puis exacte, puis poussée par API, puis la plus fine.`;

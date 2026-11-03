@@ -248,7 +248,11 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
   } else if (unitesConstitutives(r)?.maille === c.maille) {
     // B15 : unités constitutives, seuil ignoré ; exacte au CP = sans groupe partiel, les codes de la liste sont achetés (A1).
     unites = [...new Set(unitesConstitutives(r)?.codes)].map((code) => ({ plateforme: c.plateforme, maille: c.maille, code, retenu: true }));
-    const bilanCp = resumeExact(forme.population, forme.surface_km2, unites.length, c.maille === 'cp' ? unites.length : undefined);
+    // Revue T6 (I-3, ARB-3) : forme en territoire non carroyé — chaque code acheté à population inconnue, jamais 0.
+    const bilanCp = {
+      ...resumeExact(forme.population, forme.surface_km2, unites.length, c.maille === 'cp' ? unites.length : undefined),
+      ...(popForme === null ? { n_inconnues: unites.length } : {}),
+    };
     return { ok: true, unites, resume: { ...bilanCp, plateforme: c.plateforme, avertissements: verifierLimites(bilanCp, regle), min_menages: forme.min_menages } };
   } else if (c.maille === 'cercle' && r?.type === 'rayon_point') {
     unites = [{ plateforme: c.plateforme, maille: 'cercle', lon: r.lon, lat: r.lat, rayon_m: r.rayon_m, ...toute }];
@@ -260,12 +264,14 @@ async function convertirExacte(ctx: Contexte, c: Choix, regle: PlateformeGeo): P
     // Tour 1 (M-1) : une forme simplifiée n'est plus la zone — bilan calculé (perdue = manques, gagnée = hors zone),
     // et l'unité porte les mêmes chiffres. Sinon le bilan exact de la zone.
     const simplifie = resumePolygoneSimplifie(m, forme.population);
-    const bilanPolygone = { ...(simplifie ?? resumeExact(forme.population, forme.surface_km2, 1)), ...diffusion };
+    // Revue T6 (I-3, ARB-3) : forme en territoire non carroyé — l'unité figée SANS population (jamais 0), comptée inconnue.
+    const inconnue = popForme === null ? { n_inconnues: 1 } : {};
+    const bilanPolygone = { ...(simplifie ?? resumeExact(forme.population, forme.surface_km2, 1)), ...diffusion, ...inconnue };
     unites = [{
       plateforme: c.plateforme, maille: 'polygone', retenu: true,
-      ...(simplifie
-        ? { pop_en_zone: simplifie.couverte, pop_totale: simplifie.achetee, part: simplifie.taux_utile }
-        : { pop_en_zone: forme.population, pop_totale: forme.population, part: 100 }),
+      ...(popForme === null ? { pop_en_zone: null, pop_totale: null, part: null }
+        : simplifie ? { pop_en_zone: simplifie.couverte, pop_totale: simplifie.achetee, part: simplifie.taux_utile }
+          : { pop_en_zone: forme.population, pop_totale: forme.population, part: 100 }),
     }];
     // `tolerance_m` et `morceau_min_km2` (D37) sont relus par la RPC pour figer CETTE forme (tour 1, M-2).
     const simplification = {

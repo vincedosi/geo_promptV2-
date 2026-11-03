@@ -43,6 +43,29 @@ describe('mg-colonne-plateforme', () => {
     expect(texte(el, '[data-chiffres]')).toContain('Diffusion à population inconnue');
     expect(texte(el, '[data-population-inconnue]')).toBe('1 code postal, acheté sans chiffre d’habitants');
   });
+  it('revue T6 (I-3) : cercle exact en Guadeloupe (non carroyée) — « population inconnue », jamais « 0 habitants »', async () => {
+    const o = await monterJeu(BANC, ColonnePlateformeComponent, `/carte?zoneJeu=${Z1}`, {
+      entrees: { plateforme: 'dv360' }, recette: { v: 1, type: 'rayon_point', lon: -61.53, lat: 16.24, rayon_m: 5000, part_retenue: 1 },
+    });
+    o.http.expectOne('/api/zones/plateformes').flush({ plateformes: REGISTRE });
+    await o.stable();
+    expect(o.jeu.choix().dv360?.maille).toBe('cercle');
+    o.jeu.valider('dv360');
+    o.http.expectOne(urlCouverture(Z1, 'forme')).flush({
+      ...couvertureCp, decoupage: 'forme', population: 0, lignes: [], motif_vide: 'territoire_non_carroye',
+      territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }],
+    });
+    await o.stable();
+    expect(texte(o.el, '[data-exacte] span.font-mono')).toBe('1 cercle · population inconnue (territoire non carroyé)');
+    expect(texte(o.el, '[data-population-inconnue]')).toBe('Diffusion à population inconnue : 1 cercle, acheté sans chiffre d’habitants');
+  });
+  it('revue T6 (I-6) : repliée, une colonne à son défaut provisoire le dit dans son en-tête', async () => {
+    const { el, fixture, stable } = await colonne('meta');
+    fixture.componentRef.setInput('ouverte', false);
+    fixture.componentRef.setInput('repliable', true);
+    await stable();
+    expect(texte(el, '[data-provisoire]')).toBe('défaut provisoire');
+  });
   it('sans unité à population inconnue retenue : pas de ligne « Diffusion à population inconnue »', async () => {
     const { el, http, jeu, stable } = await colonne('dv360');
     jeu.valider('dv360');
@@ -132,7 +155,9 @@ describe('mg-colonne-plateforme', () => {
       // B14 (ARB-6 = A) : le département est une maille découpée — le dépassement annonce les blocs (spec restée rouge
       // depuis B14, corrigée au round 1 de B15).
       '2 départements pour 1 admis par la plateforme : découpage automatique en 2 blocs, triés par part décroissante (1 + 1).',
-      'Palier sous 5 000 personnes : 2 000 achetées, la plateforme peut refuser la diffusion.',
+      // Revue T6 (I-10) : chaque bloc part comme un groupe — le minimum se contrôle bloc par bloc, comme à l'extraction.
+      'Bloc 1 : palier sous 5 000 personnes : 1 000 achetées, la plateforme peut refuser la diffusion.',
+      'Bloc 2 : palier sous 5 000 personnes : 1 000 achetées, la plateforme peut refuser la diffusion.',
     ]);
     TestBed.resetTestingModule();
     expect((await avec(2))[0]).toBe('Palier sous 5 000 personnes : 2 000 achetées, la plateforme peut refuser la diffusion.');

@@ -14,7 +14,7 @@ import {
   PARAM_CIBLE_JEU, PARAM_MODE_JEU, ecrireMailles, lireMailles, lireModeJeu, lireParametresJeu, lireVersion, memesParametres, parametresDe,
 } from '../logique/jeu/mailles-url';
 import { mailleSansObjet } from '../logique/jeu/conversion';
-import type { Maille, Plateforme, PlateformeGeo } from '../logique/jeu/plateformes';
+import { type Maille, PLATEFORMES, type Plateforme, type PlateformeGeo } from '../logique/jeu/plateformes';
 import { estNationaleMoins } from '../logique/jeu/sans-objet';
 import type { Recette, ZoneConnue } from '../logique/zones/recette';
 import { ecrireParametres } from './ecrire-parametres';
@@ -106,7 +106,9 @@ export class JeuZonesService {
 
   /** B9 (ARB-7) : défaut et raison par plateforme, sur les simulations EN MÉMOIRE (`defautsDe`) ; vide pour un jeu ouvert. */
   readonly defauts: Signal<ReturnType<RegistrePlateformes['defauts']>> = computed(() => (this.jeu() ? {} : this.registre.defauts(this._recette(),
-    (p, c, l) => this.lu(p, c, l), (p, c, l) => !!this.taches.erreur(this.tache(p, c, l)), this._surface())));
+    (p, c, l) => this.lu(p, c, l), (p, c, l) => this.taches.echec(this.tache(p, c, l)), this._surface())));
+  /** Revue T6 (I-6) : les plateformes à leur défaut PROVISOIRE (non simulé), sans choix explicite — l'enregistrer le dit. */
+  readonly provisoires = computed(() => PLATEFORMES.filter((p) => !this._reglages()[p] && this.defauts()[p]?.critere === 'en_attente'));
   /** Les choix de base : ceux du jeu ouvert, sinon la maille par défaut de chaque plateforme (`defauts`), seuil 20 %. */
   private readonly base = computed<ChoixParPlateforme>(() => choixDeBase(this.jeu()?.plateformes ?? null, this.plateformes(), this._recette(), this.defauts(), this._surface()));
 
@@ -231,6 +233,7 @@ export class JeuZonesService {
     this.lectureJeu.resultat.set(detail);
     this._reglages.set({});
     this._modeChoisi.set(null);
+    this._categorieChoisie.set(null); // le jeu porte sa case (revue T6, I-5)
     this._cibleChoisie.set(null); // le jeu porte sa cible (relecture 2)
     this._jeuId.set(detail.jeu.id);
   }
@@ -327,6 +330,7 @@ export class JeuZonesService {
   private fermerJeu(): void {
     this.lectureJeu.perimer();
     this._modeChoisi.set(null);
+    this._categorieChoisie.set(null); // revue T6 (I-5) : la case d'un jeu ne passe pas au suivant
     this._jeuId.set(null);
     this._extraction.set(null);
   }
@@ -334,6 +338,7 @@ export class JeuZonesService {
   /** Lit le jeu ; un jeu risque est refusé ; un 404 ou un jeu risque retire `?jeu=` (le message reste). */
   private ouvrirJeu(id: string): void {
     this.lectureJeu.perimer();
+    this._categorieChoisie.set(null); // revue T6 (I-5) : un autre jeu porte SA case
     this._jeuId.set(id);
     this.lectureJeu.lancer(lireJeuDeZone(this.api, id), (r) => {
       if (r.jeu.custom_geo_zone_id !== this._zoneId()) {
@@ -364,6 +369,7 @@ export class JeuZonesService {
     }
     if (!jeu && zone !== this._zoneId()) {
       this.viderResultats();
+      this._categorieChoisie.set(null); // revue T6 (I-5) : une autre zone, une autre case
       this._recette.set(null);
       this._recetteConnue.set(false);
       this._surface.set(null);
