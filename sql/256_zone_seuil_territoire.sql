@@ -10,7 +10,11 @@
 -- ce fichier).
 -- SQL dynamique : noms de table et de colonne TOUJOURS venus du registre (%I), opérateur validé, valeurs en USING.
 -- Plafond : on lit p_max_territoires + 1 codes DISTINCTS ; au-delà, refus AVANT toute union (jamais une zone partielle).
--- Seuls les vrais IRIS (is_true_iris) : les 33 044 autres n'ont aucune valeur d'indicateur (mesuré le 2026-10-15).
+-- Seuls les vrais IRIS (is_true_iris = type_iris <> 'Z', sql/075 ; CRITERE_VRAIS_IRIS, lib/zones/recette.ts). C19
+-- (03/11/2026) : la phrase écrite ici le 15/10, « les 33 044 autres n'ont aucune valeur d'indicateur », était FAUSSE.
+-- Les 33 044 IRIS communaux (communes non découpées, 27 316 564 habitants, 40,3 %) n'ont pas de revenu médian, de taux
+-- de pauvreté ni de part des couples avec enfants, mais portent les 12 autres indicateurs IRIS du registre. Ils sont
+-- exclus quand même, et l'écran « Par seuil » le dit (MENTION_COMMUNES_NON_IRISEES). Commentaire seul : corps inchangé.
 -- Pollen et atmo : la DERNIÈRE date seulement, comme sql/100.
 --
 -- Mesuré le 2026-10-14 (plan) : taux_pauvrete ≥ 20 % sur la région 84 → 472 IRIS, 0,55 s, 3 766 buffers (lecture).

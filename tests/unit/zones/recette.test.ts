@@ -5,6 +5,7 @@ import {
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, RAYON_POINT_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, mentionEstimatif, rayonNonActivable, refusActivation, refusPerimetreLocal, CODES_PAYS, type Recette,
+  CRITERE_VRAIS_IRIS, MENTION_COMMUNES_NON_IRISEES,
 } from '@/lib/zones/recette';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lireRecette } from '@/lib/zones/recette-schema';
@@ -85,6 +86,19 @@ describe('la recette d’une zone', () => {
     expect(litteral(CARREAUX, /p_max_carreaux > (\d+) then/)).toBe(MAX_CARREAUX_SEUIL);
     expect(litteral(TERRITOIRES, /p_max_territoires integer default (\d+)/)).toBe(MAX_TERRITOIRES_SEUIL);
     expect(litteral(TERRITOIRES, /p_max_territoires > (\d+) then/)).toBe(MAX_TERRITOIRES_SEUIL);
+  });
+
+  it('C19 : le critère des « vrais » IRIS est celui que lit la DERNIÈRE définition de zone_seuil_territoire', () => {
+    // La plus récente migration qui (re)définit la fonction fait foi (sql/256, redéfinie par sql/320).
+    const f = readdirSync('sql').filter((n) => n.endsWith('.sql')).sort().reverse()
+      .find((n) => readFileSync(`sql/${n}`, 'utf8').includes('create or replace function public.zone_seuil_territoire('));
+    expect(f, 'migration qui définit zone_seuil_territoire').toBeDefined();
+    const sql = readFileSync(`sql/${f}`, 'utf8');
+    expect(sql).toContain(`where t.${CRITERE_VRAIS_IRIS.colonne} and`);
+    // … et la colonne vaut `type_iris <> 'Z'` (sql/075) : un IRIS communal, code en 0000, une commune non découpée.
+    expect(migration(/^075_iris_type_flag\.sql$/)).toContain(`SET ${CRITERE_VRAIS_IRIS.colonne} = (type_iris != '${CRITERE_VRAIS_IRIS.type_iris_exclu}')`);
+    expect(CRITERE_VRAIS_IRIS.suffixe_code_exclu).toBe('0000');
+    expect(MENTION_COMMUNES_NON_IRISEES).toMatch(/^Communes rurales non couvertes par cette recette/);
   });
 
   it('les recettes lourdes exigent un périmètre et refusent la France', () => {

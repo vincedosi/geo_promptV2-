@@ -60,6 +60,16 @@ describe('zone_seuil_territoire', () => {
     expect(z.compte).toBeLessThanOrEqual(60);
   });
 
+  it('C19 : seuls les vrais IRIS, même quand la commune non découpée porte une valeur (densité, Ain)', async () => {
+    // Mesuré le 03/11 : dans l'Ain, 73 vrais IRIS et 374 IRIS communaux (code en 0000) portent une densité ; la
+    // recette rend les 73 et aucun des 374 (CRITERE_VRAIS_IRIS, lib/zones/recette.ts).
+    const { data, error } = await appeler({ p_indicateur: 'densite_pop', p_seuil: 0, p_perimetre_type: 'departement', p_perimetre_code: '01' });
+    expect(error).toBeNull();
+    const z = data as Zone & { codes: string[] };
+    expect(z.compte).toBe(73);
+    expect(z.codes.filter((c) => c.endsWith('0000'))).toEqual([]);
+  });
+
   it('aucun territoire au-dessus du seuil : vide, sans géométrie', async () => {
     // B15 (sql/320) : `codes`, les unités constitutives — vide ici.
     expect((await appeler({ p_seuil: 1000 })).data).toEqual({ vide: true, compte: 0, maille: 'iris', codes: [], geometry: null, surface_km2: 0 });

@@ -96,6 +96,20 @@ export const MIN_MENAGES_CARREAUX_MAX = 1_000;
 /** Le plafond d'indicateurs du score composite (`MAX_INDICATEURS` de `/api/custom-geo/source/score`), repris par sa recette. */
 export const MAX_INDICATEURS_SCORE = 6;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
+/**
+ * C19 — les « vrais » IRIS de la recette « par seuil sur territoires » (`zone_seuil_territoire`, sql/256 redéfinie par
+ * sql/320 : `where t.is_true_iris`). Critère : `iris.is_true_iris`, posé par sql/075 à `type_iris <> 'Z'`, soit un IRIS
+ * de quartier (habitat H, activité A, divers D) d'une commune découpée. Un IRIS communal (type Z, code en `0000`) est
+ * une commune entière non découpée (moins de ~5 000 habitants) : la recette ne le retient JAMAIS, même quand
+ * l'indicateur y porte une valeur (12 des 15 indicateurs IRIS du registre en ont une ; seuls revenu médian, taux de
+ * pauvreté et part des couples avec enfants n'en ont pas). Base locale, 03/11/2026 : 16 404 vrais IRIS
+ * (40 443 988 habitants) ; 33 044 communes non découpées exclues (27 316 564 habitants, 40,3 % de la population IRIS).
+ * La maille CP (abstention, pollen, atmo) n'est pas concernée.
+ */
+export const CRITERE_VRAIS_IRIS = { colonne: 'is_true_iris', type_iris_exclu: 'Z', suffixe_code_exclu: '0000' } as const;
+/** C19 — la mention affichée par « Par seuil » quand l'indicateur est à la maille IRIS. */
+export const MENTION_COMMUNES_NON_IRISEES =
+  'Communes rurales non couvertes par cette recette : seules les communes découpées en IRIS sont retenues.';
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
 /** Ne refuse en pratique que la France entière (la plus grande région : 84 617 km²). */

@@ -4,7 +4,7 @@ import { EtatCarteService } from '../../etat/etat-carte.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { lireSeuil } from '../../logique/zones/lire-seuil';
 import { perimetreDeFiltre } from '../../logique/zones/perimetre-recette';
-import { MESSAGES_REFUS, type OperateurSeuil, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
+import { MENTION_COMMUNES_NON_IRISEES, MESSAGES_REFUS, type OperateurSeuil, type Recette, refusPerimetreLocal } from '../../logique/zones/recette';
 import { STYLES_RECETTE } from './styles-recette';
 
 /** Les indicateurs rangés par famille, dans l'ordre d'arrivée (`optgroup`). */
@@ -49,6 +49,7 @@ function parFamille(liste: readonly IndicateurRegistre[]): { famille: string; in
       <input data-seuil type="number" aria-label="Seuil" class="champ w-24 font-mono" [value]="seuilSaisi()" (input)="seuilSaisi.set($any($event.target).value)" />
       <span data-unite class="libelle">{{ unite() }}</span>
     </div>
+    @if (mentionIris(); as m) { <p data-mention-iris class="garde">{{ m }}</p> }
     @if (garde(); as g) { <p data-garde class="garde">{{ g }}</p> }
   `,
   styles: [STYLES_RECETTE],
@@ -66,6 +67,12 @@ export class RecetteSeuilTerritoireComponent {
   /** Le texte du champ, lu AVANT conversion : un champ vide n'est pas 0 (`+''` vaut 0 et passait la garde). */
   protected readonly seuilSaisi = signal('20');
   protected readonly seuil = computed(() => lireSeuil(this.seuilSaisi()));
+  /**
+   * C19 : à la maille IRIS, la recette ne retient que les vrais IRIS (`CRITERE_VRAIS_IRIS`) — les communes non
+   * découpées n'y entrent jamais, l'écran le dit. Rien à la maille CP.
+   */
+  protected readonly mentionIris = computed(() =>
+    this.catalogue().find((i) => i.indicator_code === this.indicateur())?.scale === 'iris' ? MENTION_COMMUNES_NON_IRISEES : null);
   protected readonly unite = computed(() => this.catalogue().find((i) => i.indicator_code === this.indicateur())?.unit ?? '');
   private readonly composee = computed<Recette>(() => ({
     v: 1, type: 'seuil_territoire', indicateur: this.indicateur(), operateur: this.operateur(), seuil: this.seuil(),

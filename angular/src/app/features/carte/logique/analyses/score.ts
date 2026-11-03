@@ -13,6 +13,8 @@ export interface IndicateurRegistre {
   label: string;
   famille: string | null;
   unit?: string | null;
+  /** La maille du registre (`iris` ou `cp`), rendue par `GET /api/cibles/indicators` ; lue par « Par seuil » (C19). */
+  scale?: string | null;
   /** A-6 (lot « Catalogue et groupes ») : `espace` si la source de l'indicateur est propre à l'espace actif. */
   origine?: 'espace' | 'commune';
 }

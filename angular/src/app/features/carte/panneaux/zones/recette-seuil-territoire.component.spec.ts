@@ -3,15 +3,16 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
-import { MESSAGES_REFUS } from '../../logique/zones/recette';
+import { MENTION_COMMUNES_NON_IRISEES, MESSAGES_REFUS } from '../../logique/zones/recette';
 import { RecetteSeuilTerritoireComponent } from './recette-seuil-territoire.component';
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
 const BDR = { type: 'departement', code: '13', label: 'Bouches-du-Rhône' };
 const CATALOGUE = [
-  { indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%' },
-  { indicator_code: 'revenu_median', label: 'Revenu médian', famille: 'Revenus', unit: '€' },
-  { indicator_code: 'part_65', label: 'Part des 65 ans et plus', famille: 'Âges', unit: '%' },
+  { indicator_code: 'taux_pauvrete', label: 'Taux de pauvreté', famille: 'Revenus', unit: '%', scale: 'iris' },
+  { indicator_code: 'revenu_median', label: 'Revenu médian', famille: 'Revenus', unit: '€', scale: 'iris' },
+  { indicator_code: 'part_65', label: 'Part des 65 ans et plus', famille: 'Âges', unit: '%', scale: 'iris' },
+  { indicator_code: 'abstention_pres_2022', label: 'Abstention 2022', famille: 'Civique', unit: '%', scale: 'cp' },
 ];
 
 function monter(filtre: unknown, charger = vi.fn(() => of(CATALOGUE))) {
@@ -28,7 +29,7 @@ describe('RecetteSeuilTerritoireComponent (lot 3, T10)', () => {
     const { f, el, charger } = monter(BDR);
     f.detectChanges(); await attendre(); f.detectChanges();
     expect(charger).toHaveBeenCalledTimes(1);
-    expect([...el.querySelectorAll('optgroup')].map((g) => g.getAttribute('label'))).toEqual(['Revenus', 'Âges']);
+    expect([...el.querySelectorAll('optgroup')].map((g) => g.getAttribute('label'))).toEqual(['Revenus', 'Âges', 'Civique']);
     expect(el.querySelectorAll('optgroup')[0].querySelectorAll('option')).toHaveLength(2);
     expect(el.querySelector('[data-unite]')!.textContent!.trim()).toBe('%');
   });
@@ -75,5 +76,15 @@ describe('RecetteSeuilTerritoireComponent (lot 3, T10)', () => {
     f.detectChanges(); await attendre(); f.detectChanges();
     expect(c.recette()).toBeNull();
     expect(el.querySelector('[data-garde]')!.textContent!.trim()).toBe(MESSAGES_REFUS.seuil_metropole_differe);
+  });
+
+  it('C19 : maille IRIS → mention des communes non découpées ; maille CP → aucune mention', async () => {
+    const { f, el } = monter(BDR);
+    f.detectChanges(); await attendre(); f.detectChanges();
+    expect(el.querySelector('[data-mention-iris]')!.textContent!.trim()).toBe(MENTION_COMMUNES_NON_IRISEES);
+    const ind = el.querySelector<HTMLSelectElement>('select[data-indicateur]')!;
+    ind.value = 'abstention_pres_2022'; ind.dispatchEvent(new Event('change'));
+    f.detectChanges();
+    expect(el.querySelector('[data-mention-iris]')).toBeNull();
   });
 });
