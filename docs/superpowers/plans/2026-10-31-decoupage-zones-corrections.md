@@ -203,6 +203,36 @@ Cocher une option par ligne.
 
 ---
 
+## Lot 4 : réponses de Vincent du 03/11/2026
+
+Décisions fermes. Chaque ticket commence par vérifier l'état actuel du code (lots 1 à 3 ont pu en traiter une partie) ; ce qui est déjà conforme est fermé avec une ligne.
+
+### D30. Communes non irisées dans « par seuil » (suite de C19)
+- Inclure les communes non découpées comme unité « commune entière » (pseudo-IRIS 0000). Pour les indicateurs sans valeur (revenu médian, taux de pauvreté, part des couples avec enfants), l'unité est « non évaluable » : jamais retenue, jamais comptée à 0 ; le nombre d'unités non évaluables est affiché. L'écran dit « n communes entières traitées comme un seul IRIS ». Remplace la mention C19 « communes rurales non couvertes ».
+
+### D31. Intersection de 3 zones et plus (validation de C20)
+- Validé : points présents dans toutes les zones. Résultat vide refusé (« intersection vide »), pas enregistré. Fait en C20 / C20 round 1 (`intersection_vide`) : vérifier seulement, fermer.
+
+### D32. Plan commun déprécié
+- Marquer le plan commun « déprécié » maintenant (code, ARCHITECTURE.md, compte rendu). Le retirer dans le commit qui fait lire le plan par plateforme à ⑥ et ⑦ (côté dentsu, passation à coordonner). Les extractions déjà produites gardent leur plan commun figé, en lecture seule. Pas deux sources de vérité au-delà de cette transition.
+
+### D33. Simulations de maille (B9, B16) : conditions
+- Gardées, avec trois conditions : lancées à l'ouverture de ⑤ seulement (jamais en ③ ni ④) ; mises en cache par (version de zone, cible), la couverture par unité ne dépendant ni du seuil ni de la plateforme (seuil et taux utile recalculés en mémoire) ; cercles simulés au seul rayon par défaut. Au-delà d'une seconde : « simulation en cours », et l'ordre provisoire proposé en attendant.
+
+### D34. Mécanisme TTD
+- Mécanisme « multiplicateur », plage et plafond « à vérifier » par dentsu (paramètre par paramètre, règle 4). « budget_ligne » reste dans l'énumération, non utilisé.
+
+### D35. Volume HORS_ZONE
+- Volume = somme des populations totales des CP peuplés du référentiel non retenus, restreinte à l'univers de la zone (métropole ou France entière). Mode strict : poids 0, part prévue 0, part observée = taux de fuite. Mode national : poids plancher, part prévue calculée avec ce volume.
+
+### D36. Contours DROM
+- Contours du référentiel régions/départements déjà en base, pour les cinq DROM ; population null pour GP, GF, YT (ARB-3 = A), aucun carreau. Surfaces qualifiées « surface du référentiel ». Ne rien inventer de plus.
+
+### D37. Polygone simplifié (remplace les paliers de A7)
+- ST_SimplifyPreserveTopology à 50 m, à l'extraction seulement (la zone enregistrée ne change pas). Morceaux de moins de 0,04 km² (un carreau) retirés et comptés dans la perte. Perte recalculée, affichée au-delà de 0,1 %. Sommets et morceaux contrôlés contre le registre, valeurs TTD « à vérifier ».
+
+---
+
 ## Backlog (optimisations, hors lots)
 
 - D1. Seuil optimal proposé : à partir des parts déjà calculées, courbe couverture / taux utile et seuil maximisant le taux utile sous couverture cible (80 % par défaut). Défaut de seuil par maille dans le registre.
