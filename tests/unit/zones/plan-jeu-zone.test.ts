@@ -314,3 +314,41 @@ describe('B12 — un plan par plateforme, au seuil de la plateforme', () => {
     expect(r).toMatchObject({ ok: false, message: expect.stringContaining('meta') });
   });
 });
+
+describe('D34 — TTD au CP en multiplicateur, plage et plafond « à vérifier », sans valeur (sql/336)', () => {
+  // La ligne du registre telle que sql/336 la pose : aucune valeur sourcée, donc NULL, « à vérifier » par paramètre.
+  const TTD_MULT = poids({
+    plateforme: 'ttd', mecanisme: 'multiplicateur', releve_le: '2026-11-03',
+    parametres_a_verifier: ['valeur_min', 'valeur_max', 'nb_max_entrees', 'poids_groupe_cp'],
+  });
+  // Parts 100 % et 19 × 0,1 % : normalisées, 19,627 et 0,0196 — hors de la plage DV360 0,1-10 des deux côtés.
+  const ECARTEES = [cp('10000', 10_000, 10_000, 100), ...Array.from({ length: 19 }, (_, i) => cp(String(10001 + i), 10, 10_000, 0.1))];
+
+  it('le plan propre de TTD : bornes techniques (plage inconnue), aucun écrêtage — comme sous budget_ligne', () => {
+    const avant = reglageDuPlan([poids({ plateforme: 'ttd', mecanisme: 'budget_ligne' })], ['ttd']);
+    const apres = reglageDuPlan([TTD_MULT], ['ttd']);
+    if (!avant.ok || !apres.ok) throw new Error('réglage refusé');
+    expect(apres.reglage).toEqual(avant.reglage);
+    expect(apres.reglage.bornes).toEqual({ min: 0.001, max: 999.999 });
+    const { resume } = planCpDeZone(ECARTEES, 0, 'exclusif', new Map(), undefined, apres.reglage);
+    expect(resume.multiplicateur).toMatchObject({ n_ecretes: 0, ajustements: [] });
+  });
+
+  it('le plan commun DV360 + TTD reste à la plage de DV360 ; son écrêtage n’est dit que chez DV360', () => {
+    const r = reglageDuPlan([DV360_MULT, DV360_SCRIPT, TTD_MULT], ['dv360', 'ttd']);
+    if (!r.ok) throw new Error(r.message);
+    expect(r.reglage).toEqual({ bornes: { min: 0.1, max: 10 }, poids_groupe_cp: 'meme', a_verifier: { min: true, max: true } });
+    const { resume } = planCpDeZone(ECARTEES, 0, 'exclusif', new Map(), undefined, r.reglage);
+    expect(resume.multiplicateur.n_ecretes).toBe(20);
+    const registre = [DV360_MULT, DV360_SCRIPT, TTD_MULT];
+    expect(sortiesPoids(registre, 'dv360', 20, resume.multiplicateur).avertissements).toHaveLength(2);
+    // TTD reçoit désormais des multiplicateurs, mais sa borne est inconnue : rien ne lui est attribué (sortiesPoids
+    // cherche SA borne). Mesuré : identique au comportement sous budget_ligne.
+    const ttd = sortiesPoids(registre, 'ttd', 20, resume.multiplicateur);
+    expect(ttd.avertissements).toEqual([]);
+    expect(ttd.sorties).toEqual([{
+      mecanisme: 'multiplicateur', branche: false, poids_groupe_cp: 'meme',
+      parametres_a_verifier: ['valeur_min', 'valeur_max', 'nb_max_entrees', 'poids_groupe_cp'], n_codes: 20,
+    }]);
+  });
+});

@@ -2,8 +2,9 @@
  * A1 (plan de corrections du découpage des zones, 2026-10-31) — le registre des MÉCANISMES DE POIDS (amendement E2,
  * sql/305), contre la base locale, sans rien y laisser (lectures, ou transactions ANNULÉES) :
  *   - le seed : DV360 multiplicateur 0,1 à 10 « à vérifier » sur ses deux bornes (E9 : par paramètre), DV360 script
- *     2 000 entrées par envoi, TTD budget_ligne au mécanisme « à vérifier », Meta et TikTok sans poids ; la règle d'un
- *     groupe de CP (`meme`) portée plateforme par plateforme et « à vérifier » partout ;
+ *     2 000 entrées par envoi, TTD multiplicateur (D34, sql/336) à plage et plafond inconnus, « à vérifier » paramètre
+ *     par paramètre, Meta et TikTok sans poids ; la règle d'un groupe de CP (`meme`) portée plateforme par plateforme
+ *     et « à vérifier » partout ; « budget_ligne » reste dans l'énumération, sans ligne ;
  *   - la lecture du serveur (`lirePoids`, PostgREST) rend des lignes que le schéma accepte ;
  *   - les CHECK refusent une plage incomplète ou inversée, un mécanisme ou un paramètre inconnus, un poids pour
  *     « aucun », une règle de groupe hors CP ;
@@ -17,10 +18,13 @@ import { MECANISMES_POIDS, PARAMETRES_POIDS_VERIFIABLES } from '@/lib/zones/plat
 import { psql, psqlBrut, psqlLignes } from './_psql';
 import { creerClientTest } from './_client';
 
-const MIGRATION = readFileSync(join(process.cwd(), 'sql', '305_plateformes_poids.sql'), 'utf8');
+// D34 : sql/336 remplace la ligne TTD (budget_ligne → multiplicateur) — rejouée à la suite de sql/305.
+const MIGRATION = ['305_plateformes_poids.sql', '336_ttd_multiplicateur.sql']
+  .map((f) => readFileSync(join(process.cwd(), 'sql', f), 'utf8')).join('\n');
 
 describe('plateformes_poids — le seed du 31/10 (sql/305)', () => {
-  it('cinq lignes au CP : DV360 multiplicateur et script, TTD budget_ligne, Meta et TikTok aucun', () => {
+  // Attendu changé par D34 (était `ttd:budget_ligne:-:-:-:meme:false:mecanisme,poids_groupe_cp`) : décision du 03/11.
+  it('cinq lignes au CP : DV360 multiplicateur et script, TTD multiplicateur, Meta et TikTok aucun', () => {
     expect(psqlLignes(`select plateforme || ':' || mecanisme || ':' || coalesce(valeur_min::text, '-') || ':' ||
                               coalesce(valeur_max::text, '-') || ':' || coalesce(nb_max_entrees::text, '-') || ':' ||
                               poids_groupe_cp || ':' || branche || ':' || array_to_string(parametres_a_verifier, ',')
@@ -29,7 +33,19 @@ describe('plateformes_poids — le seed du 31/10 (sql/305)', () => {
       'dv360:script:-:-:2000:meme:false:nb_max_entrees,poids_groupe_cp',
       'meta:aucun:-:-:-:meme:false:mecanisme,poids_groupe_cp',
       'tiktok:aucun:-:-:-:meme:false:mecanisme,poids_groupe_cp',
-      'ttd:budget_ligne:-:-:-:meme:false:mecanisme,poids_groupe_cp',
+      'ttd:multiplicateur:-:-:-:meme:false:valeur_min,valeur_max,nb_max_entrees,poids_groupe_cp',
+    ]);
+  });
+
+  it('D34 : « budget_ligne » reste dans l’énumération, sans aucune ligne qui l’emploie', () => {
+    expect(MECANISMES_POIDS).toContain('budget_ligne');
+    expect(psql(`select count(*) from public.plateformes_poids where mecanisme = 'budget_ligne';`)).toBe('0');
+  });
+
+  it('D34 : lirePoids rend TTD au CP en multiplicateur, plage et plafond nuls (aucune valeur inventée)', async () => {
+    const lignes = await lirePoids(creerClientTest() as never, ['ttd'], 'cp');
+    expect(lignes.map((l) => [l.mecanisme, l.valeur_min, l.valeur_max, l.nb_max_entrees, l.parametres_a_verifier])).toEqual([
+      ['multiplicateur', null, null, null, ['valeur_min', 'valeur_max', 'nb_max_entrees', 'poids_groupe_cp']],
     ]);
   });
 
@@ -82,7 +98,7 @@ describe('plateformes_poids — les CHECK (sql/305)', () => {
   });
 });
 
-describe('plateformes_poids — rejouable (sql/305)', () => {
+describe('plateformes_poids — rejouable (sql/305, puis sql/336)', () => {
   it('la migration rejouée deux fois : registre et fonction à empreinte identique, et identique à la base', () => {
     const EMPREINTE = `select md5(
       (select string_agg(t::text, ';' order by plateforme, maille, mecanisme) from public.plateformes_poids t)

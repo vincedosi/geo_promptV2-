@@ -232,3 +232,20 @@ describe('B16 — la poussée branchée, 2e critère du départage (après « s�
     expect(departageParPoussee(POIDS)(cercleApi, cpDv360, DESSIN)).toBeLessThan(0);
   });
 });
+
+describe('D34 — TTD au CP passe de budget_ligne à multiplicateur : le défaut ne bouge pas', () => {
+  const avant: MecanismePoussee[] = [{ plateforme: 'ttd', maille: 'cp', mecanisme: 'budget_ligne', branche: false }];
+  const apres: MecanismePoussee[] = [{ plateforme: 'ttd', maille: 'cp', mecanisme: 'multiplicateur', branche: false }];
+  const rayon: Recette = { v: 1, type: 'rayon_point', lon: 3.087, lat: 45.7772, rayon_m: 5_000, part_retenue: 1 };
+
+  it('mode de poussée et maille par défaut identiques (registre géo TTD non branché, sql/322)', () => {
+    for (const l of REGLES.filter((x) => x.plateforme === 'ttd')) expect(modePoussee(l, apres)).toBe(modePoussee(l, avant));
+    // Même si le ciblage CP de TTD était branché : deux mécanismes autres que « aucun », non branchés → ciblage_api.
+    const cpBranche = { ...REGLES.find((l) => l.plateforme === 'ttd' && l.maille === 'cp')!, poussee_branchee: true };
+    expect([modePoussee(cpBranche, avant), modePoussee(cpBranche, apres)]).toEqual(['ciblage_api', 'ciblage_api']);
+    for (const r of [DESSIN, rayon, LISTE_40_CP, ANNEAU]) {
+      expect(choisirDefaut(REGLES, 'ttd', r, {}, R, apres)).toEqual(choisirDefaut(REGLES, 'ttd', r, {}, R, avant));
+      expect(mailleParDefaut(REGLES, 'ttd', r, apres)).toBe(mailleParDefaut(REGLES, 'ttd', r, avant));
+    }
+  });
+});

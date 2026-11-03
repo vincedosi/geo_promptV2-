@@ -114,7 +114,10 @@ export const PlateformeGeoSchema = z.object({
 
 export type PlateformeGeo = z.infer<typeof PlateformeGeoSchema>;
 
-/** Les mécanismes de poids (CHECK de `plateformes_poids.mecanisme`, sql/305, A1, amendement E2). */
+/**
+ * Les mécanismes de poids (CHECK de `plateformes_poids.mecanisme`, sql/305, A1, amendement E2). `budget_ligne` reste
+ * dans l'énumération sans aucune ligne qui l'emploie depuis D34 (sql/336 : TTD au CP en `multiplicateur`).
+ */
 export const MECANISMES_POIDS = ['multiplicateur', 'script', 'budget_ligne', 'aucun'] as const;
 
 /** Les paramètres qu'une ligne de `plateformes_poids` peut déclarer « à vérifier » (`plateformes_poids_parametres_valides`). */
