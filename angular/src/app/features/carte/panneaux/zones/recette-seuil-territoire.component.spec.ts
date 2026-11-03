@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import { EtatCarteService } from '../../etat/etat-carte.service';
-import { MENTION_COMMUNES_NON_IRISEES, MESSAGES_REFUS } from '../../logique/zones/recette';
+import { MESSAGES_REFUS } from '../../logique/zones/recette';
 import { RecetteSeuilTerritoireComponent } from './recette-seuil-territoire.component';
 
 const attendre = () => new Promise((r) => setTimeout(r, 0));
@@ -78,13 +78,10 @@ describe('RecetteSeuilTerritoireComponent (lot 3, T10)', () => {
     expect(el.querySelector('[data-garde]')!.textContent!.trim()).toBe(MESSAGES_REFUS.seuil_metropole_differe);
   });
 
-  it('C19 : maille IRIS → mention des communes non découpées ; maille CP → aucune mention', async () => {
+  it('D30 : la mention C19 « communes rurales non couvertes » a disparu (les communes entières entrent, l’aperçu les compte)', async () => {
     const { f, el } = monter(BDR);
     f.detectChanges(); await attendre(); f.detectChanges();
-    expect(el.querySelector('[data-mention-iris]')!.textContent!.trim()).toBe(MENTION_COMMUNES_NON_IRISEES);
-    const ind = el.querySelector<HTMLSelectElement>('select[data-indicateur]')!;
-    ind.value = 'abstention_pres_2022'; ind.dispatchEvent(new Event('change'));
-    f.detectChanges();
     expect(el.querySelector('[data-mention-iris]')).toBeNull();
+    expect(el.textContent).not.toContain('Communes rurales non couvertes');
   });
 });

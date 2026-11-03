@@ -6,7 +6,7 @@ import { AtelierZoneService } from '../../etat/atelier-zone.service';
 import { CatalogueIndicateursService } from '../../etat/catalogue-indicateurs.service';
 import type { IndicateurRegistre } from '../../logique/analyses/score';
 import { PART_SIGNALEE } from '../../logique/zones/creation-zone';
-import { type Recette, libelleRecette, mentionEstimatif } from '../../logique/zones/recette';
+import { type Recette, libelleRecette, mentionCommunesEntieres, mentionEstimatif, mentionNonEvaluables } from '../../logique/zones/recette';
 import { OutilsCarteService } from '../../outils/outils-carte.service';
 import { STYLES_RECETTE } from './styles-recette';
 
@@ -21,8 +21,13 @@ function libelleCompte(r: Recette | null, n: number): string | null {
   }
 }
 
-/** « 3,2 km² · 505 carreaux · 41 230 habitants », et la part retenue quand le périmètre a découpé la forme. */
-export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: string; part: string | null } {
+/**
+ * « 3,2 km² · 505 carreaux · 41 230 habitants », la part retenue quand le périmètre a découpé la forme, et (D30, seuil
+ * sur territoires à l'IRIS) les communes entières retenues et les unités non évaluables.
+ */
+export function chiffresApercu(a: ApercuZone, r: Recette | null): {
+  ligne: string; part: string | null; communes: string | null; nonEvaluables: string | null;
+} {
   const morceaux = [
     a.surface_km2 != null ? `${formaterNombre(Math.round(a.surface_km2 * 10) / 10)} km²` : null,
     a.compte != null ? libelleCompte(r, a.compte) : null,
@@ -32,7 +37,11 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
   const lieu = r && 'perimetre' in r ? 'dans le périmètre' : 'sur le territoire';
   const part = a.part_retenue != null && a.part_retenue < PART_SIGNALEE
     ? `${Math.round(a.part_retenue * 100)} % de la forme ${lieu}` : null;
-  return { ligne: morceaux.join(' · '), part };
+  return {
+    ligne: morceaux.join(' · '), part,
+    communes: a.communes_entieres != null ? mentionCommunesEntieres(a.communes_entieres) : null,
+    nonEvaluables: a.non_evaluables != null ? mentionNonEvaluables(a.non_evaluables) : null,
+  };
 }
 
 /**
@@ -66,6 +75,9 @@ export function chiffresApercu(a: ApercuZone, r: Recette | null): { ligne: strin
     @if (chiffres(); as c) {
       <p data-chiffres class="m-0 font-mono text-[11px] text-secondary">{{ c.ligne }}</p>
       @if (c.part) { <p data-part class="m-0 font-mono text-[11px] text-tertiary">{{ c.part }}</p> }
+      <!-- D30 : une commune non découpée en IRIS est une unité ; une unité sans valeur n'est jamais retenue. -->
+      @if (c.communes) { <p data-communes-entieres class="m-0 text-[11px] text-tertiary">{{ c.communes }}</p> }
+      @if (c.nonEvaluables) { <p data-non-evaluables class="m-0 text-[11px] text-tertiary">{{ c.nonEvaluables }}</p> }
       <!-- Décision du 02/11 : un rayon sous le minimum d'activation se calcule, mais ses chiffres sont estimatifs. -->
       @if (estimatif(); as m) { <p data-estimatif class="garde">{{ m }}</p> }
     }

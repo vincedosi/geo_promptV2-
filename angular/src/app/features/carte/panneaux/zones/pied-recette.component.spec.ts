@@ -77,6 +77,23 @@ describe('PiedRecetteComponent (lot 3, T10, arbitrage P4)', () => {
     await stable();
     expect(el.querySelector('[data-chiffres]')!.textContent!.trim()).toBe('3,2 km²');
     expect(el.querySelector('[data-part]')!.textContent!.trim()).toBe('84 % de la forme sur le territoire');
+    expect(el.querySelector('[data-communes-entieres]')).toBeNull();
+  });
+
+  it('D30 : seuil sur territoires à l’IRIS — communes entières toujours dites, non évaluables seulement s’il y en a', async () => {
+    const { f, el, stable, atelier } = monter();
+    const TERR: Recette = { v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 20, perimetre: { type: 'region', code: '84' } };
+    f.componentInstance.recette.set(TERR);
+    atelier.recette.set(TERR);
+    atelier.apercu.set({ ...APERCU, part_retenue: null, population: null, compte: 2571, communes_entieres: 1041, non_evaluables: 12 });
+    await stable();
+    expect(el.querySelector('[data-chiffres]')!.textContent!.trim()).toBe(`3,2 km² · ${formaterNombre(2571)} territoires`);
+    expect(el.querySelector('[data-communes-entieres]')!.textContent!.trim()).toBe(`${formaterNombre(1041)} communes entières traitées chacune comme un seul IRIS`);
+    expect(el.querySelector('[data-non-evaluables]')!.textContent!.trim()).toBe('12 unités non évaluables (valeur absente), jamais retenues');
+    atelier.apercu.set({ ...APERCU, part_retenue: null, communes_entieres: 0, non_evaluables: 0 });
+    await stable();
+    expect(el.querySelector('[data-communes-entieres]')!.textContent!.trim()).toBe('0 commune entière traitée comme un seul IRIS');
+    expect(el.querySelector('[data-non-evaluables]')).toBeNull();
   });
 
   it('nom par défaut = libellé de la recette ; « Enregistrer la zone » désactivé sans aperçu, puis atelier.enregistrer(nom saisi)', async () => {

@@ -5,7 +5,7 @@ import {
   RAYON_POI_MAX_M, RAYON_POI_MIN_M, RAYON_POINT_MIN_M, SURFACE_MAX_PERIMETRE_CARREAUX_KM2, SURFACE_MAX_PERIMETRE_KM2,
   TYPES_BORNES_PAR_PERIMETRE, TYPES_RECALCULABLES, TYPES_RECETTE, VERSION_RECETTE, estRecalculable, exigeGeometrie,
   exigePerimetre, libelleRecette, mentionEstimatif, rayonNonActivable, refusActivation, refusPerimetreLocal, CODES_PAYS, type Recette,
-  CRITERE_VRAIS_IRIS, MENTION_COMMUNES_NON_IRISEES,
+  UNITE_COMMUNE_ENTIERE, mentionCommunesEntieres, mentionNonEvaluables,
 } from '@/lib/zones/recette';
 import { formaterNombre } from '@/lib/format/nombre';
 import { lireRecette } from '@/lib/zones/recette-schema';
@@ -88,17 +88,28 @@ describe('la recette d’une zone', () => {
     expect(litteral(TERRITOIRES, /p_max_territoires > (\d+) then/)).toBe(MAX_TERRITOIRES_SEUIL);
   });
 
-  it('C19 : le critère des « vrais » IRIS est celui que lit la DERNIÈRE définition de zone_seuil_territoire', () => {
-    // La plus récente migration qui (re)définit la fonction fait foi (sql/256, redéfinie par sql/320).
+  it('D30 : la DERNIÈRE définition de zone_seuil_territoire lit les communes entières et compte les non évaluables', () => {
+    // La plus récente migration qui (re)définit la fonction fait foi (sql/256, redéfinie par sql/320 puis sql/333).
     const f = readdirSync('sql').filter((n) => n.endsWith('.sql')).sort().reverse()
       .find((n) => readFileSync(`sql/${n}`, 'utf8').includes('create or replace function public.zone_seuil_territoire('));
     expect(f, 'migration qui définit zone_seuil_territoire').toBeDefined();
     const sql = readFileSync(`sql/${f}`, 'utf8');
-    expect(sql).toContain(`where t.${CRITERE_VRAIS_IRIS.colonne} and`);
-    // … et la colonne vaut `type_iris <> 'Z'` (sql/075) : un IRIS communal, code en 0000, une commune non découpée.
-    expect(migration(/^075_iris_type_flag\.sql$/)).toContain(`SET ${CRITERE_VRAIS_IRIS.colonne} = (type_iris != '${CRITERE_VRAIS_IRIS.type_iris_exclu}')`);
-    expect(CRITERE_VRAIS_IRIS.suffixe_code_exclu).toBe('0000');
-    expect(MENTION_COMMUNES_NON_IRISEES).toMatch(/^Communes rurales non couvertes par cette recette/);
+    // C19 filtrait `where t.is_true_iris and` : plus aucune unité n'est écartée par son type.
+    expect(sql).not.toContain('where t.is_true_iris and');
+    expect(sql).toContain("'communes_entieres'");
+    expect(sql).toContain("'non_evaluables'");
+    // Une commune entière est l'IRIS communal de sql/075 : `is_true_iris = (type_iris != 'Z')`, code en 0000.
+    expect(migration(/^075_iris_type_flag\.sql$/)).toContain(`SET is_true_iris = (type_iris != '${UNITE_COMMUNE_ENTIERE.type_iris}')`);
+    expect(UNITE_COMMUNE_ENTIERE.suffixe_code).toBe('0000');
+  });
+
+  it('D30 : mentions de l’aperçu — communes entières (toujours) et non évaluables (seulement s’il y en a)', () => {
+    expect(mentionCommunesEntieres(0)).toBe('0 commune entière traitée comme un seul IRIS');
+    expect(mentionCommunesEntieres(1)).toBe('1 commune entière traitée comme un seul IRIS');
+    expect(mentionCommunesEntieres(1041)).toMatch(/^1\s041 communes entières traitées chacune comme un seul IRIS$/);
+    expect(mentionNonEvaluables(0)).toBeNull();
+    expect(mentionNonEvaluables(1)).toBe('1 unité non évaluable (valeur absente), jamais retenue');
+    expect(mentionNonEvaluables(3959)).toMatch(/^3\s959 unités non évaluables \(valeur absente\), jamais retenues$/);
   });
 
   it('les recettes lourdes exigent un périmètre et refusent la France', () => {

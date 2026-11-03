@@ -46,6 +46,12 @@ export type IssueRecette =
     unites?: UnitesConstitutives;
     /** C21 : « zone nationale moins zones locales » — le code de la zone pays en première opérande (sql/326). */
     base_pays?: 'METRO' | 'FR';
+    /**
+     * D30 : seuil sur territoires à la maille IRIS (sql/333) — communes entières retenues (IRIS communaux, code en
+     * 0000) et unités du périmètre non évaluables (valeur absente, jamais retenues). Absents sinon.
+     */
+    communes_entieres?: number;
+    non_evaluables?: number;
   }
   | { ok: false; statut: 400 | 404 | 409 | 422 | 500; refus: RefusRecette | null; message: string };
 
@@ -55,6 +61,8 @@ interface ReponseRpc {
   part_retenue?: number | null; population?: number | null; refus?: string;
   /** B15 : `zone_seuil_territoire` (sql/320) — la maille et les codes retenus. */
   maille?: unknown; codes?: unknown;
+  /** D30 : `zone_seuil_territoire` à la maille IRIS (sql/333). */
+  communes_entieres?: unknown; non_evaluables?: unknown;
 }
 
 /** B15 : les unités d'une réponse qui les porte (maille CP ou IRIS, codes non vides) ; `null` sinon. */
@@ -122,9 +130,13 @@ function issue(nom: string, r: ReponseRpc | null, motifVide: RefusRecette = 'for
   }
   if (r.vide || !estForme(r.geometry)) return refuser(motifVide, 409);
   const unites = unitesDe(r);
+  const communes = nombreOuNull(r.communes_entieres);
+  const nonEvaluables = nombreOuNull(r.non_evaluables);
   return {
     ok: true, geometry: r.geometry, surface_km2: nombreOuNull(r.surface_km2), compte: nombreOuNull(r.compte),
     part_retenue: nombreOuNull(r.part_retenue), population: nombreOuNull(r.population), ...(unites ? { unites } : {}),
+    ...(communes !== null ? { communes_entieres: communes } : {}),
+    ...(nonEvaluables !== null ? { non_evaluables: nonEvaluables } : {}),
   };
 }
 

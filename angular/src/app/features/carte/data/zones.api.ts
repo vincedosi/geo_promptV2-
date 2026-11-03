@@ -11,6 +11,12 @@ export interface ApercuZone {
   compte: number | null;
   part_retenue: number | null;
   population: number | null;
+  /**
+   * D30 (sql/333) : seuil sur territoires à la maille IRIS seulement — communes entières retenues (une commune non
+   * découpée = un seul IRIS) et unités du périmètre non évaluables (valeur absente, jamais retenues).
+   */
+  communes_entieres?: number;
+  non_evaluables?: number;
 }
 
 /** `POST /api/zones` et `POST /api/zones/[id]/recalculer` : 200, ou 207 si les codes postaux n'ont pas été résolus. */

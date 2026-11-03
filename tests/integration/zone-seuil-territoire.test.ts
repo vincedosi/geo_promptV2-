@@ -60,19 +60,38 @@ describe('zone_seuil_territoire', () => {
     expect(z.compte).toBeLessThanOrEqual(60);
   });
 
-  it('C19 : seuls les vrais IRIS, même quand la commune non découpée porte une valeur (densité, Ain)', async () => {
-    // Mesuré le 03/11 : dans l'Ain, 73 vrais IRIS et 374 IRIS communaux (code en 0000) portent une densité ; la
-    // recette rend les 73 et aucun des 374 (CRITERE_VRAIS_IRIS, lib/zones/recette.ts).
-    const { data, error } = await appeler({ p_indicateur: 'densite_pop', p_seuil: 0, p_perimetre_type: 'departement', p_perimetre_code: '01' });
+  it('D30 : les communes non découpées entrent comme « commune entière » quand l’indicateur a une valeur (densité)', async () => {
+    // Mesuré le 03/11 : région 84, densité ≥ 100 → 2 571 unités dont 1 041 communes entières (2 274 527 hab.) ;
+    // 12 unités sans densité, non évaluables. Ain, densité ≥ 0 → 73 vrais IRIS + 374 communes entières (C19 : 73).
+    const { data, error } = await appeler({ p_indicateur: 'densite_pop', p_seuil: 100 });
     expect(error).toBeNull();
-    const z = data as Zone & { codes: string[] };
-    expect(z.compte).toBe(73);
+    const z = data as Zone & { codes: string[]; communes_entieres: number; non_evaluables: number };
+    expect(z).toMatchObject({ vide: false, maille: 'iris', compte: 2571, communes_entieres: 1041, non_evaluables: 12 });
+    expect(z.codes.filter((c) => c.endsWith('0000'))).toHaveLength(1041);
+    const ain = (await appeler({ p_indicateur: 'densite_pop', p_seuil: 0, p_perimetre_type: 'departement', p_perimetre_code: '01' })).data as typeof z;
+    expect(ain).toMatchObject({ compte: 447, communes_entieres: 374, non_evaluables: 1 });
+  });
+
+  it('D30 : indicateur sans valeur sur les communes entières (taux de pauvreté) — non évaluables, jamais retenues', async () => {
+    // Région 84 : 3 812 communes entières sans taux de pauvreté + 147 vrais IRIS sans valeur = 3 959 non évaluables.
+    const z = (await appeler({})).data as Zone & { codes: string[]; communes_entieres: number; non_evaluables: number };
+    expect(z).toMatchObject({ compte: 472, communes_entieres: 0, non_evaluables: 3959 });
     expect(z.codes.filter((c) => c.endsWith('0000'))).toEqual([]);
+    // « ≤ » ne les rattrape pas non plus : une valeur absente n'est pas 0.
+    const inf = (await appeler({ p_operateur: '<=', p_seuil: 1000 })).data as typeof z;
+    expect(inf).toMatchObject({ communes_entieres: 0, non_evaluables: 3959 });
+    expect(inf.compte).toBe(1601 - 147);
+  });
+
+  it('D30 : la région 84 entière (≥ 0) dépasse désormais le plafond de 5 000 unités', async () => {
+    expect((await appeler({ p_indicateur: 'densite_pop', p_seuil: 0 })).data).toEqual({ refus: 'trop_de_territoires', plafond: 5000 });
   });
 
   it('aucun territoire au-dessus du seuil : vide, sans géométrie', async () => {
     // B15 (sql/320) : `codes`, les unités constitutives — vide ici.
-    expect((await appeler({ p_seuil: 1000 })).data).toEqual({ vide: true, compte: 0, maille: 'iris', codes: [], geometry: null, surface_km2: 0 });
+    expect((await appeler({ p_seuil: 1000 })).data).toEqual({
+      vide: true, compte: 0, maille: 'iris', codes: [], geometry: null, surface_km2: 0, communes_entieres: 0, non_evaluables: 3959,
+    });
   });
 
   it.each([

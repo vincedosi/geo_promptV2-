@@ -384,6 +384,19 @@ describe('B15 — les unités constitutives, posées par le serveur', () => {
     expect(recetteAEcrire(recette, r)).toEqual({ ...recette, unites_constitutives: { maille: 'cp', codes: ['13001', '13002'] } });
   });
 
+  it('D30 : seuil sur territoires à l’IRIS — communes entières et non évaluables relayés, absents à la maille CP', async () => {
+    reponses.zone_seuil_territoire = { data: {
+      vide: false, compte: 3, maille: 'iris', codes: ['010010000', '010040101', '010040102'], geometry: CARRE, surface_km2: 9,
+      communes_entieres: 1, non_evaluables: 12,
+    }, error: null };
+    const iris = await exec({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 100, perimetre: PER });
+    expect(iris).toMatchObject({ ok: true, compte: 3, communes_entieres: 1, non_evaluables: 12 });
+    reponses.zone_seuil_territoire = { data: { vide: false, compte: 2, maille: 'cp', codes: ['13001', '13002'], geometry: CARRE, surface_km2: 9 }, error: null };
+    const cp = await exec({ v: 1, type: 'seuil_territoire', indicateur: 'taux_pauvrete', operateur: '>=', seuil: 25, perimetre: PER });
+    expect(cp.ok).toBe(true);
+    expect('communes_entieres' in cp || 'non_evaluables' in cp).toBe(false);
+  });
+
   it('capture de score avec ses CP : la forme est l’union de CES codes (get_admin_filter_geometry), jamais celle du client', async () => {
     reponses.get_admin_filter_geometry = { data: { geometry: CARRE, metadata: {} }, error: null };
     reponses.codes_postaux_inconnus = { data: [], error: null };

@@ -3,7 +3,7 @@
  *
  * Corps : `{ recette, geometrie? }` — la géométrie n'est lue que pour une recette figée (dessin, import, isochrone,
  * capture) ; une recette recalculable l'ignore, le serveur la calcule. Réponse : `{ geometry, surface_km2, compte,
- * part_retenue, population }`, ou `{ error, refus? }` (400 · 401 · 403 · 404 · 409 · 422 · 429 · 500).
+ * part_retenue, population }` (+ `communes_entieres`, `non_evaluables` pour un seuil sur territoires à l'IRIS, D30), ou `{ error, refus? }` (400 · 401 · 403 · 404 · 409 · 422 · 429 · 500).
  *
  * Quota unique des routes de zone (`limiteurZones`, 12 / min / compte, compteur en base `consommer_quota`),
  * consommé AVANT toute lecture : `lib/zones/session-zones.ts`.
@@ -27,5 +27,8 @@ export async function POST(req: NextRequest) {
   if (!r.ok) return reponseRefus(r);
   return NextResponse.json({
     geometry: r.geometry, surface_km2: r.surface_km2, compte: r.compte, part_retenue: r.part_retenue, population: r.population,
+    // D30 (sql/333) : seuil sur territoires à la maille IRIS seulement.
+    ...(r.communes_entieres !== undefined ? { communes_entieres: r.communes_entieres } : {}),
+    ...(r.non_evaluables !== undefined ? { non_evaluables: r.non_evaluables } : {}),
   });
 }

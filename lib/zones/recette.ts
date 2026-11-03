@@ -97,19 +97,28 @@ export const MIN_MENAGES_CARREAUX_MAX = 1_000;
 export const MAX_INDICATEURS_SCORE = 6;
 export const MAX_TERRITOIRES_SEUIL = 5_000;
 /**
- * C19 — les « vrais » IRIS de la recette « par seuil sur territoires » (`zone_seuil_territoire`, sql/256 redéfinie par
- * sql/320 : `where t.is_true_iris`). Critère : `iris.is_true_iris`, posé par sql/075 à `type_iris <> 'Z'`, soit un IRIS
- * de quartier (habitat H, activité A, divers D) d'une commune découpée. Un IRIS communal (type Z, code en `0000`) est
- * une commune entière non découpée (moins de ~5 000 habitants) : la recette ne le retient JAMAIS, même quand
- * l'indicateur y porte une valeur (12 des 15 indicateurs IRIS du registre en ont une ; seuls revenu médian, taux de
- * pauvreté et part des couples avec enfants n'en ont pas). Base locale, 03/11/2026 : 16 404 vrais IRIS
- * (40 443 988 habitants) ; 33 044 communes non découpées exclues (27 316 564 habitants, 40,3 % de la population IRIS).
- * La maille CP (abstention, pollen, atmo) n'est pas concernée.
+ * D30 (03/11/2026, suite de C19) — « par seuil sur territoires » à la maille IRIS (`zone_seuil_territoire`, sql/333) lit
+ * TOUTES les unités du périmètre : les IRIS de quartier (habitat H, activité A, divers D) et les communes non découpées,
+ * chacune UNE unité « commune entière » (IRIS communal, `type_iris` Z, code en `0000`). Une unité dont la valeur est
+ * absente (revenu médian, taux de pauvreté, part des couples avec enfants sur les communes entières ; toute valeur
+ * NULL ; une part rapportée à une population nulle) est « non évaluable » : jamais retenue, jamais comptée à 0, et
+ * comptée (`non_evaluables`). Base locale, 03/11/2026 : 33 044 communes entières (27 316 564 habitants, 40,3 % de la
+ * population IRIS), qui n'entraient pas avant D30 (C19 : `where t.is_true_iris`). La maille CP n'est pas concernée.
  */
-export const CRITERE_VRAIS_IRIS = { colonne: 'is_true_iris', type_iris_exclu: 'Z', suffixe_code_exclu: '0000' } as const;
-/** C19 — la mention affichée par « Par seuil » quand l'indicateur est à la maille IRIS. */
-export const MENTION_COMMUNES_NON_IRISEES =
-  'Communes rurales non couvertes par cette recette : seules les communes découpées en IRIS sont retenues.';
+export const UNITE_COMMUNE_ENTIERE = { type_iris: 'Z', suffixe_code: '0000' } as const;
+/** D30 — « 12 communes entières traitées comme un seul IRIS », sous les chiffres de l'aperçu (maille IRIS). */
+export function mentionCommunesEntieres(n: number): string {
+  return n > 1
+    ? `${formaterNombre(n)} communes entières traitées chacune comme un seul IRIS`
+    : `${formaterNombre(n)} commune entière traitée comme un seul IRIS`;
+}
+/** D30 — les unités du périmètre sans valeur de l'indicateur, jamais retenues ; `null` s'il n'y en a aucune. */
+export function mentionNonEvaluables(n: number): string | null {
+  if (!(n > 0)) return null;
+  return n > 1
+    ? `${formaterNombre(n)} unités non évaluables (valeur absente), jamais retenues`
+    : `${formaterNombre(n)} unité non évaluable (valeur absente), jamais retenue`;
+}
 export const MAX_SOMMETS_FORME = 20_000;
 export const MAX_CODES_POSTAUX = 3_000;
 /** Zones d'une combinaison (union, intersection, différence) : 2 à 20 (schéma, `zone_intersection_toutes`, sql/325). */
