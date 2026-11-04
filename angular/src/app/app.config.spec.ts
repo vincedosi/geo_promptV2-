@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { appConfig } from './app.config';
 import { CHEMIN_CONNEXION_AUTO } from './core/auth/connexion-auto.service';
+import { MESSAGE_CONNEXION_AUTO_ECHOUEE, MESSAGE_SESSION_FERMEE_LOCALE } from './core/auth/strategie-sans-session';
 import { SUPABASE } from './core/auth/supabase';
 import { ConfigService } from './core/config/config.service';
 import { ECRIRE_HTML } from './core/theme/theme.service';
@@ -39,7 +40,7 @@ const attendre = () => new Promise((r) => setTimeout(r, 0));
  * parallèle sur tous les cœurs, l'un d'eux a été mesuré à 6 170 ms — au-delà des 5 000 ms par défaut de Vitest,
  * sans le moindre défaut de code. Le délai couvre la charge ; les attentes, elles, portent sur des conditions.
  *
- * 30 s depuis la revue finale du lot 4 (M-1, 2026-10-12) : à 15 s, « un SIGNED_OUT de GoTrue… renvoie vers /connexion »
+ * 30 s depuis la revue finale du lot 4 (M-1, 2026-10-12) : à 15 s, « un SIGNED_OUT de GoTrue… » (alors une redirection vers la page de connexion, supprimée le 2026-11-05)
  * a dépassé le délai dans la suite complète sur un hôte à court de RAM (« environment 9 186 s » au rapport Vitest),
  * alors qu'il passe seul. C'est la CHARGE DE L'HÔTE qui est couverte, pas un défaut : ne pas redescendre ce délai.
  */
@@ -122,7 +123,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
   }, DELAI_DEMARRAGE_REEL);
 
-  describe('fin de session en lancement autonome — comportement inchangé (redirections vers /connexion)', () => {
+  describe('fin de session en lancement autonome — un message en place, jamais de navigation (plus de page de connexion, 2026-11-05)', () => {
     /** Un faux client Supabase qui, comme le vrai, émet SIGNED_OUT à chaque signOut. */
     function supabaseAvecSession(connecte: boolean) {
       let session: unknown = connecte ? { access_token: 'jeton-a', user: { email: 'a@exemple.test' } } : null;
@@ -160,7 +161,7 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
     /**
      * Sans session, en développement (les specs tournent hors production), `authGuard` tente d'abord la
      * connexion automatique (`/api/dev/connexion-auto`, 2026-11-02). Par défaut on lui répond 404 — la route
-     * hors `next dev` ou sans variables — pour éprouver le repli vers `/connexion` ; `jetons` éprouve le succès.
+     * hors `next dev` ou sans variables — pour éprouver le message d'échec en place ; `jetons` éprouve le succès.
      */
     async function demarrer(url: string, connecte: boolean, auto: 'refus' | 'jetons' = 'refus') {
       const client = supabaseAvecSession(connecte);
@@ -197,17 +198,23 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       }
     }
 
+    /** Le message que la racine affiche à la place des pages, sans session. */
+    const statut = (harness: RouterTestingHarness) =>
+      ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="status"]')?.textContent?.trim();
+
     /**
-     * Attend une CONDITION (l'URL attendue) plutôt qu'un nombre fixe de tours : sous charge, la redirection qui suit
+     * Attend une CONDITION (le message attendu) plutôt qu'un nombre fixe de tours : sous charge, l'affichage qui suit
      * un événement de GoTrue peut prendre plus de trois tours de boucle. Borné, pour échouer lisiblement.
      */
-    async function attendreUrl(router: Router, harness: RouterTestingHarness, attendue: string) {
-      for (let i = 0; i < 50 && router.url !== attendue; i++) await stabiliser(harness);
+    async function attendreStatut(harness: RouterTestingHarness, attendu: string) {
+      for (let i = 0; i < 50 && statut(harness) !== attendu; i++) await stabiliser(harness);
     }
 
-    it('sans session : une page protégée renvoie vers /connexion avec la page demandée', async () => {
-      const { router, http } = await demarrer('/app/catalogue', false);
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcatalogue');
+    it('sans session, connexion automatique en échec : la page reste à son adresse et dit de vérifier DEV_CONNEXION_AUTO_*', async () => {
+      const { router, http, harness } = await demarrer('/app/catalogue', false);
+      await attendreStatut(harness, MESSAGE_CONNEXION_AUTO_ECHOUEE);
+      expect(router.url).toBe('/app/catalogue');
+      expect(statut(harness)).toBe(MESSAGE_CONNEXION_AUTO_ECHOUEE);
       http.expectNone('/api/risques/sites/compter');
     }, DELAI_DEMARRAGE_REEL);
 
@@ -218,9 +225,11 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
     }, DELAI_DEMARRAGE_REEL);
 
-    it("sans session : la carte principale renvoie vers /connexion, sans aucun appel d'API", async () => {
-      const { router, http } = await demarrer('/app/carte', false);
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcarte');
+    it("sans session : la carte principale affiche le message en place, sans aucun appel d'API", async () => {
+      const { router, http, harness } = await demarrer('/app/carte', false);
+      await attendreStatut(harness, MESSAGE_CONNEXION_AUTO_ECHOUEE);
+      expect(router.url).toBe('/app/carte');
+      expect(statut(harness)).toBe(MESSAGE_CONNEXION_AUTO_ECHOUEE);
       http.expectNone((r) => r.url.startsWith('/api/'));
     }, DELAI_DEMARRAGE_REEL);
 
@@ -234,14 +243,16 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(explorer?.getAttribute('href')).toBe('/app/carte');
     }, DELAI_DEMARRAGE_REEL);
 
-    it("sans session : l'ancienne adresse risques, redirigée vers carte/risques, renvoie vers /connexion avec son état d'URL, sans aucun appel d'API", async () => {
-      const { router, http } = await demarrer('/app/risques?risque=etape%3Drayon', false);
-      // La redirection (T13) passe AVANT le garde : la reprise vise la nouvelle adresse, paramètre `risque` compris.
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcarte%2Frisques%3Frisque%3Detape%253Drayon');
+    it("sans session : l'ancienne adresse risques, redirigée vers carte/risques, garde son état d'URL et affiche le message, sans aucun appel d'API", async () => {
+      const { router, http, harness } = await demarrer('/app/risques?risque=etape%3Drayon', false);
+      await attendreStatut(harness, MESSAGE_CONNEXION_AUTO_ECHOUEE);
+      // La redirection (T13) passe AVANT le garde : l'adresse est la nouvelle, paramètre `risque` compris.
+      expect(router.url).toBe('/app/carte/risques?risque=etape%3Drayon');
+      expect(statut(harness)).toBe(MESSAGE_CONNEXION_AUTO_ECHOUEE);
       http.expectNone((r) => r.url.startsWith('/api/'));
     }, DELAI_DEMARRAGE_REEL);
 
-    it('« Deconnexion » (menu utilisateur) mène à /connexion, sans paramètre de reprise', async () => {
+    it('« Deconnexion » (menu utilisateur) ferme la session sans naviguer : « Session fermée — rechargez… »', async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush({ retenus: 1, total: 1, par_nature: {} });
       http.match('/api/user/organizations').forEach((r) => r.flush({ organizations: [], active_org_id: null, is_super_admin: false }));
@@ -252,7 +263,9 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       bouton.click();
       await stabiliser(harness);
       expect(client.signOut).toHaveBeenCalled();
-      expect(router.url).toBe('/connexion');
+      await attendreStatut(harness, MESSAGE_SESSION_FERMEE_LOCALE);
+      expect(router.url).toBe('/app');
+      expect(statut(harness)).toBe(MESSAGE_SESSION_FERMEE_LOCALE);
     }, DELAI_DEMARRAGE_REEL);
 
     it("les deux entrées du module risque (lien de développement, tuile de l'accueil) mènent à /app/carte/risques", async () => {
@@ -267,20 +280,22 @@ describe('appConfig — démarrage réel, lancement autonome', () => {
       expect(tuile.closest('a')?.getAttribute('href')).toBe('/app/carte/risques');
     }, DELAI_DEMARRAGE_REEL);
 
-    it("un 401 de l'API renvoie vers /connexion avec la page courante", async () => {
+    it("un 401 de l'API ferme la session et affiche le message en place, sans naviguer", async () => {
       const { router, http, harness, client } = await demarrer('/app', true);
       http.expectOne('/api/risques/sites/compter').flush('non autorisé', { status: 401, statusText: 'Unauthorized' });
-      await attendreUrl(router, harness, '/connexion?redirection=%2Fapp');
+      await attendreStatut(harness, MESSAGE_SESSION_FERMEE_LOCALE);
       expect(client.signOut).toHaveBeenCalledWith({ scope: 'local' });
-      expect(router.url).toBe('/connexion?redirection=%2Fapp');
+      expect(router.url).toBe('/app');
+      expect(statut(harness)).toBe(MESSAGE_SESSION_FERMEE_LOCALE);
     }, DELAI_DEMARRAGE_REEL);
 
-    it('un SIGNED_OUT de GoTrue en cours de page renvoie vers /connexion avec la page courante', async () => {
+    it('un SIGNED_OUT de GoTrue en cours de page affiche le message en place, sans naviguer', async () => {
       const { router, http, harness, client } = await demarrer('/app/catalogue', true);
       http.match(() => true).forEach((r) => r.flush({ retenus: 1, total: 1, par_nature: {} }));
       client.emettre('SIGNED_OUT', null);
-      await attendreUrl(router, harness, '/connexion?redirection=%2Fapp%2Fcatalogue');
-      expect(router.url).toBe('/connexion?redirection=%2Fapp%2Fcatalogue');
+      await attendreStatut(harness, MESSAGE_SESSION_FERMEE_LOCALE);
+      expect(router.url).toBe('/app/catalogue');
+      expect(statut(harness)).toBe(MESSAGE_SESSION_FERMEE_LOCALE);
     }, DELAI_DEMARRAGE_REEL);
 
     it("démarrage en échec : la racine affiche l'erreur et ne redirige pas", async () => {

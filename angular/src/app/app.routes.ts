@@ -3,7 +3,6 @@ import { provideHttpClient, withInterceptors, withRequestsMadeViaParent } from '
 import type { Routes } from '@angular/router';
 import { App } from './app';
 import { authGuard } from './core/auth/auth.guard';
-import { sansSessionGuard } from './core/auth/sans-session.guard';
 import { STRATEGIE_AUTONOME, STRATEGIE_SANS_SESSION } from './core/auth/strategie-sans-session';
 import { demarrageGuard } from './core/demarrage/demarrage.guard';
 import { jetonInterceptor } from './core/http/jeton.interceptor';
@@ -129,10 +128,12 @@ export const remoteRoutes: Routes = [
 ];
 
 /**
- * Lancement autonome, hors AIDA (doc §4.4) — `/connexion` n'existe que dans ce mode.
- * La route `app` fournit donc `STRATEGIE_SANS_SESSION = rediriger` : sans
- * session, gardes, coquille et racine renvoient vers `/connexion`. Un hôte ne
- * la fournit pas, et le défaut racine (`message`) s'applique — voir
+ * Lancement autonome, hors AIDA (doc §4.4). Il n'y a PAS de page de connexion
+ * (supprimée le 2026-11-05 : AIDA gère la session). La route `app` fournit
+ * `STRATEGIE_AUTONOME` : en développement, `authGuard` ouvre la session par la
+ * connexion automatique (`/api/dev/connexion-auto`), et en cas d'échec la
+ * racine dit de vérifier `DEV_CONNEXION_AUTO_*`. Un hôte ne la fournit pas, et
+ * le défaut racine (aucune connexion automatique) s'applique — voir
  * `strategie-sans-session.ts`.
  * `App` est monté deux fois, comme dans l'exemple de la doc : composant
  * d'amorçage, puis composant de la route `app`. Sans effet : il n'injecte que
@@ -140,11 +141,6 @@ export const remoteRoutes: Routes = [
  */
 export const appRoutes: Routes = [
   { path: '', redirectTo: 'app', pathMatch: 'full' },
-  {
-    path: 'connexion',
-    canActivate: [demarrageGuard, sansSessionGuard],
-    loadComponent: () => import('./features/connexion/connexion.page').then((m) => m.ConnexionPage),
-  },
   {
     path: 'app',
     component: App,

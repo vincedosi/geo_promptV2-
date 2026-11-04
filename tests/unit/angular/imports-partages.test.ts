@@ -15,10 +15,11 @@
  * (vérifié dans `node_modules` à la tâche 6 du lot AIDA) : `@angular/core`,
  * `@angular/common` et `@angular/platform-browser` par construction,
  * `@angular/common/http` parce que `platform-browser` l'importe,
- * `@angular/router` et `@angular/forms` parce qu'ils n'importent que
- * `@angular/core` NU (aucun morceau privé). `@angular/forms` reste limité à
- * `features/connexion/`, page qui n'existe qu'en lancement autonome : un hôte
- * par défaut ne le partage pas s'il ne s'en sert pas.
+ * `@angular/router` parce qu'il n'importe que `@angular/core` NU (aucun
+ * morceau privé). `@angular/forms` était permis dans `features/connexion/`
+ * seulement ; la page de connexion a été supprimée le 2026-11-05 (AIDA gère
+ * la session) et il n'est plus permis nulle part : un hôte par défaut ne le
+ * partage pas s'il ne s'en sert pas.
  *
  * Analyse par l'AST TypeScript et non par expression régulière : les
  * commentaires n'y existent pas (un import commenté ne compte pas), `import
@@ -42,9 +43,7 @@ const PARTAGEES = new Set([
 ]);
 
 /** Entrées permises dans un dossier seulement (chemin relatif à angular/src, séparateurs `/`). */
-const PERMISES_PAR_DOSSIER: Record<string, string> = {
-  '@angular/forms': 'app/features/connexion/',
-};
+const PERMISES_PAR_DOSSIER: Record<string, string> = {};
 
 function sources(dossier: string): string[] {
   const sortie: string[] = [];

@@ -21,8 +21,11 @@ Elle est livrée comme **remote Native Federation** du shell AIDA (`federation.c
     npm install
     npm start                    # :4200, écrit d'abord public/config.local.json
 
-Se connecter sur `http://localhost:4200/connexion` avec le même compte que sur :3000 — la session est un
-cookie partagé par les deux. En autonome, toutes les pages vivent sous `/app` (`/app/carte`,
+Il n'y a PAS de page de connexion (supprimée le 2026-11-05 : AIDA gère la session). En local, la session
+s'ouvre toute seule par la connexion automatique de développement (`POST /api/dev/connexion-auto`) : poser
+`DEV_CONNEXION_AUTO_EMAIL` et `DEV_CONNEXION_AUTO_MOT_DE_PASSE` dans `.env.development.local` (racine) et lancer
+l'API par `npm run dev`. En échec, l'application affiche en place de quoi corriger. La session est un cookie
+partagé avec :3000. En autonome, toutes les pages vivent sous `/app` (`/app/carte`,
 `/app/carte/risques`, `/app/admin/acces`…) ; dans le shell, sous le préfixe que le shell choisit.
 
     npm start          # serveur de dev, /api redirigé vers :3000 (proxy.conf.json)

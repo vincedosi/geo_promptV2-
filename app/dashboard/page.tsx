@@ -41,19 +41,9 @@ export default function DashboardPage() {
         justifyContent: 'center', minHeight: '50vh', gap: 16,
       }}>
         <Hexagon size={48} strokeWidth={1} style={{ color: 'var(--border-hover)' }} />
-        <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Session expirée</p>
-        <Link
-          href="/login"
-          style={{
-            fontSize: 13, color: 'var(--bg-primary)', background: 'var(--text-primary)',
-            padding: '10px 24px', borderRadius: 6, textDecoration: 'none',
-            fontWeight: 500, transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#d4d4d4'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'var(--text-primary)'; }}
-        >
-          Se connecter
-        </Link>
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+          Session absente : la connexion est gérée par AIDA.
+        </p>
       </div>
     );
   }

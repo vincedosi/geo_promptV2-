@@ -2,45 +2,48 @@ import { InjectionToken } from '@angular/core';
 
 /**
  * Que faire quand l'utilisateur n'a pas (ou plus) de session.
- * - `message` : afficher « Session requise… » À LA PLACE des pages, sans
- *   naviguer. C'est le cas dans un hôte AIDA : il n'a pas de page
- *   `/connexion`, et y naviguer rendait un cadre vide (`NG04002`, épreuve du
- *   2026-09-30).
- * - `rediriger` : envoyer vers la page de connexion avec la page à reprendre.
- *   C'est le lancement autonome. Avec `connexionAuto`, `authGuard` tente
- *   d'abord la connexion automatique de développement (`ConnexionAutoService`,
- *   `/api/dev/connexion-auto`) — en mode développement seulement — et ne
- *   renvoie vers `chemin` que si elle échoue.
+ *
+ * Il n'y a PLUS de page de connexion (décision du propriétaire, 2026-11-05 :
+ * « c'est AIDA qui va gérer ça »). Sans session, l'application affiche donc
+ * toujours un message À LA PLACE des pages, sans naviguer — dans l'hôte AIDA
+ * comme en lancement autonome. La seule différence :
+ * - `connexionAuto: true` (lancement autonome, `STRATEGIE_AUTONOME`) :
+ *   `authGuard` tente d'abord la connexion automatique de développement
+ *   (`ConnexionAutoService`, `/api/dev/connexion-auto`) — en mode
+ *   développement seulement. C'est le SEUL moyen d'ouvrir l'app en local hors
+ *   AIDA ; en échec, `RacineDistanteComponent` dit de vérifier
+ *   `DEV_CONNEXION_AUTO_*`.
+ * - `connexionAuto: false` (hôte AIDA, défaut racine) : le shell fournit la
+ *   session, rien n'est tenté.
  */
-export type StrategieSansSession =
-  | { mode: 'message' }
-  | { mode: 'rediriger'; chemin: string; connexionAuto?: boolean };
+export interface StrategieSansSession {
+  readonly connexionAuto: boolean;
+}
 
 /**
- * ⚠ **Le défaut RACINE est `message`** : un hôte ne fournit rien, et c'est
- * dans l'hôte que la redirection est fausse. Le lancement autonome fournit
- * `rediriger` sur sa route `app` (`appRoutes`), dont `remoteRoutes` sont les
- * enfants — `authGuard`, la coquille et `RacineDistanteComponent` le lisent
- * donc dans l'injecteur de LEUR route. L'intercepteur de session expirée ne
- * le lit PAS : il met seulement fin à la session, et c'est
- * `RacineDistanteComponent` qui décide ensuite (message ou redirection).
- *
- * Rien de fourni `providedIn: 'root'` ne doit le lire : un service racine
- * verrait toujours le défaut. C'est pourquoi `AuthService` ne navigue plus.
- * La page `/connexion`, hors de la route `app`, ne le lit pas non plus : elle
- * n'existe qu'en autonome.
+ * ⚠ **Le défaut RACINE est « sans connexion automatique »** : un hôte ne
+ * fournit rien. Le lancement autonome fournit `STRATEGIE_AUTONOME` sur sa
+ * route `app` (`appRoutes`), dont `remoteRoutes` sont les enfants —
+ * `authGuard` et `RacineDistanteComponent` le lisent donc dans l'injecteur de
+ * LEUR route. Rien de fourni `providedIn: 'root'` ne doit le lire : un service
+ * racine verrait toujours le défaut.
  */
 export const STRATEGIE_SANS_SESSION = new InjectionToken<StrategieSansSession>('STRATEGIE_SANS_SESSION', {
   providedIn: 'root',
-  factory: () => ({ mode: 'message' }),
+  factory: () => ({ connexionAuto: false }),
 });
 
-/**
- * Le lancement autonome, fourni par la route `app` : connexion automatique de
- * développement d'abord (2026-11-02), page `/connexion` en repli. Un hôte AIDA
- * ne fournit jamais cette valeur — chez lui, rien ne change.
- */
-export const STRATEGIE_AUTONOME: StrategieSansSession = { mode: 'rediriger', chemin: '/connexion', connexionAuto: true };
+/** Le lancement autonome, fourni par la route `app` : connexion automatique de développement (2026-11-02). */
+export const STRATEGIE_AUTONOME: StrategieSansSession = { connexionAuto: true };
 
-/** Le texte affiché sans session dans l'hôte. */
+/** Le texte affiché sans session dans l'hôte (et en autonome hors développement). */
 export const MESSAGE_SANS_SESSION = 'Session requise — connectez-vous à AIDA pour accéder à dentsu.explore.';
+
+/** Lancement autonome en développement : la connexion automatique a échoué (404, identifiants refusés…). */
+export const MESSAGE_CONNEXION_AUTO_ECHOUEE =
+  'Connexion automatique impossible — vérifiez DEV_CONNEXION_AUTO_EMAIL et DEV_CONNEXION_AUTO_MOT_DE_PASSE '
+  + 'dans .env.development.local, que l’API tourne sous « npm run dev », puis rechargez la page.';
+
+/** Lancement autonome en développement : session fermée (déconnexion, 401) — un rechargement la rouvre. */
+export const MESSAGE_SESSION_FERMEE_LOCALE =
+  'Session fermée — rechargez la page pour rouvrir la connexion automatique de développement.';

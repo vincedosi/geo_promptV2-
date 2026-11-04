@@ -1,7 +1,14 @@
-import { ChangeDetectionStrategy, Component, Injector, ViewEncapsulation, computed, effect, inject, untracked } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, Injector, ViewEncapsulation, computed, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
-import { MESSAGE_SANS_SESSION, STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
+import { ConnexionAutoService } from '../core/auth/connexion-auto.service';
+import {
+  MESSAGE_CONNEXION_AUTO_ECHOUEE,
+  MESSAGE_SANS_SESSION,
+  MESSAGE_SESSION_FERMEE_LOCALE,
+  STRATEGIE_SANS_SESSION,
+} from '../core/auth/strategie-sans-session';
+import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { DemarrageService } from '../core/demarrage/demarrage.service';
 import { monterRacineOmbre } from './racine-ombre';
 
@@ -12,27 +19,24 @@ import { monterRacineOmbre } from './racine-ombre';
  * un écran blanc — et surtout jamais un remplacement du `<body>`, qui
  * effacerait le shell.
  *
- * **Sans session**, selon `STRATEGIE_SANS_SESSION` (lue dans l'injecteur de
- * route) :
- * - `message` (hôte, défaut racine) : « Session requise… » À LA PLACE du
- *   `<router-outlet />`. Aucune page n'est donc créée, aucun appel d'API ne
- *   part, aucune navigation n'a lieu. Quand la session apparaît, l'outlet
- *   revient et monte la route DÉJÀ activée (`authGuard` a laissé passer) :
- *   la page demandée s'affiche sans renavigation.
- * - `rediriger` (autonome) : un `effect` renvoie vers la page de connexion
- *   avec la page courante à reprendre. C'est le SEUL endroit qui réagit à
- *   une fin de session en cours de page (401 via l'intercepteur, `SIGNED_OUT`
- *   de GoTrue) — `AuthService`, racine, ne navigue plus.
+ * **Sans session** : un message À LA PLACE du `<router-outlet />`, dans
+ * l'hôte comme en autonome — il n'y a plus de page de connexion vers
+ * laquelle naviguer (décision du propriétaire, 2026-11-05 : AIDA gère la
+ * session). Aucune page n'est donc créée, aucun appel d'API ne part, aucune
+ * navigation n'a lieu. Quand la session apparaît, l'outlet revient et monte
+ * la route DÉJÀ activée (`authGuard` a laissé passer) : la page demandée
+ * s'affiche sans renavigation. Le texte dépend du contexte :
+ * - hôte AIDA, ou autonome hors développement : `MESSAGE_SANS_SESSION` ;
+ * - autonome en développement, connexion automatique en échec :
+ *   `MESSAGE_CONNEXION_AUTO_ECHOUEE` (vérifier `DEV_CONNEXION_AUTO_*`) ;
+ * - autonome en développement, session fermée en cours de page
+ *   (« Deconnexion », 401, `SIGNED_OUT`) : `MESSAGE_SESSION_FERMEE_LOCALE` —
+ *   la session n'est PAS rouverte d'office, sans quoi « Deconnexion » ne
+ *   déconnecterait rien ; un rechargement la rouvre (`authGuard`).
  *
- * ⚠ L'effet ne part jamais PENDANT une navigation (`currentNavigation`,
- * suivie) : au démarrage d'abord — la racine est créée au milieu de la
- * navigation initiale, avant que rien ne soit affiché —, et pendant la
- * déconnexion de la coquille, qui navigue elle-même vers `/connexion` sans
- * page à reprendre. Il réévalue à la fin de la navigation : si la racine
- * existe encore et qu'il n'y a toujours pas de session, il redirige.
- * Démarrage en échec : ni message de session ni redirection, l'erreur prime —
- * et `AuthService` n'est pas même construit (son client Supabase lit une
- * configuration absente), d'où l'injecteur lu à la demande.
+ * Démarrage en échec : l'erreur prime — et `AuthService` n'est pas même
+ * construit (son client Supabase lit une configuration absente), d'où
+ * l'injecteur lu à la demande.
  */
 @Component({
   selector: 'mg-racine-distante',
@@ -44,7 +48,7 @@ import { monterRacineOmbre } from './racine-ombre';
     @if (demarrage.erreur(); as message) {
       <p role="alert" class="m-6 rounded border-fin border-danger bg-surface p-4 text-sm text-danger">{{ message }}</p>
     } @else if (afficherMessage()) {
-      <p role="status" class="m-6 rounded border-fin border-subtle bg-surface p-4 text-sm text-secondary">{{ messageSansSession }}</p>
+      <p role="status" class="m-6 rounded border-fin border-subtle bg-surface p-4 text-sm text-secondary">{{ messageSansSession() }}</p>
     } @else {
       <router-outlet />
     }
@@ -52,27 +56,20 @@ import { monterRacineOmbre } from './racine-ombre';
 })
 export class RacineDistanteComponent {
   protected readonly demarrage = inject(DemarrageService);
-  private readonly strategie = inject(STRATEGIE_SANS_SESSION);
   private readonly injecteur = inject(Injector);
-  private readonly router = inject(Router);
-  protected readonly messageSansSession = MESSAGE_SANS_SESSION;
+  private readonly connexionAutoLocale = inject(STRATEGIE_SANS_SESSION).connexionAuto && inject(MODE_DEVELOPPEMENT);
 
   /** Démarrage réussi et pas de session. Faux tant que le démarrage est en échec. */
-  private readonly sansSession = computed(
+  protected readonly afficherMessage = computed(
     () => !this.demarrage.erreur() && !this.injecteur.get(AuthService).connecte(),
   );
-  protected readonly afficherMessage = computed(() => this.strategie.mode === 'message' && this.sansSession());
+
+  protected readonly messageSansSession = computed(() => {
+    if (!this.connexionAutoLocale) return MESSAGE_SANS_SESSION;
+    return this.injecteur.get(ConnexionAutoService).echec() ? MESSAGE_CONNEXION_AUTO_ECHOUEE : MESSAGE_SESSION_FERMEE_LOCALE;
+  });
 
   constructor() {
     monterRacineOmbre();
-    const strategie = this.strategie;
-    if (strategie.mode !== 'rediriger') return;
-    effect(() => {
-      if (!this.sansSession()) return;
-      if (this.router.currentNavigation()) return;
-      untracked(() => {
-        void this.router.navigate([strategie.chemin], { queryParams: { redirection: this.router.url } });
-      });
-    });
   }
 }

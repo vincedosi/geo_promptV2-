@@ -22,7 +22,7 @@
   `fill="currentColor"` à la couleur `--text-primary` — noir en thème clair,
   blanc en thème sombre, sans filtre ni second fichier. Taille par la hauteur
   (barre latérale 20 px, barre de la carte 18 px, écran de chargement 32 px) ou
-  par la largeur (connexion 240 px). **Ne jamais redessiner ni retoucher un
+  par la largeur (240 px, catalogue Angular ; la page de connexion qui l'employait est supprimée depuis le 2026-11-05). **Ne jamais redessiner ni retoucher un
   tracé** : `tests/unit/design/logo-dentsu.test.ts` vérifie que les deux copies
   et le favicon (`public/dentsu-favicon.svg`, le seul « d ») restent identiques
   au fichier officiel.
@@ -130,7 +130,7 @@ neuf, il dit ce que l'élément EST.
 | --brand-teal-50 | rgba(78,205,196,0.5) | rgba(78,205,196,0.5) | Focus ring des inputs |
 | --brand-teal-fg | #050505 | #050505 | Texte/icône POSÉ SUR un aplat teal — **invariant**, comme le teal lui-même |
 | --point-actif-contour | #ffffff | #ffffff | Contour du point actif des courbes au survol — **invariant** : Recharts le fixe à `#fff` en dur (`ActivePoints`) dans les deux thèmes, et l'identité de rendu avec React prime |
-| --cta-hover | #d4d4d4 | #d4d4d4 | Survol du bouton CTA principal (fond `--text-primary`) — **invariant** : React le porte en littéral dans `app/login/page.tsx`, les deux thèmes compris |
+| --cta-hover | #d4d4d4 | #d4d4d4 | Survol du bouton CTA principal (fond `--text-primary`) — **invariant** : React le portait en littéral dans `app/login/page.tsx`, page supprimée le 2026-11-05 ; jeton gardé (parité `globals.css` / `jetons.css`) |
 
 Le teal ne bascule pas avec le thème : c'est l'accent de marque, pas une
 surface. `--brand-teal-fg` est invariant pour la même raison — le dériver de
@@ -565,10 +565,10 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 - Sections labels : Inter 400, 11px, #666666, lowercase
 - Footer : dot vert #3dffa0 + "Online" JetBrains Mono 11px #666666
 
-### Page login
-- Pas de sidebar
-- Split screen : formulaire à gauche, vitrine à droite
-- Logo dentsu en haut du formulaire (`<LogoDentsu largeur={240} />`)
+### Page login — SUPPRIMÉE (2026-11-05)
+- Plus aucune page de connexion, ni React ni Angular : le shell AIDA ouvre la
+  session. Sans session, un message en place (« Session absente : la connexion
+  est gérée par AIDA. »), jamais un formulaire.
 
 ### Page map
 - Pas de sidebar (plein écran)
@@ -577,7 +577,6 @@ Style obligatoire pour chaque titre de section dans un panel latéral :
 
 ### Responsive
 - < 768px : sidebar en Sheet (slide from left)
-- < 768px sur login : panel droit masqué
 
 ---
 

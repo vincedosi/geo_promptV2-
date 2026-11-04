@@ -27,6 +27,7 @@ describe('ConnexionAutoService', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ access_token: 'a', refresh_token: 'r' });
     expect(await p).toBe(true);
+    expect(service.echec()).toBe(false);
     expect(ouvrir).toHaveBeenCalledWith('a', 'r');
   });
 
@@ -39,9 +40,12 @@ describe('ConnexionAutoService', () => {
 
   it("404 (route absente ou variables non posées) : false, et l'échec est mémorisé — aucune nouvelle requête", async () => {
     const { service, http, ouvrir } = creer();
+    expect(service.echec()).toBe(false);
     const p = service.tenter();
     http.expectOne(CHEMIN_CONNEXION_AUTO).flush({ error: 'Introuvable.' }, { status: 404, statusText: 'Not Found' });
     expect(await p).toBe(false);
+    // Lu par RacineDistanteComponent : « vérifiez DEV_CONNEXION_AUTO_* » à la place des pages.
+    expect(service.echec()).toBe(true);
     expect(ouvrir).not.toHaveBeenCalled();
     expect(await service.tenter()).toBe(false);
     http.expectNone(CHEMIN_CONNEXION_AUTO);

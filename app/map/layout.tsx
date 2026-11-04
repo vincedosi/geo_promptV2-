@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 import { CustomGeoCaptureProvider } from "@/lib/custom-geo/CustomGeoCaptureContext";
 // CustomGeoCaptureButton flottant supprimé — l'action est maintenant dans SettingsOverlay
@@ -9,31 +8,25 @@ import { CustomGeoCaptureProvider } from "@/lib/custom-geo/CustomGeoCaptureConte
 
 export default function MapLayout({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useSession();
-  const router   = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoading) return;
-    if (session) return;
-
+    if (isLoading || session) return;
     if (process.env.NODE_ENV === "development") {
       console.warn("[MapLayout] Pas de session — accès autorisé en développement.");
-      return;
     }
+  }, [isLoading, session]);
 
-    router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-  }, [isLoading, session, router, pathname]);
-
-  // En prod : écran de chargement pendant la vérification, puis redirect
+  // Hors développement, sans session : plus de page de connexion vers laquelle
+  // rediriger (supprimée le 2026-11-05) — la session est ouverte par AIDA.
   if (!session && process.env.NODE_ENV !== "development") {
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         height: "100vh", background: "var(--bg-primary)",
-        fontFamily: "JetBrains Mono, monospace", color: "var(--brand-teal)", fontSize: 13,
-        letterSpacing: "0.05em",
+        fontFamily: "JetBrains Mono, monospace", color: "var(--text-secondary)", fontSize: 13,
+        padding: 16, textAlign: "center",
       }}>
-        {isLoading ? "vérification session..." : "redirection..."}
+        {isLoading ? "Vérification de la session…" : "Session absente : la connexion est gérée par AIDA."}
       </div>
     );
   }

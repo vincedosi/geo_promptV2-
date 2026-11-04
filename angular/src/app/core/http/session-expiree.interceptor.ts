@@ -12,14 +12,13 @@ import { HttpBaseService } from './http-base.service';
  * (`authGuard`) ne s'exécute qu'À LA NAVIGATION, jamais sur une page déjà
  * ouverte. Un 401 sur l'API termine donc la session LOCALEMENT.
  *
- * Cet intercepteur ne NAVIGUE PAS, dans aucun des deux modes : la session à
- * null suffit. `RacineDistanteComponent` en tire la conséquence selon
- * `STRATEGIE_SANS_SESSION` — renvoi vers `/connexion` avec la page à reprendre
- * en lancement autonome, message « Session requise… » dans un hôte AIDA (qui
- * n'a pas de page de connexion). Un seul endroit décide, pour les trois
- * causes de fin de session (401, `SIGNED_OUT` de GoTrue, déconnexion).
- * Pas de boucle de 401 : dans l'hôte, la racine retire ses pages, qui
- * n'émettent donc plus d'appel ; en autonome, on quitte la route.
+ * Cet intercepteur ne NAVIGUE PAS : la session à null suffit.
+ * `RacineDistanteComponent` en tire la conséquence — un message à la place
+ * des pages, dans l'hôte comme en autonome (il n'y a plus de page de
+ * connexion, 2026-11-05). Un seul endroit décide, pour les trois causes de
+ * fin de session (401, `SIGNED_OUT` de GoTrue, déconnexion).
+ * Pas de boucle de 401 : la racine retire ses pages, qui n'émettent donc plus
+ * d'appel.
  *
  * SEULEMENT sur l'API (même périmètre que jetonInterceptor, après lequel cet
  * intercepteur est enregistré) : un 401 hors API n'a rien à voir avec la

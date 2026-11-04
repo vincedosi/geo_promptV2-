@@ -317,9 +317,8 @@ function MobileSidebarTrigger({ pathname }: { pathname: string }) {
 
 export default function AppSidebar() {
   const pathname = usePathname()
-  // /map est plein ecran ; /reset-password s'adresse a quelqu'un qui n'est pas
-  // encore entre dans l'application et n'a rien a faire d'une navigation.
-  if (pathname?.startsWith('/map') || pathname?.startsWith('/reset-password')) {
+  // /map est plein ecran.
+  if (pathname?.startsWith('/map')) {
     return null
   }
 

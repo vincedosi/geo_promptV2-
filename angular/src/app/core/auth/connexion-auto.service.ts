@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, Injector, inject } from '@angular/core';
+import { Injectable, Injector, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../config/config.service';
 import { AuthService } from './auth.service';
@@ -14,7 +14,9 @@ interface JetonsSession {
 
 /**
  * Connexion automatique du lancement AUTONOME en développement local
- * (décision du 2026-11-02 : plus d'écran de connexion en local).
+ * (décision du 2026-11-02 : plus d'écran de connexion en local ; depuis le
+ * 2026-11-05, plus de page de connexion du tout — c'est le SEUL moyen d'ouvrir
+ * l'app en local hors AIDA).
  *
  * N'est appelé que par `authGuard`, et seulement quand la stratégie de la
  * route porte `connexionAuto` (`STRATEGIE_AUTONOME`) ET que
@@ -27,7 +29,9 @@ interface JetonsSession {
  *
  * - 404 (route absente hors `next dev`, variables non posées), autre erreur,
  *   jetons illisibles : `false`, et l'ÉCHEC est mémorisé pour la durée de la
- *   page — on ne redemande pas à chaque navigation, `/connexion` prend le relais.
+ *   page (`echec()`) — on ne redemande pas à chaque navigation, et
+ *   `RacineDistanteComponent` affiche en place de quoi le corriger
+ *   (`MESSAGE_CONNEXION_AUTO_ECHOUEE`).
  * - Succès : rien n'est mémorisé ; après une déconnexion, une nouvelle page
  *   protégée rouvre la session.
  * - Appels simultanés : une seule requête en vol.
@@ -40,13 +44,16 @@ interface JetonsSession {
 export class ConnexionAutoService {
   private readonly http = inject(HttpClient);
   private readonly injecteur = inject(Injector);
-  private echoue = false;
+  private readonly _echec = signal(false);
   private enVol: Promise<boolean> | null = null;
 
+  /** Vrai dès qu'une tentative a échoué ; reste vrai jusqu'au rechargement de la page. */
+  readonly echec = this._echec.asReadonly();
+
   tenter(): Promise<boolean> {
-    if (this.echoue) return Promise.resolve(false);
+    if (this._echec()) return Promise.resolve(false);
     this.enVol ??= this.executer().then((ok) => {
-      if (!ok) this.echoue = true;
+      if (!ok) this._echec.set(true);
       this.enVol = null;
       return ok;
     });

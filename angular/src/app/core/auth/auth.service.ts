@@ -1,6 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
-import { messageErreurConnexion } from './messages';
 import { SUPABASE } from './supabase';
 
 /** Portée d'une déconnexion : `globale` révoque côté GoTrue, `locale` n'efface que la session du navigateur. */
@@ -23,10 +22,11 @@ export interface ProfilSession {
  *
  * Il est `providedIn: 'root'`, donc il ne voit pas `STRATEGIE_SANS_SESSION`
  * fournie par la route `app` du lancement autonome : il ne peut pas savoir
- * s'il tourne dans un hôte AIDA (qui n'a pas de page `/connexion`) ou seul.
- * Toute décision « que faire sans session » vit dans le code à portée de
- * route : `authGuard`, la coquille, et `RacineDistanteComponent`, qui réagit à
- * `connecte()` (fin de session par GoTrue, par un 401, ou par l'utilisateur).
+ * s'il tourne dans un hôte AIDA ou seul. Toute décision « que faire sans
+ * session » vit dans le code à portée de route : `authGuard` et
+ * `RacineDistanteComponent`, qui réagit à `connecte()` (fin de session par
+ * GoTrue, par un 401, ou par l'utilisateur) en affichant un message — il n'y
+ * a plus de page de connexion (2026-11-05).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -51,12 +51,6 @@ export class AuthService {
     const { data } = await this.supabase.auth.getSession();
     this._session.set(data.session);
     this.supabase.auth.onAuthStateChange((_evt, s) => this._session.set(s));
-  }
-
-  /** @returns un message d'erreur en français, ou `null` si la connexion a réussi. */
-  async connecter(email: string, motDePasse: string): Promise<string | null> {
-    const { error } = await this.supabase.auth.signInWithPassword({ email, password: motDePasse });
-    return error ? messageErreurConnexion(error.message) : null;
   }
 
   /**

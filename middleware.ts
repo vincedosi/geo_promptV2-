@@ -6,7 +6,11 @@
  * - Rafraîchit le token automatiquement si expiré
  * - Sans token valide :
  *     API  → 401 JSON
- *     Page → redirect /login?redirect=<pathname>
+ *     Page → 401 texte (MESSAGE_PAGE_SANS_SESSION)
+ *
+ * Il n'y a PLUS de page de connexion (décision du propriétaire, 2026-11-05) :
+ * le shell AIDA ouvre la session. Une page sans session ne redirige donc
+ * vers rien — elle dit pourquoi elle ne s'affiche pas.
  */
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
@@ -53,6 +57,11 @@ const PROTECTED_PAGE_PREFIXES = [
   '/admin',
   '/demo',
 ];
+
+/** Réponse d'une PAGE protégée sans session : il n'y a plus d'écran de connexion vers lequel rediriger. */
+const MESSAGE_PAGE_SANS_SESSION =
+  'Session absente : la connexion est gérée par AIDA. '
+  + "En développement local, lancez l'app avec la connexion automatique.";
 
 function isProtectedApi(pathname: string): boolean {
   return PROTECTED_API_PREFIXES.some(p => pathname.startsWith(p));
@@ -116,10 +125,10 @@ export async function middleware(request: NextRequest) {
   if (isProtectedPage(pathname)) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = '/login';
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
+      return new NextResponse(MESSAGE_PAGE_SANS_SESSION, {
+        status: 401,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
     }
     return response;
   }

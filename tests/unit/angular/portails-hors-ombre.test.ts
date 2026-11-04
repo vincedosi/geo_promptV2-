@@ -2,8 +2,8 @@
  * Rien de MAGELIAN ne s'affiche HORS de sa racine d'ombre.
  *
  * Pourquoi : depuis l'isolation CSS (tâche 8 du lot AIDA), toute l'interface
- * vit dans des racines d'ombre (`RacineDistanteComponent`, la page de
- * connexion autonome) qui ADOPTENT `magelian.css` ; la feuille n'est jamais
+ * vit dans des racines d'ombre (`RacineDistanteComponent` ; la page de
+ * connexion autonome, supprimée le 2026-11-05, en avait une aussi) qui ADOPTENT `magelian.css` ; la feuille n'est jamais
  * posée dans le document. Tout élément rendu hors d'une racine — un portail
  * vers `document.body`, un overlay du CDK, une infobulle `appendTo: 'body'` —
  * s'affiche donc SANS AUCUN STYLE : ni jetons, ni Tailwind, ni polices

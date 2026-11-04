@@ -8,7 +8,6 @@ const session = { access_token: 'jeton-a', user: { email: 'a@exemple.test' } } a
 
 interface OptionsFauxClient {
   session?: Session | null;
-  erreur?: string;
   /** La PREMIÈRE réponse à signOut() échoue, pour tester le repli local (item 3). */
   erreurSignOut?: boolean;
 }
@@ -26,7 +25,6 @@ function fauxClient(opts: OptionsFauxClient = {}) {
         rappel = cb;
         return { data: { subscription: { unsubscribe: () => undefined } } };
       },
-      signInWithPassword: async () => ({ data: {}, error: opts.erreur ? { message: opts.erreur } : null }),
       signOut: async (arg?: unknown) => {
         appelsSignOut.push(arg);
         if (opts.erreurSignOut && appelsSignOut.length === 1) return { error: { message: 'echec réseau' } };
@@ -198,16 +196,6 @@ describe('AuthService', () => {
     await auth.initialiser();
     client.emettre(session);
     expect(auth.connecte()).toBe(true);
-  });
-
-  it('rend un message français quand la connexion échoue', async () => {
-    const auth = creer(fauxClient({ erreur: 'Invalid login credentials' }));
-    expect(await auth.connecter('a@exemple.test', 'faux')).toBe('Adresse ou mot de passe incorrect.');
-  });
-
-  it('rend null quand la connexion réussit', async () => {
-    const auth = creer(fauxClient());
-    expect(await auth.connecter('a@exemple.test', 'bon')).toBeNull();
   });
 
   describe('ouvrirSession (connexion automatique de développement)', () => {

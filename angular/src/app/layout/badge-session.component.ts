@@ -14,9 +14,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
-import { STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
 import { messageErreurApi } from '../core/http/erreurs';
 import { OrganisationsApi, type Organisation } from '../features/session/data/organisations.api';
 import { ecouterFermeture } from './fermeture';
@@ -167,8 +165,6 @@ type Menu = 'org' | 'utilisateur';
 export class BadgeSessionComponent {
   private readonly auth = inject(AuthService);
   private readonly api = inject(OrganisationsApi);
-  private readonly router = inject(Router);
-  private readonly strategie = inject(STRATEGIE_SANS_SESSION);
   private readonly doc = inject(DOCUMENT);
   private readonly detruit = inject(DestroyRef);
   private readonly injecteur = inject(Injector);
@@ -305,26 +301,15 @@ export class BadgeSessionComponent {
   }
 
   /**
-   * Autonome : vers la page de connexion, SANS page à reprendre — l'utilisateur
-   * a choisi de partir. Cette navigation démarre avant que l'effet de
-   * `RacineDistanteComponent` ne voie la session à null : il la trouve en
-   * cours et s'abstient, sans quoi il ajouterait `?redirection=…`.
-   * ⚠ HYPOTHÈSE nommée : cet ordre tient au planificateur ZONELESS. La mise à
-   * null de la session ne fait que PROGRAMMER une détection de changement
-   * (tâche macro), alors que `navigateByUrl` part dans la micro-tâche qui suit
-   * l'`await` — donc avant que l'effet ne s'exécute. Sous zone.js, ou si un
-   * appel synchrone à `ApplicationRef.tick()` s'intercalait, l'effet pourrait
-   * passer le premier et rediriger AVEC `?redirection=…` — la navigation de la
-   * coquille, lancée après, annulerait sans doute la sienne, mais ce cas n'est
-   * ni testé ni mesuré. Verrouillé dans le mode actuel par `app.config.spec.ts`
-   * (« Deconnexion » mène à /connexion, sans paramètre de reprise).
-   * Dans un hôte : pas de navigation, la racine affiche « Session requise… ».
-   * (React : `signOut()` puis `window.location.href = "/login"` — une URL de
-   * page, interdite dans une remote.)
+   * Ferme la session, sans naviguer : il n'y a plus de page de connexion
+   * (2026-11-05, AIDA gère la session). La racine affiche alors son message
+   * à la place des pages — « Session requise… » dans un hôte, « Session
+   * fermée — rechargez… » en autonome de développement.
+   * (React : `signOut()` puis rechargement de `/map`, qui répond 401 — une
+   * URL de page, interdite dans une remote.)
    */
   protected async deconnecter(): Promise<void> {
     this.ouvert.set(null);
     await this.auth.deconnecter();
-    if (this.strategie.mode === 'rediriger') await this.router.navigateByUrl(this.strategie.chemin);
   }
 }

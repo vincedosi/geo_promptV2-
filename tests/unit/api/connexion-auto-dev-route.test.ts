@@ -5,7 +5,7 @@
  *
  * La route n'existe QUE sous `next dev` et seulement si les deux variables
  * serveur sont posées (`.env.development.local`, non suivi). Partout ailleurs
- * elle répond 404 SANS appeler GoTrue : l'Angular retombe alors sur `/connexion`.
+ * elle répond 404 SANS appeler GoTrue : l'Angular affiche alors un message en place (plus de page de connexion).
  * Les identifiants ne sortent jamais du serveur ; seuls les jetons de session
  * repartent vers le navigateur.
  */

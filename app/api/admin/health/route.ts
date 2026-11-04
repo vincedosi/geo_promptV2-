@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     name: 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     status: publicAnonKey && publicAnonKey.startsWith('eyJ') ? 'OK' : 'WARN',
     value: publicAnonKey ? `eyJ...${publicAnonKey.slice(-8)}` : '(vide)',
-    message: publicAnonKey ? 'Cle publique presente (login page)' : 'MANQUANT — la page /login ne fonctionnera pas',
+    message: publicAnonKey ? 'Cle publique presente (session navigateur)' : 'MANQUANT — la session navigateur ne fonctionnera pas',
   });
 
   // SUPABASE_SERVICE_ROLE_KEY

@@ -4,8 +4,10 @@
  * MAGELIAN — helpers d'authentification cote CLIENT.
  *
  * Expose un client Supabase navigateur en singleton (les cookies HttpOnly
- * sont geres par @supabase/ssr) et quatre hooks React : useSession,
- * useSignIn, useSignUp, useSignOut.
+ * sont geres par @supabase/ssr) et deux hooks React : useSession et
+ * useSignOut. Aucun hook de connexion : la page de connexion a ete supprimee
+ * le 2026-11-05, la session est ouverte par le shell AIDA (ou, en
+ * developpement local, par `POST /api/dev/connexion-auto`).
  *
  * A ne jamais importer cote serveur : utiliser `@/lib/auth` pour cela.
  */
@@ -15,20 +17,6 @@ import { useState, useEffect, useCallback } from "react";
 // ---------- Supabase browser client (singleton) ----------
 // createBrowserClient gère les cookies automatiquement (HttpOnly via SSR)
 let _browser: ReturnType<typeof createBrowserClient> | null = null;
-
-/**
- * Client Supabase navigateur (singleton).
- *
- * Expose le meme client que celui des hooks ci-dessous, pour les rares cas qui
- * ont besoin de l'API Supabase directement plutot que d'un hook : la page
- * `/reset-password` lit la session portee par un lien de recovery et appelle
- * `auth.updateUser({ password })`.
- *
- * A ne jamais importer cote serveur — utiliser `@/lib/auth`.
- */
-export function getSupabaseBrowser() {
-  return getBrowserClient();
-}
 
 function getBrowserClient() {
   if (!_browser) {
@@ -170,69 +158,15 @@ export function useSession() {
   return { session, isLoading };
 }
 
-// ---------- useSignIn ----------
-export function useSignIn() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const signIn = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const sb = getBrowserClient();
-      const { error: sbError } = await sb.auth.signInWithPassword({ email, password });
-      if (sbError) throw new Error(sbError.message);
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect') ?? '';
-      // Prevent open redirect: only allow same-origin relative paths
-      const safeRedirect = /^\/[^/\\]/.test(redirect) ? redirect : '/map';
-      window.location.href = safeRedirect;
-    } catch (err: unknown) {
-      const e = err instanceof Error ? err : new Error(String(err));
-      setError(e);
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  return { signIn, isLoading, error };
-}
-
-// ---------- useSignUp ----------
-export function useSignUp() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const signUp = useCallback(async (email: string, password: string, name?: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const sb = getBrowserClient();
-      const { error: sbError } = await sb.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name || email.split("@")[0] } },
-      });
-      if (sbError) throw new Error(sbError.message);
-    } catch (err: unknown) {
-      const e = err instanceof Error ? err : new Error(String(err));
-      setError(e);
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  return { signUp, isLoading, error };
-}
-
 // ---------- useSignOut ----------
+// Plus de page de connexion vers laquelle partir (2026-11-05) : on recharge la
+// carte, et le middleware repond « Session absente » (401) — la reconnexion
+// passe par AIDA.
 export function useSignOut() {
   const signOut = useCallback(async () => {
     const sb = getBrowserClient();
     await sb.auth.signOut();
-    window.location.href = "/login";
+    window.location.href = "/map";
   }, []);
 
   return { signOut };

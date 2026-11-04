@@ -38,7 +38,7 @@ describe('LogoComponent', () => {
     expect(host.querySelector('svg')!.getAttribute('class')).toContain('h-full');
   });
 
-  it('taille par la largeur : 240 px de large, hauteur suivant le rapport (connexion, login/page.tsx:102)', async () => {
+  it('taille par la largeur : 240 px de large, hauteur suivant le rapport (catalogue ; jadis la page de connexion, supprimée le 2026-11-05)', async () => {
     const f = TestBed.createComponent(LogoComponent);
     f.componentRef.setInput('largeur', 240);
     await f.whenStable();

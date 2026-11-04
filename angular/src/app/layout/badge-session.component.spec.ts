@@ -42,7 +42,7 @@ async function rendre(o: Options = {}) {
   };
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([{ path: 'connexion', children: [] }]),
+      provideRouter([]),
       { provide: AuthService, useValue: auth },
       { provide: OrganisationsApi, useValue: api },
       ...(o.strategieAutonome ? [{ provide: STRATEGIE_SANS_SESSION, useValue: STRATEGIE_AUTONOME }] : []),
@@ -206,14 +206,16 @@ describe('BadgeSessionComponent — SessionBadge.tsx porté', () => {
     expect(el.querySelector('[data-menu="utilisateur"]')).not.toBeNull();
   });
 
-  it('« Deconnexion » en autonome : fin de session puis la page de connexion, sans page à reprendre', async () => {
+  it('« Deconnexion » en autonome : fin de session, AUCUNE navigation (plus de page de connexion, 2026-11-05)', async () => {
     const { el, auth, stable } = await rendre({ strategieAutonome: true });
+    const router = TestBed.inject(Router);
+    const avant = router.url;
     declencheurUtilisateur(el).click();
     await stable();
     (el.querySelector('[data-menu="utilisateur"] button') as HTMLButtonElement).click();
     await stable();
     expect(auth.deconnecter).toHaveBeenCalledTimes(1);
-    expect(TestBed.inject(Router).url).toBe('/connexion');
+    expect(router.url).toBe(avant);
   });
 
   it('« Deconnexion » dans un hôte : fin de session, AUCUNE navigation', async () => {

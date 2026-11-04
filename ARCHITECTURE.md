@@ -285,9 +285,12 @@ genesis_app/
 │   # (alimente par useMapDirectActions ; useVoronoiDirect jusqu'au 2026-10-30) s'affiche dans
 │   # components/map/BandeauErreur.tsx, au-dessus de la carte, ferme par sa croix
 │   # ou efface par la prochaine action (round de correction 1 du lot 5).
-│   ├── dashboard/              # Page d'accueil apres login
+│   ├── dashboard/              # Page d'accueil (session ouverte par AIDA)
 │   │   └── iris-crawler/       # Interface crawler INSEE IRIS
-│   ├── login/                  # Page de connexion Supabase Auth
+│   # login/, sign-up/, reset-password/ SUPPRIMES le 2026-11-05 (decision du
+│   # proprietaire : « c'est AIDA qui va gerer ça »). Plus AUCUNE page de
+│   # connexion, ni React ni Angular : une page protegee sans session repond
+│   # 401 texte (middleware.ts, voir « Pas de page de connexion » plus bas).
 │   ├── map/                    # Page carte complete
 │   │   ├── _components/        # panneaux/ (Filtre/Calques/Analyse/Zones du rail,
 │   │                           # dont JeuxDeZonesRail.tsx : les jeux de zones a
@@ -1694,7 +1697,7 @@ fonctions SQL (sql/299).
 | `/api/admin/organizations` | GET/POST | CRUD organisations ; `member_count` = lignes d'`organization_members` (appartenances, pas espace actif) |
 | `/api/admin/organizations/[id]` | GET/PATCH/DELETE | Lecture, modification (`config` remplacée en bloc : l'appelant fusionne), suppression ; DELETE refuse en 409 l'espace interne (reconnu par son id `ID_ORGANISATION_INTERNE`, il porte le socle) ; DELETE d'un espace qui possède un indicateur (sql/288 : la cascade sur sa source bute sur la FK `restrict` du registre, code 23503) : **409** `refus: 'indicateur_possede'` « Cet espace possède un indicateur : rendez-le au socle ou transférez-le avant de supprimer l'espace. », rien n'est supprimé (lot « Catalogue et groupes », T6, 2026-10-28 ; avant, 500 avec le message PostgreSQL) ; PATCH refuse en 409 un changement de son slug. PATCH accepte **`groupe_espace`** (sql/289, 2026-10-28) : chaîne rognée de 1 à 60 caractères (400 sinon), ou `null` pour retirer l'espace de son groupe ; super_admin seul (retirée du corps pour un admin, comme `slug`/`config`/`active`) |
 | `/api/admin/organizations/[id]/members` | POST/PATCH/DELETE | Gestion membres via `lib/espaces/appartenance.ts` (sql/236) : POST écrit `organization_members` (idempotent), pose l'espace actif s'il était vide, rôle OPTIONNEL et jamais écrit sur une cible déjà super_admin (E3 : l'écran React, supprimé le 2026-10-10, en envoyait un ; un super_admin n'est pas rétrogradé ; son rôle se change par PATCH `/api/admin/users/[id]`) ; PATCH change le rôle d'un membre (appartenance vérifiée, pas l'espace actif) ; DELETE supprime l'appartenance, la base reporte l'espace actif, le rôle n'est plus touché |
-| `/api/admin/organizations/[id]/members/reset-password` | POST | Lien de réinitialisation d'un membre (corps `{ email }`) ; lien construit par `genererLienMotDePasse` (`lib/espaces/lien-mot-de-passe.ts`, vers `<origine>/reset-password`) |
+| `/api/admin/organizations/[id]/members/reset-password` | POST | Lien de réinitialisation d'un membre (corps `{ email }`) ; lien construit par `genererLienMotDePasse` (`lib/espaces/lien-mot-de-passe.ts`, vers `<origine>/reset-password`). ⚠ **Lien MORT depuis le 2026-11-05** : la page `/reset-password` est supprimée (AIDA gère la session) ; route et création de compte par lien gardées en attendant l'arbitrage du propriétaire |
 | `/api/admin/espaces` | GET | Espaces de travail + compteurs (`nb_membres` depuis `organization_members`, `nb_jeux_prives`) + `socle.nb_jeux` + `nb_comptes` (décompte `head: true` des profils, APRÈS les trois lectures : jamais plus de 3 requêtes simultanées ; compteur de « Tous les comptes ») ; `lib/espaces/lister-espaces.ts` ; super_admin seul, bornée (trois lectures de dizaines de lignes, sous `db-max-rows` = 1 000). Chaque espace porte **`groupe_espace`** (sql/289, lot « Catalogue et groupes ») : la colonne d'Accès se range en dossiers par groupe ; le groupe ne porte aucun droit |
 | `/api/admin/espaces/socle` | GET | Tous les jeux de données + `nb_espaces_clients` (fiche Socle) ; segment fixe à côté de `[id]` |
 | `/api/admin/espaces/comptes` | GET | `{ comptes }` : TOUS les profils avec TOUS leurs espaces (`nom_affiche`, E2), espace actif, `cree_le`, tri par email — vue « Tous les comptes » de la page Accès (2026-10-10) ; `lib/espaces/lister-comptes.ts` ; super_admin seul ; profils et appartenances lus PAGE PAR PAGE (`lireTout`, `db-max-rows` = 1 000), au-delà de 10 000 comptes / 50 000 appartenances → 500 plutôt qu'une liste tronquée ; segment fixe à côté de `[id]` |
@@ -3089,7 +3092,8 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
   `["https://127.0.0.1:3000"]` (https, sans chemin, sans `localhost`) : GoTrue
   remplacait EN SILENCE le `redirectTo` des liens de mot de passe par
   `site_url`, et le lien d'un compte cree menait a la racine au lieu de
-  `/reset-password`. `tests/integration/creation-compte.test.ts` lit le
+  `/reset-password` (page SUPPRIMEE le 2026-11-05 : ce lien est desormais
+  mort, en attente d'arbitrage). `tests/integration/creation-compte.test.ts` lit le
   `redirect_to` du lien genere. Une modification de `config.toml` ne prend
   effet qu'apres `npx supabase stop` puis `scripts/local/01-supabase-up.sh` —
   jamais `--no-backup`, qui efface les volumes.
@@ -3359,9 +3363,9 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
   la session LOCALEMENT (`AuthService.deconnecter('locale')`), sans naviguer ;
   un `SIGNED_OUT` de GoTrue la met à null. **`AuthService` ne navigue plus**
   (lot AIDA, 2026-09-30) : c'est `RacineDistanteComponent` qui en tire la
-  conséquence selon `STRATEGIE_SANS_SESSION` (voir « Sans session » plus
-  bas) — renvoi vers `/connexion` avec la page à reprendre en autonome,
-  message dans un hôte. L'erreur continue de remonter vers la page pour que
+  conséquence (voir « Sans session » plus bas) — un message à la place des
+  pages, dans l'hôte comme en autonome : il n'y a plus de page de connexion
+  (2026-11-05). L'erreur continue de remonter vers la page pour que
   son état de chargement se résolve.
 - **La clé anon n'est dans aucun fichier suivi** : `npm start` (et
   `npm run config`) écrit `angular/public/config.local.json` depuis
@@ -3449,61 +3453,85 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
     et en `canActivate` `demarrageGuard`. Tous les liens internes sont
     RELATIFS (le préfixe de montage est inconnu). Le lancement autonome
     (`appRoutes`) monte les mêmes routes sous `app` — pages `/app`,
-    `/app/catalogue`, `/app/carte` — plus
-    `connexion`, qui n'existe que dans ce mode. (`/app/essai-carte`, la page
+    `/app/catalogue`, `/app/carte`. La route `connexion` qu'il portait en
+    plus est SUPPRIMÉE depuis le 2026-11-05 (AIDA gère la session). (`/app/essai-carte`, la page
     de preuve du lot 2, est SUPPRIMÉE depuis le lot 4, T22.)
   - **Sans session : `STRATEGIE_SANS_SESSION`** (`core/auth/strategie-sans-session.ts`,
-    2026-09-30, remplace `CHEMIN_CONNEXION`). `{ mode: 'message' }` ou
-    `{ mode: 'rediriger', chemin }`. ⚠ **Le défaut RACINE est `message`**,
-    parce qu'un hôte ne fournit rien ; la route `app` d'`appRoutes` fournit
-    `rediriger` vers `/connexion`. Le jeton est donc lu dans l'injecteur de
-    ROUTE — `authGuard`, la coquille (« Se déconnecter »),
-    `RacineDistanteComponent` — et par rien de `providedIn: 'root'`, qui ne
-    verrait que le défaut : c'est pourquoi `AuthService` ne navigue plus.
-    La page `/connexion` et `sans-session.guard.ts`, hors de la route `app`,
-    ne le lisent pas : ils n'existent qu'en autonome.
-    - **Dans un hôte** : `authGuard` laisse passer, et `RacineDistanteComponent`
-      affiche « Session requise — connectez-vous à AIDA pour accéder à
-      MAGELIAN. » (`role="status"`) À LA PLACE de son `<router-outlet />`.
-      Aucune page n'est créée, donc aucun appel d'API ne part, et l'URL de
-      l'hôte ne bouge pas. Quand la session apparaît, l'outlet revient et monte
-      la route DÉJÀ activée : la page demandée s'affiche sans renavigation. Un
-      401 fait apparaître le même message, sans boucle (les pages sont
-      retirées) ; « Se déconnecter » aussi, sans aucune navigation.
-      Verrouillé par `remote.spec.ts`.
-    - **En autonome** : comportement inchangé — sans session, une page
-      protégée renvoie vers `/connexion?redirection=…` ; « Se déconnecter »
-      vers `/connexion` ; un 401 ou un `SIGNED_OUT` de GoTrue vers
-      `/connexion?redirection=<page courante>`. Ces deux derniers passent par
-      UN `effect` de `RacineDistanteComponent`, qui ne part jamais PENDANT une
-      navigation (`router.currentNavigation()`, suivie) : ni au démarrage, ni
-      pendant la déconnexion de la coquille, qui navigue elle-même sans page à
-      reprendre ; il réévalue à la fin de la navigation. Démarrage en échec :
-      ni message ni redirection, l'erreur prime. Verrouillé par
-      `app.config.spec.ts` (routes réelles) et `racine-distante.component.spec.ts`.
+    2026-09-30 ; refondue le 2026-11-05). **Il n'y a PLUS de page de
+    connexion** (décision du propriétaire, 2026-11-05 : « supprimer toute page
+    de connexion, c'est AIDA qui va gérer ça ») : la page Angular `/connexion`
+    (`features/connexion/`, `sans-session.guard.ts`, `messages.ts`,
+    `AuthService.connecter`) et les pages React `/login`, `/sign-up`,
+    `/reset-password` sont supprimées. Sans session, **rien ne navigue
+    jamais** : `authGuard` laisse passer, et `RacineDistanteComponent`
+    affiche un message (`role="status"`) À LA PLACE de son
+    `<router-outlet />`. Aucune page n'est créée, donc aucun appel d'API ne
+    part, et l'URL ne bouge pas. Quand la session apparaît, l'outlet revient
+    et monte la route DÉJÀ activée : la page demandée s'affiche sans
+    renavigation. Un 401 (`sessionExpireeInterceptor`), un `SIGNED_OUT` de
+    GoTrue et « Deconnexion » (badge de session, qui ne navigue plus) font
+    apparaître le message, sans boucle (les pages sont retirées).
+    La stratégie ne porte plus qu'un booléen, `{ connexionAuto }` : défaut
+    RACINE `false` (un hôte ne fournit rien), `STRATEGIE_AUTONOME`
+    (`connexionAuto: true`) fourni par la route `app` d'`appRoutes`. Elle est
+    lue dans l'injecteur de ROUTE (`authGuard`, `RacineDistanteComponent`),
+    jamais par du `providedIn: 'root'`. Le texte du message :
+    - **hôte AIDA**, ou autonome hors développement : `MESSAGE_SANS_SESSION`,
+      « Session requise — connectez-vous à AIDA pour accéder à
+      dentsu.explore. » Verrouillé par `remote.spec.ts`.
+    - **autonome en développement, connexion automatique en échec** :
+      `MESSAGE_CONNEXION_AUTO_ECHOUEE` (vérifier `DEV_CONNEXION_AUTO_EMAIL` et
+      `DEV_CONNEXION_AUTO_MOT_DE_PASSE` dans `.env.development.local`, l'API
+      sous `npm run dev`, puis recharger).
+    - **autonome en développement, session fermée en cours de page**
+      (« Deconnexion », 401, `SIGNED_OUT`) : `MESSAGE_SESSION_FERMEE_LOCALE`
+      (« rechargez la page »). La session n'est PAS rouverte d'office, sans
+      quoi « Deconnexion » ne déconnecterait rien ; le rechargement repasse
+      par `authGuard`, qui la rouvre.
+    Démarrage en échec : l'erreur prime, `AuthService` n'est pas construit.
+    Verrouillé par `app.config.spec.ts` (routes réelles),
+    `racine-distante.component.spec.ts`, `badge-session.component.spec.ts`.
     - **Connexion automatique en développement (autonome seulement,
-      2026-11-02)** : `STRATEGIE_AUTONOME` porte `connexionAuto: true`. Sans
-      session, et si `MODE_DEVELOPPEMENT` est vrai, `authGuard` appelle
-      d'abord `ConnexionAutoService.tenter()` (`core/auth/connexion-auto.service.ts`) :
-      `POST /api/dev/connexion-auto` par le `HttpClient` RACINE (sans nos
-      intercepteurs), puis `AuthService.ouvrirSession` (`setSession`, qui écrit
-      le cookie `@supabase/ssr`). Réussie, la page demandée s'ouvre sans écran ;
-      en échec (404 hors `next dev` ou sans variables `DEV_CONNEXION_AUTO_*`,
-      jetons refusés), renvoi vers `/connexion?redirection=…` comme avant, et
-      l'échec est mémorisé pour la page (pas de nouvelle requête à chaque
-      navigation). Un succès ne l'est pas : après « Se déconnecter » (qui mène
-      à `/connexion` sans passer par `authGuard`), la prochaine page protégée
-      rouvre la session. Les 401 et `SIGNED_OUT` passent toujours par
-      `RacineDistanteComponent` vers `/connexion`, sans tentative. **Dans un
-      hôte AIDA : rien ne change** — stratégie `message`, aucune tentative.
-      L'espace actif n'est pas touché : le badge lit `active_org_id` de
-      `/api/user/organizations` (= `profiles.organization_id`) et
-      `switch-org` ne part que sur un geste. Verrouillé par `auth.guard.spec.ts`,
-      `connexion-auto.service.spec.ts`, `auth.service.spec.ts` et `app.config.spec.ts`.
+      2026-11-02)** — le SEUL moyen d'ouvrir l'app en local hors AIDA depuis
+      le 2026-11-05. Sans session, si `connexionAuto` et `MODE_DEVELOPPEMENT`,
+      `authGuard` attend `ConnexionAutoService.tenter()`
+      (`core/auth/connexion-auto.service.ts`) : `POST /api/dev/connexion-auto`
+      par le `HttpClient` RACINE (sans nos intercepteurs), puis
+      `AuthService.ouvrirSession` (`setSession`, qui écrit le cookie
+      `@supabase/ssr`). Réussie, la page demandée s'ouvre ; en échec (404 hors
+      `next dev` ou sans variables `DEV_CONNEXION_AUTO_*`, jetons refusés), le
+      garde laisse passer quand même et la racine affiche
+      `MESSAGE_CONNEXION_AUTO_ECHOUEE` ; l'échec est mémorisé pour la page
+      (signal `echec()`, pas de nouvelle requête à chaque navigation). Un
+      succès ne l'est pas. **Dans un hôte AIDA : rien ne change** — aucune
+      tentative. L'espace actif n'est pas touché : le badge lit
+      `active_org_id` de `/api/user/organizations` (= `profiles.organization_id`)
+      et `switch-org` ne part que sur un geste. Verrouillé par
+      `auth.guard.spec.ts`, `connexion-auto.service.spec.ts`,
+      `auth.service.spec.ts` et `app.config.spec.ts`.
+  - **Pas de page de connexion côté React non plus (2026-11-05).**
+    `middleware.ts` (modifié sur demande explicite du propriétaire) : une PAGE
+    protégée (`/map`, `/dashboard`, `/admin`, `/demo`) sans session ne
+    redirige plus vers `/login` — elle répond **401 `text/plain`** « Session
+    absente : la connexion est gérée par AIDA. En développement local, lancez
+    l'app avec la connexion automatique. » Les routes API sont inchangées
+    (`getSession()`, 401 JSON). `app/map/layout.tsx` et `app/dashboard/page.tsx`
+    affichent « Session absente : la connexion est gérée par AIDA. » au lieu
+    d'un renvoi ou d'un bouton « Se connecter » ; `useSignOut`
+    (`lib/auth-client.ts`) recharge `/map` au lieu de `/login` ; `useSignIn`,
+    `useSignUp` et `getSupabaseBrowser` sont retirés (sans appelant).
+    Verrouillé par `tests/unit/auth/middleware-sans-session.test.ts`.
+    ⚠ **Lien mort restant** : `genererLienMotDePasse`
+    (`lib/espaces/lien-mot-de-passe.ts`) construit toujours un lien `recovery`
+    vers `<origine>/reset-password` (création de compte et « Lien de mot de
+    passe » de la page Accès, routes `users/[id]/lien-mot-de-passe` et
+    `organizations/[id]/members/reset-password`) — gardé en attente de
+    l'arbitrage du propriétaire.
   - **Garde des imports partagés** (`tests/unit/angular/imports-partages.test.ts`,
     2026-09-30). Hors `*.spec.ts`, les imports À L'EXÉCUTION vers `@angular/*`
     sont limités à `core`, `common`, `common/http`, `router`,
-    `platform-browser`, plus `forms` dans `features/connexion/` seulement.
+    `platform-browser` — `forms`, jadis permis dans `features/connexion/`,
+    ne l'est plus nulle part depuis la suppression de cette page (2026-11-05).
     Raison : un hôte généré par défaut (`ignoreUnusedDeps: true`) ne partage
     que ce qu'il utilise, et une entrée secondaire qu'il n'utilise pas est
     chargée depuis le remote avec sa propre copie des morceaux privés de
@@ -3540,7 +3568,7 @@ Migration progressive de l'interface, module par module, sans toucher à l'API
 - **Marque `mg-hexagone`, `mg-logo`, `mg-marque` (lot Rendu R2, 2026-09-30, remplacé le 2026-10-08)** : `angular/src/app/ui/{hexagone,logo,marque}/`. `mg-hexagone` porte les DEUX hexagones dessinés à la main dans `AppSidebar.tsx` (ce ne sont pas des icônes lucide) : `variante="marque"` (28 px, `:170-190`, teal de marque par jeton, remplissage 6 % en `fill-opacity`, aucun littéral) et `variante="cta"` (15 px, `:223-226`, `currentColor`). `mg-logo` prend `[hauteur]` (18 px, barre) OU `[largeur]` (240 px, connexion) ; `viewBox` 1600 × 360 inchangé. `mg-marque` est l'en-tête complet de la barre (hexagone + logo + signature « Geospatial intelligence », cadre `px-4 pt-5 pb-4`) que la coquille (R3) pose tel quel. Deux jetons : `--logo-accent` (#2aa9a8, invariant : le fichier `magelian-icon.svg` porte #2AA9A8 sur deux accents et #2AA8A7 sur le troisième, 1/255 d'écart, un seul jeton ; le teal de marque s'en écartait de 36/255) et `--logo-lettre` (#0d1316 en clair, valeur du fichier ; `var(--text-primary)` en sombre), ajoutés à `globals.css` ET `jetons.css` et documentés dans `DESIGN_SYSTEM.md`. `[hauteur]` et `[largeur]` de `mg-logo` sont exclusives (erreur en mode dev). Vérifié au pixel contre React, conteneurs posés sur des pixels entiers : hexagone et signature écart 0, en-tête 86,5 px de haut comme React, logo 240 px en clair écart max 7/255 (aucun pixel au-delà de 8). Résidu de l'en-tête (clair) : 3 pixels (max 85/255) à la pointe de l'étoile du logo 18 px, qui se reproduit avec la MÊME balise `<img>` du MÊME fichier posée dans la page Angular — ni la couleur, ni le SVG en ligne, ni un décalage ne l'expliquent : c'est la rasterisation de l'image d'une page à l'autre. ⚠ **Seul écart volontaire, défaut de React** : en thème sombre React affiche le logotype quasi invisible (lettres noires sur fond sombre) ; Angular garde les lettres à la couleur du texte.
 - **Coquille = `AppSidebar` + `TopRightChrome` + `MainPadding` (lot Rendu R3, 2026-09-30)** : `angular/src/app/layout/`. `mg-barre-laterale` recopie `navItems` (`layout/navigation.ts`) : mêmes quatre sections, ordre, libellés (orthographe React comprise, « Systeme », « Qualite des donnees »), icônes 16 px trait 1,5, badges « Admin »/« Sys ». ⚠ **React ne filtre AUCUNE entrée par rôle** (le contrôle vit dans les routes) : Angular non plus. Une entrée dont l'écran n'est pas porté a `cible: null` et se rend à l'identique mais INERTE (`aria-disabled`, infobulle « Disponible prochainement », sans `href`) ; **depuis la fin du lot 6 (T21, 2026-10-20), les sections « Administration » et « Systeme » se rendent en TROIS entrées branchées — Accès (`admin/acces`), Données (`admin/donnees`), Système (`admin/systeme`) — regroupées au rendu (`navigation.ts`), la copie verbatim des 12 entrées React restant inchangée pour le test de parité ;** le bouton « MAGELIAN » aussi (lot 5). **Liens de développement (Accueil, Catalogue, Module risque — « Essai carte » retiré au lot 4, T22) et pied « Online » : hors production seulement** — les liens sont des ICÔNES de 20 px, sans écart, dans la rangée du pied (quand ils étaient quatre, à 24 px + 2, le dernier poussait l'horloge hors des 208 px du pied : 226 px mesurés) (`LIENS_DEVELOPPEMENT`, titre et `aria-label` = libellé, lien actif visible), et non une section du `nav` : cette section le faisait déborder (barre de défilement de 6 px que React n'a pas, colonne rétrécie de 216 à 210 px, badges décalés de 6 px), décidé par UN jeton, `MODE_DEVELOPPEMENT` (`core/environnement/`, défaut `isDevMode()` — dans un hôte, celui du `@angular/core` partagé, donc le mode du shell). `mg-chrome-haut` (bascule de thème par `ThemeService.basculer()` seul — règle `ECRIRE_HTML` —, puis `mg-badge-session` : sélecteur d'organisation + menu utilisateur, rôle lu par `AuthService.lireRole()` sur `profiles` comme `useSession`) est posé dans une rangée `sticky top-0` de hauteur nulle, en tête du conteneur défilant de la coquille (jamais `fixed`) : comme le `fixed` de React il reste visible au défilement ET s'arrête à gauche de la barre de défilement de la page (positions mesurées identiques à React : bascule 1036,7, dernière flèche 1422). Menus et tiroir rendus DANS la racine d'ombre ; fermeture par Échap et appui extérieur via `layout/fermeture.ts` (`composedPath()` : un écouteur de document voit sinon l'hôte de la racine comme cible). Petit écran : barre masquée, bouton Menu, tiroir `absolute` avec voile, piège de Tab, focus rendu au bouton. **Service d'API `OrganisationsApi`** (`features/session/data/organisations.api.ts`, GET `/api/user/organizations`, POST `/api/user/switch-org`), fourni par `FOURNISSEURS_DISTANTS`. Après un changement d'organisation, React fait `window.location.reload()` — dans un hôte, cela rechargerait le SHELL : la coquille recrée à la place la page courante (génération de l'outlet), sans toucher à l'URL. Contenu `p-8` (les pages ne posent plus de marge). ⚠ **Échelle des rayons alignée sur React** (`angular/src/styles.css`, `@theme`) : `--radius-sm` 2 px, `--radius-md` 4 px, `--radius-lg` 6 px (`tailwind.config.ts` : `--radius` 0,375rem moins 4/2/0), et non 4/6/8 comme Tailwind 4 par défaut. Tous les `rounded-sm/md/lg` d'Angular suivent donc React (accueil, catalogue, connexion, pastille : 2 px plus petits qu'avant). Écarts voulus, défauts de React : pas d'ombre sous les menus ni de flou sur l'icône de thème (flat total) ; à 375 px le chrome de React recouvre et rend INCLIQUABLE le bouton Menu — Angular le garde au-dessus ; un lien suivi ferme le tiroir. Vérifié au pixel (colonne 240 × 900, 1440, dev masquée, horloge masquée) : **clair, 20 pixels à 1/255, aucun au-delà** ; sombre, seul le logotype diffère (écart R2). Dans l'hôte jetable : tableau de fuite **0 différence**, 0 propriété sur `<html>`, menus dans le cadre et dans la racine d'ombre, feuille hostile sans effet sur la coquille.
 - **Écrans plein écran hors coquille (lot Rendu R4, 2026-10-03)** : `carte` (lot 4) et son enfant `risques` (lot 3 ; `essai-carte`, la première, est supprimée depuis le lot 4, T22) sont des routes SŒURS de `mg-coquille` dans `remoteRoutes`, comme `/map` en React (`AppSidebar.tsx:348`, `MainPadding.tsx`, `TopRightChrome.tsx` : ni barre, ni chrome, ni marge). Elles restent sous `RacineDistanteComponent` (fournisseurs, racine d'ombre) et `authGuard` : sans session, message dans un hôte, redirection vers `/connexion` en autonome — aucun appel d'API. Chaque page occupe `h-full` de la racine et porte une croix « Fermer » (lien RELATIF `..`), faute de barre. L'entrée « Explorer » de la coquille mène à la carte (lien relatif résolu contre la route de la coquille, de chemin vide). Pied de barre : la rangée des liens de développement ne grandit plus avec ses boutons (`-my-1` ; 20 px depuis le lot 3), séparateur à y = 859 comme React (1440 × 900). Tests : `remote.spec.ts`, `app.config.spec.ts`.
-- **Connexion en écran partagé (lot Rendu R5, 2026-10-03)** : `angular/src/app/features/connexion/`, portage de `app/login/page.tsx` — formulaire 50/50 à gauche (logo 240 px, champs `--bg-level-2`, bord 0,5, focus en BORDURE `--brand-teal-50`, œil, encart « Mot de passe oublié ? », erreur en encart `danger` 10 %/20 % avec icône, bouton blanc au survol `--cta-hover`, spinner à l'envoi), vitrine à droite (grille d'hexagones, accroche, quatre chiffres : constante nommée `VITRINE` dans `vitrine.ts`, **dette** : React les écrit en dur, ils sont repris tels quels). Nouveau jeton `--cta-hover` (#d4d4d4, invariant) dans `globals.css`, `jetons.css` et `DESIGN_SYSTEM.md`. ⚠ **« Inscription » est rendu à l'identique mais INERTE** (`aria-disabled`, « Disponible prochainement ») : `AuthService` n'a pas d'inscription. ⚠ Écarts voulus, défauts de React : sous 768 px le formulaire prend toute la largeur (React le laisse à 50 % de l'écran, soit ~187 px à 375 px, vitrine masquée) ; messages d'identifiants en français (`messageErreurConnexion`). Champs à `9px 12px` comme React (DESIGN_SYSTEM § 5 dit 8px : la parité l'emporte). Le démarrage en échec s'affiche dans le même encart d'erreur, à la place du formulaire.
+- **Connexion en écran partagé (lot Rendu R5, 2026-10-03) — SUPPRIMÉE le 2026-11-05** (AIDA gère la session ; voir « Sans session »). Historique : `angular/src/app/features/connexion/`, portage de `app/login/page.tsx` — formulaire 50/50 à gauche (logo 240 px, champs `--bg-level-2`, bord 0,5, focus en BORDURE `--brand-teal-50`, œil, encart « Mot de passe oublié ? », erreur en encart `danger` 10 %/20 % avec icône, bouton blanc au survol `--cta-hover`, spinner à l'envoi), vitrine à droite (grille d'hexagones, accroche, quatre chiffres : constante nommée `VITRINE` dans `vitrine.ts`, **dette** : React les écrit en dur, ils sont repris tels quels). Nouveau jeton `--cta-hover` (#d4d4d4, invariant) dans `globals.css`, `jetons.css` et `DESIGN_SYSTEM.md`. ⚠ **« Inscription » est rendu à l'identique mais INERTE** (`aria-disabled`, « Disponible prochainement ») : `AuthService` n'a pas d'inscription. ⚠ Écarts voulus, défauts de React : sous 768 px le formulaire prend toute la largeur (React le laisse à 50 % de l'écran, soit ~187 px à 375 px, vitrine masquée) ; messages d'identifiants en français (`messageErreurConnexion`). Champs à `9px 12px` comme React (DESIGN_SYSTEM § 5 dit 8px : la parité l'emporte). Le démarrage en échec s'affiche dans le même encart d'erreur, à la place du formulaire.
 - **En-têtes et tableau de bord (lots Rendu R6-R7, 2026-10-03)** : `angular/src/app/ui/{entete-section,entete-page,tuile-chiffre}/`. `mg-entete-section` = `.geo-section-header` (`globals.css:527-550`, DESIGN_SYSTEM § 5) : bandeau `--bg-level-2`, trait haut de 1 px, point teal de 6 px, libellé Inter 500 12 px ; `repliable` ajoute le chevron (icônes `chevron-bas`/`chevron-haut`, lucide `chevron-down`/`chevron-up`, 14 px) et en fait un bouton (`ouvert` en `model`). Les coins sont laissés au parent (`class="rounded-t-lg"`), comme React les pose en ligne. `mg-entete-page` = bloc d'en-tête de `app/dashboard/page.tsx:104-114` (h1 18 px, interlettrage −0,02 em, sous-titre 13 px tertiaire ; remplace `tracking-tight` = −0,025 em, V9). `mg-tuile-chiffre` (nom ≠ `mg-carte`, la carte MapLibre) = carte de chiffre du tableau de bord : icône teal 20 px, valeur mono 15/500, libellé 12 tertiaire, `16px 18px`, bord 0,5, rayon 6, survol du bord ; `cliquable` ajoute le curseur main (aucun soulèvement : celui de React est annulé par son animation `slideUp … both`, le rendu n'en a pas). L'accueil (`features/accueil/`) reprend `/dashboard` : en-tête, trois cartes de session depuis le 2026-10-12 (« geo.prompt / Copilote IA » retirée, lot 5 de la suppression de l'IA) (`AuthService.lireProfil()` = rôle et nom du profil, comme `fetchProfileEnrichment`), « Navigation rapide » (cinq cartes INERTES, « Disponible prochainement » : leurs écrans ne sont pas portés ; « Accès », qui remplace « Organisations » le 2026-10-10 comme côté React, ouvre `admin/acces` par lien RELATIF) ; le compte des sites à risque, propre à Angular, est posé SOUS cette disposition — et sa tuile ouvre le module risque (lien RELATIF `risques` qui l'enveloppe, tuile `cliquable` ; lot 3, T18). **Focus clavier global** (`styles.css`) aligné sur `app/globals.css:1223` : `outline: none` et anneau `box-shadow 0 0 0 1px var(--brand-teal-50)`, dans `@layer base` — comme React, où cette règle (0,1,0) perd contre `.focus-visible:ring-*` ; non étagée, elle battrait les utilitaires Tailwind 4 et effacerait l'anneau propre d'un composant. La pastille passe sa transition par `var(--ease-out)` (R12).
 - **Logique pure du module risque (lot 3, T1, 2026-10-03)** : `angular/src/app/features/risques/logique/` COPIE onze fichiers de `lib/risques/` (profil, code-profil, dimensions, gravites, etape, etat-url, affectation, libelle-classe, exploration, kpi, palette-natures), mêmes exports et mêmes signatures, sans dépendance Angular — `angular/` n'importe rien hors d'`angular/` (décision P6). Seul écart de forme : `normaliserProfil` valide à la main (`ProfilInvalide`) au lieu de Zod (arbitrage A12), mêmes règles, mêmes messages pour les bornes, dans le même ordre. ⚠ Le React `lib/risques/` est GELÉ (P5) ; `tests/unit/angular/risques-logique-paritaire.test.ts` compare sorties ET levées des deux jeux et échoue si la copie dérive. `palette-natures` rend des `var(--nature-n)` : valable pour le DOM, à traduire en nom de jeton pour ECharts.
 - **Logique pure zones, simulation et carte (lot 3, T2, 2026-10-03)** : même dossier, huit fichiers (`seuils-naturels`, `opacites-zones`, `nature-zone`, `zooms`, `cercle`, `palettes-donnees`, `jeu`, `palette-divergente`) et `logique/simulation/` (sept : `vue`, `alignement`, `alignement-campagne`, `payload`, `types`, `entrees`, `parametres`). Copies sans couleur d'interface — les teintes de zone et de divergence restent des jetons ; **seule exception, A10 : `palettes-donnees.ts` recopie en hexadécimal les six échelles de DONNÉES de `CARREAUX_PALETTES`** (identiques dans les deux thèmes), verrouillées par `risques-logique-carte-paritaire.test.ts`. `jeu.ts` n'a ni Zod (A12) ni normalisation : le type `JeuDeZones` est écrit à la main et le test vérifie qu'il passe le schéma de React. `simulation-paritaire.test.ts` compare `construireVue` (v1, v2, tout), `courbeAlignement`, `constats` et `etatSite` sur `fixtures/simulation-reponse.json` — ⚠ fixture SYNTHÉTIQUE (40 codes postaux, 5 bassins), produite par les fonctions pures du générateur et du recalage de React, non capturée sur une pile vivante.

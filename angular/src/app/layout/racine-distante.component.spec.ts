@@ -3,7 +3,15 @@ import { TestBed } from '@angular/core/testing';
 import { NavigationStart, Router, provideRouter, type Routes } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthService } from '../core/auth/auth.service';
-import { STRATEGIE_AUTONOME, STRATEGIE_SANS_SESSION } from '../core/auth/strategie-sans-session';
+import { ConnexionAutoService } from '../core/auth/connexion-auto.service';
+import {
+  MESSAGE_CONNEXION_AUTO_ECHOUEE,
+  MESSAGE_SANS_SESSION,
+  MESSAGE_SESSION_FERMEE_LOCALE,
+  STRATEGIE_AUTONOME,
+  STRATEGIE_SANS_SESSION,
+} from '../core/auth/strategie-sans-session';
+import { MODE_DEVELOPPEMENT } from '../core/environnement/mode-developpement';
 import { DemarrageService } from '../core/demarrage/demarrage.service';
 import { feuillesFactices, ombre } from '../core/ressources/testing/feuilles-factices';
 import { ThemeService } from '../core/theme/theme.service';
@@ -22,7 +30,7 @@ async function laisserTourner(harness: RouterTestingHarness) {
   }
 }
 
-function preparer(opts: { erreur?: string; authCassee?: boolean } = {}) {
+function preparer(opts: { erreur?: string; authCassee?: boolean; hote?: boolean; dev?: boolean; echec?: boolean } = {}) {
   const connecte = signal(true);
   let debloquer!: (v: boolean) => void;
   const lent = new Promise<boolean>((r) => (debloquer = r));
@@ -30,13 +38,12 @@ function preparer(opts: { erreur?: string; authCassee?: boolean } = {}) {
     {
       path: '',
       component: RacineDistanteComponent,
-      providers: [{ provide: STRATEGIE_SANS_SESSION, useValue: STRATEGIE_AUTONOME }],
+      providers: opts.hote ? [] : [{ provide: STRATEGIE_SANS_SESSION, useValue: STRATEGIE_AUTONOME }],
       children: [
         { path: '', component: PageVide },
         { path: 'lent', canActivate: [() => lent], component: PageVide },
       ],
     },
-    { path: 'connexion', component: PageVide },
   ];
   const constructions = { auth: 0 };
   const feuilles = feuillesFactices();
@@ -45,6 +52,8 @@ function preparer(opts: { erreur?: string; authCassee?: boolean } = {}) {
       provideZonelessChangeDetection(),
       provideRouter(routes),
       ...feuilles.providers,
+      { provide: MODE_DEVELOPPEMENT, useValue: opts.dev ?? true },
+      { provide: ConnexionAutoService, useValue: { echec: signal(opts.echec ?? false) } },
       { provide: DemarrageService, useValue: { erreur: signal(opts.erreur ?? null), feuille: signal(feuilles.feuille) } },
       {
         provide: AuthService,
@@ -88,28 +97,63 @@ describe('RacineDistanteComponent — racine d\'ombre (isolation CSS)', () => {
   });
 });
 
-describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () => {
-  it("n'interrompt pas une navigation en cours : attend sa fin, puis renvoie vers la connexion avec la page atteinte", async () => {
+describe('RacineDistanteComponent — sans session : un message en place, jamais de navigation (plus de page de connexion, 2026-11-05)', () => {
+  const statut = (harness: RouterTestingHarness) =>
+    ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="status"]')?.textContent?.trim();
+
+  it('autonome en développement, session fermée en cours de page : « Session fermée — rechargez… », aucune navigation, pages retirées', async () => {
     const { connecte, debloquer, navigations } = preparer();
     const harness = await RouterTestingHarness.create('/');
-    const router = TestBed.inject(Router);
-
-    void router.navigateByUrl('/lent');
+    void TestBed.inject(Router).navigateByUrl('/lent');
+    await laisserTourner(harness);
+    debloquer();
     await laisserTourner(harness);
     connecte.set(false);
     await laisserTourner(harness);
-    // Pendant la navigation : l'effet s'abstient — sinon il annulerait celle
-    // du badge de session (« Deconnexion » → /connexion sans page à reprendre).
     expect(navigations).toEqual(['/', '/lent']);
-
-    debloquer();
-    await laisserTourner(harness);
-    // Fin de navigation, racine toujours là, toujours sans session : il redirige.
-    expect(navigations).toEqual(['/', '/lent', '/connexion?redirection=%2Flent']);
-    expect(router.url).toBe('/connexion?redirection=%2Flent');
+    expect(statut(harness)).toBe(MESSAGE_SESSION_FERMEE_LOCALE);
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('mg-vide')).toBeNull();
   });
 
-  it('démarrage en échec : ni redirection ni construction de AuthService, le message d\'erreur prime', async () => {
+  it('autonome en développement, connexion automatique en échec : dit de vérifier DEV_CONNEXION_AUTO_*', async () => {
+    const { connecte } = preparer({ echec: true });
+    connecte.set(false);
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    expect(statut(harness)).toBe(MESSAGE_CONNEXION_AUTO_ECHOUEE);
+    expect(MESSAGE_CONNEXION_AUTO_ECHOUEE).toContain('DEV_CONNEXION_AUTO_');
+    expect(MESSAGE_CONNEXION_AUTO_ECHOUEE).toContain('.env.development.local');
+  });
+
+  it('autonome hors développement : le message AIDA', async () => {
+    const { connecte } = preparer({ dev: false, echec: true });
+    connecte.set(false);
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    expect(statut(harness)).toBe(MESSAGE_SANS_SESSION);
+  });
+
+  it('hôte AIDA : le message AIDA, même en développement', async () => {
+    const { connecte, navigations } = preparer({ hote: true, echec: true });
+    connecte.set(false);
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    expect(statut(harness)).toBe(MESSAGE_SANS_SESSION);
+    expect(navigations).toEqual(['/']);
+  });
+
+  it("la session revient : la page s'affiche sans renavigation", async () => {
+    const { connecte, navigations } = preparer();
+    connecte.set(false);
+    const harness = await RouterTestingHarness.create('/');
+    await laisserTourner(harness);
+    connecte.set(true);
+    await laisserTourner(harness);
+    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('mg-vide')).not.toBeNull();
+    expect(navigations).toEqual(['/']);
+  });
+
+  it("démarrage en échec : ni navigation ni construction de AuthService, le message d'erreur prime", async () => {
     const { navigations, constructions } = preparer({ erreur: 'Configuration locale introuvable.', authCassee: true });
     const harness = await RouterTestingHarness.create('/');
     await laisserTourner(harness);
@@ -119,16 +163,5 @@ describe('RacineDistanteComponent — mode rediriger (lancement autonome)', () =
     const racine = ombre(harness.fixture.nativeElement as HTMLElement);
     expect(racine.querySelector('[role="alert"]')?.textContent).toContain('Configuration locale introuvable.');
     expect(racine.querySelector('[role="status"]')).toBeNull();
-  });
-
-  it("n'affiche jamais « Session requise » en mode rediriger", async () => {
-    const { connecte, debloquer } = preparer();
-    const harness = await RouterTestingHarness.create('/');
-    void TestBed.inject(Router).navigateByUrl('/lent');
-    connecte.set(false);
-    await laisserTourner(harness);
-    expect(ombre(harness.fixture.nativeElement as HTMLElement).querySelector('[role="status"]')).toBeNull();
-    debloquer();
-    await laisserTourner(harness);
   });
 });

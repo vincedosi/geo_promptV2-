@@ -12,13 +12,14 @@ export const dynamic = 'force-dynamic';
  * - Sans `DEV_CONNEXION_AUTO_EMAIL` ou `DEV_CONNEXION_AUTO_MOT_DE_PASSE` : 404.
  *   Ces deux variables vivent dans `.env.development.local`, NON suivi par git
  *   — jamais dans un fichier versionné (`aucun-secret-en-dur.test.ts`).
- * - Sinon : ouvre une session Supabase côté serveur (clé anon, comme le
- *   formulaire de connexion) et rend `{ access_token, refresh_token }`.
+ * - Sinon : ouvre une session Supabase côté serveur (clé anon) et rend `{ access_token, refresh_token }`.
  *   L'Angular les pose dans son client (`setSession`), qui écrit le cookie
- *   `@supabase/ssr` comme après une connexion par le formulaire.
+ *   `@supabase/ssr`.
  *
- * Les identifiants ne quittent jamais le serveur. Un 404 ou un échec ramène
- * l'Angular sur l'écran `/connexion`, qui reste le filet.
+ * Les identifiants ne quittent jamais le serveur. Un 404 ou un échec laisse
+ * l'Angular sur un message en place (vérifier `DEV_CONNEXION_AUTO_*`) : il
+ * n'y a plus de page de connexion (supprimée le 2026-11-05, AIDA gère la
+ * session), cette route est le SEUL moyen d'ouvrir l'app en local hors AIDA.
  *
  * Hors du matcher de `middleware.ts` (fichier protégé) : aucune session n'est
  * exigée, c'est précisément ce qu'elle ouvre.
