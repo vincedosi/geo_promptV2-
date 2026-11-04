@@ -10,6 +10,14 @@ LISTE BLANCHE (relecture A, I2) : une liste noire laissait passer la voie la plu
 interdits le sont partout, pas seulement à l'appel : `s = sum; s(x)` et `from math import fsum as f`
 échouent aussi.
 
+IMPORTS RELATIFS (relecture B, I2) : le noyau est un paquet PLAT. Un import relatif de niveau 1
+(`from .nombres import …`) reste dedans ; un niveau ≥ 2 (`from ..base import …`, `from .. import
+config`) en sort — vers le service, qui importe psycopg. Le relatif est donc résolu en absolu
+(`optimisation.noyau` + module) et soumis à la même liste blanche que l'absolu.
+
+`__builtins__` et `__dict__` sont interdits aussi : `__builtins__["sum"]` et
+`math.__dict__["fs" + "um"]` contournaient la liste des noms (relecture B, M8).
+
 L'analyse se fait sur l'AST et non sur le texte : une docstring qui EXPLIQUE pourquoi `sum()` est
 interdit ne doit pas faire échouer le test.
 """
@@ -52,12 +60,25 @@ NOMS_INTERDITS = frozenset(
         "vars",
         "breakpoint",
         "input",
+        "__builtins__",
+        "__dict__",
     }
 )
 
 
 def _module_permis(nom: str) -> bool:
     return nom in MODULES_PERMIS or nom == PREFIXE_PERMIS or nom.startswith(PREFIXE_PERMIS + ".")
+
+
+def _module_absolu(noeud: ast.ImportFrom) -> str:
+    """Le module visé par un `from … import`, relatif résolu depuis `optimisation.noyau` (paquet plat)."""
+    if noeud.level == 0:
+        return noeud.module or ""
+    if noeud.level >= 2:
+        # Remonte au-dessus du noyau : `optimisation`, `optimisation.base`… — jamais permis.
+        parent = "optimisation" if noeud.level == 2 else ""
+        return ".".join(x for x in (parent, noeud.module or "") if x) or "<au-dessus d'optimisation>"
+    return PREFIXE_PERMIS + ("." + noeud.module if noeud.module else "")
 
 
 def violations(source: str, nom: str) -> list[str]:
@@ -69,9 +90,11 @@ def violations(source: str, nom: str) -> list[str]:
                 if not _module_permis(alias.name):
                     trouvees.append(f"{nom}:{noeud.lineno} import {alias.name} (hors liste blanche)")
         elif isinstance(noeud, ast.ImportFrom):
-            # Import relatif (`from .nombres import …`) : il reste dans le noyau.
-            if noeud.level == 0 and not _module_permis(noeud.module or ""):
-                trouvees.append(f"{nom}:{noeud.lineno} from {noeud.module} import … (hors liste blanche)")
+            module = _module_absolu(noeud)
+            if not _module_permis(module):
+                trouvees.append(
+                    f"{nom}:{noeud.lineno} from {'.' * noeud.level}{noeud.module or ''} → {module} (hors liste blanche)"
+                )
             for alias in noeud.names:
                 if alias.name in NOMS_INTERDITS or alias.name == "*":
                     trouvees.append(f"{nom}:{noeud.lineno} from {noeud.module} import {alias.name}")
