@@ -177,7 +177,11 @@ export async function GET(
         .from('zone_set_cp')
         .select('code_postal, classe, pop_en_zone, pop_totale, part_en_zone, retenu')
         .eq('zone_set_id', id)
+        // Ordre TOTAL, la clé primaire (`zone_set_id, code_postal, cluster_id`, sql/225) : par `code_postal` seul, un code à
+        // cheval sur plusieurs grappes rendait ses lignes dans un ordre arbitraire — plan non reproductible (`genererPlanCp`
+        // somme les grappes dans l'ordre reçu), pages de `lireTout` qui pouvaient se recouvrir (tâche 1.6, comme 72185c97).
         .order('code_postal')
+        .order('cluster_id')
         .range(de, a),
       PLAFOND_CP,
     ));

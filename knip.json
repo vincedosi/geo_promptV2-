@@ -18,7 +18,7 @@
     "lib/inngest/**/*.ts"
   ],
   "project": ["app/**/*.{ts,tsx}", "lib/**/*.ts", "components/**/*.tsx", "types/**/*.ts"],
-  "ignore": ["types/database.types.ts"],
+  "ignore": ["types/database.types.ts", "lib/optimisation/types-openapi.ts"],
   "ignoreDependencies": [
     "tailwindcss-animate",
     "autoprefixer",

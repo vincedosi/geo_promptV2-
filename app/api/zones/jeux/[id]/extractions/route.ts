@@ -38,7 +38,8 @@ import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { normaliserJeu } from '@/lib/zones/jeu';
-import { genererPlanCp, plierParCodePostal, type CpZone } from '@/lib/zones/plan';
+import { plierParCodePostal, type CpZone } from '@/lib/zones/plan';
+import { planRisqueSousDrapeau, reponseErreurOptimisation } from '@/lib/optimisation/plans';
 import { lireGroupesCp } from '@/lib/zones/groupes';
 import { extraireJeuZone } from '@/lib/zones/extraction-jeu-zone';
 import { messageAnomalies } from '@/lib/api/valider-corps';
@@ -265,7 +266,13 @@ export async function POST(
   // Les codes postaux que le référentiel ne distingue pas : le plan les achète
   // TOUS, multiplicateur divisé par leur nombre (`lib/zones/groupes.ts`).
   const groupes = await lireGroupesCp(supabase);
-  const plan = genererPlanCp(cps, jeu, groupes);
+  // `genererPlanCp`, ou le service Python, selon `OPTIMISATION_PLAN_SOURCE` (`lib/optimisation/plans.ts`).
+  let plan: Awaited<ReturnType<typeof planRisqueSousDrapeau>>['valeur'];
+  try {
+    ({ valeur: plan } = await planRisqueSousDrapeau('extraction_risque', cps, jeu, groupes));
+  } catch (e) {
+    return reponseErreurOptimisation(e, 'extraction risque');
+  }
 
   if (plan.lignes.length === 0) {
     return NextResponse.json(

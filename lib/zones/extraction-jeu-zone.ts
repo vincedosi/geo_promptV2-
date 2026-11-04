@@ -54,10 +54,9 @@ import {
 import { lirePoids, lireRegles, messageRefusPopulation, paverPourPlateforme, refusDuChoix } from './conversion-serveur';
 import { MESSAGE_JEU_INTROUVABLE, OU_SE_GERE } from './charger-jeu';
 import type { MembresParCanonique } from './plan';
-import {
-  planCpDeZone, plansParPlateforme, reglageDuPlan, sortiesPoids,
-  type PlanPlateforme, type ReglagePlan, type SortiePoids, type VolumesAttendus,
-} from './plan-jeu-zone';
+import { reglageDuPlan, type PlanPlateforme, type ReglagePlan, type SortiePoids } from './plan-jeu-zone';
+import { plansZoneSousDrapeau, reponseErreurOptimisation, type PlansZone } from '@/lib/optimisation/plans';
+import { algoAFiger } from '@/lib/optimisation/ombre';
 import { lireVolumesAttendus } from './part-prevue-serveur';
 import { universDeZone } from './part-prevue';
 import { lireGroupesCp } from './groupes';
@@ -492,25 +491,28 @@ const MESSAGES_RPC: Record<string, string> = {
 };
 
 /** Les plans CP d'une extraction : le plan commun (⑥/⑦) et celui de chaque plateforme au CP (B12). */
-interface PlansCp {
-  /**
-   * Le plan COMMUN (seuil le plus bas des plateformes au CP), écrit dans `zone_set_extraction_cp`.
-   *
-   * @deprecated D32 (sql/334) : la source de vérité est `parPlateforme` (`zone_set_extraction_cp_plateforme`, B12).
-   * Gardé tant que ⑥/⑦ le lisent ; retiré dans le commit qui leur fait lire le plan par plateforme (côté dentsu).
-   * Les extractions déjà produites gardent leur plan commun figé, en lecture seule.
-   */
-  commun: ReturnType<typeof planCpDeZone>;
-  parPlateforme: PlanPlateforme[];
+/**
+ * Les plans CP (`PlansZone`, `lib/optimisation/plans.ts`) et ce que `resume_plan.algo` doit figer (sql/344).
+ *
+ * `commun` — le plan COMMUN (seuil le plus bas des plateformes au CP), écrit dans `zone_set_extraction_cp`.
+ * @deprecated D32 (sql/334) : la source de vérité est `parPlateforme` (`zone_set_extraction_cp_plateforme`, B12).
+ * Gardé tant que ⑥/⑦ le lisent ; retiré dans le commit qui leur fait lire le plan par plateforme (côté dentsu).
+ * Les extractions déjà produites gardent leur plan commun figé, en lecture seule.
+ */
+interface PlansCp extends PlansZone {
+  /** `undefined` en source `ts` : le résumé figé reste exactement celui d'avant. */
+  algo?: Record<string, unknown>;
 }
 
 /**
  * Les plans CP, si une plateforme achète au CP : groupes indiscernables, couverture CP, liste exacte éventuelle, et le
  * registre des mécanismes de poids — le plan commun au réglage `reglageDuPlan` de toutes (plage la plus étroite, règle
- * de groupe unique, A1), celui de chaque plateforme au réglage de ses seuls mécanismes (B12).
+ * de groupe unique, A1), celui de chaque plateforme au réglage de ses seuls mécanismes (B12) — et les sorties de poids
+ * de chacun. Calculés en TS ou par le service Python selon `OPTIMISATION_PLAN_SOURCE` (`lib/optimisation/plans.ts`).
  */
 async function planCp(
   ctx: Contexte, auCp: readonly Choix[], reglage: ReglagePlan, poids: readonly PlateformePoids[],
+  resumes: readonly ResumePlateforme[],
 ): Promise<PlansCp | null | Echec> {
   if (auCp.length === 0) return null;
   let groupes: MembresParCanonique;
@@ -525,19 +527,29 @@ async function planCp(
   const r = ctx.recette;
   const liste = r && exactitude(r, 'cp') === 'exacte' ? unitesConstitutives(r)?.codes : undefined;
   // A8 : les volumes attendus (population totale, Q9 = A) des unités et du référentiel, pour la part prévue E5 ; D35 :
-  // le référentiel restreint à l'univers de la zone (métropole, ou France entière dès qu'elle touche un DROM).
+  // le référentiel restreint à l'univers de la zone (métropole, ou France entière dès qu'elle touche un DROM). Lus par
+  // le TS (sources `ts` et `ombre`) ; en `python`, le service les lit lui-même.
   const codes = [...cp.lignes.map((l) => l.code), ...(liste ?? [])];
-  let volumes: VolumesAttendus;
+  class PanneVolumes extends Error {}
+  // Le nombre de CODES que la conversion de chaque plateforme a retenus : ce que comptent ses limites d'entrées.
+  const choix = auCp.map((c) => {
+    const res = resumes.find((x) => x.plateforme === c.plateforme);
+    return { plateforme: c.plateforme, seuil: c.seuil, n_codes_conversion: res?.n_codes ?? res?.n_unites ?? 0 };
+  });
+  let issue: Awaited<ReturnType<typeof plansZoneSousDrapeau>>;
   try {
-    volumes = await lireVolumesAttendus(ctx.supabase, codes, universDeZone(codes, r));
+    issue = await plansZoneSousDrapeau({
+      lignes: cp.lignes, choix, mode: ctx.jeu.mode_plan as ModePlan, groupes, liste, recette: r, reglage, poids,
+      lireVolumes: () => lireVolumesAttendus(ctx.supabase, codes, universDeZone(codes, r))
+        .catch((e: unknown) => { throw new PanneVolumes(e instanceof Error ? e.message : String(e)); }),
+    });
   } catch (e) {
-    return panne('volumes attendus', e);
+    if (e instanceof PanneVolumes) return panne('volumes attendus', e.message);
+    return { ok: false, reponse: reponseErreurOptimisation(e, 'extraction de jeu de zone') };
   }
-  const mode = ctx.jeu.mode_plan as ModePlan;
-  const propres = plansParPlateforme(cp.lignes, auCp, mode, groupes, poids, liste, volumes);
-  if (!propres.ok) return erreur(`${propres.message} Réglez à nouveau le jeu avant d’extraire.`, 422);
-  const commun = planCpDeZone(cp.lignes, Math.min(...auCp.map((c) => c.seuil)), mode, groupes, liste, reglage, volumes);
-  return { commun, parPlateforme: propres.plans };
+  const res = issue.valeur;
+  if (!res.ok) return erreur(`${res.message} Réglez à nouveau le jeu avant d’extraire.`, 422);
+  return { ...res.plans, algo: algoAFiger(issue) };
 }
 
 /**
@@ -601,7 +613,7 @@ export async function extraireJeuZone(
     reglage = r.reglage;
   }
 
-  const plans = await planCp(ctx, auCp, reglage, poids);
+  const plans = await planCp(ctx, auCp, reglage, poids, resumes);
   if (plans && 'ok' in plans) return plans.reponse;
   const plan = plans?.commun ?? null;
   // A1, règle 5 : ce que le mécanisme de poids fait au plan est DIT sur chaque plateforme au CP — écrêtages (avant /
@@ -612,10 +624,12 @@ export async function extraireJeuZone(
   for (const propre of plans?.parPlateforme ?? []) {
     const r = resumes.find((x) => x.plateforme === propre.plateforme);
     if (!r || !plan) continue;
-    const s = sortiesPoids(poids, r.plateforme, r.n_codes ?? r.n_unites, plan.resume.multiplicateur);
+    // Calculées avec les plans (`planCp`) : par le TS ou par le service, selon `OPTIMISATION_PLAN_SOURCE`.
+    const s = plans?.sortiesCommun.get(r.plateforme);
+    const sp = plans?.sortiesPropres.get(r.plateforme);
+    if (!s || !sp) continue;
     r.poids = s.sorties;
     r.avertissements.push(...s.avertissements);
-    const sp = sortiesPoids(poids, r.plateforme, propre.plan.resume.n_codes, propre.plan.resume.multiplicateur);
     r.plan_cp = { seuil: propre.seuil, ...propre.plan.resume, poids: sp.sorties, avertissements: sp.avertissements };
   }
   // Revue T6 (I-8) : la règle de chaque plateforme figée avec l'extraction (les mécanismes de poids : lus pour le CP).
@@ -636,7 +650,11 @@ export async function extraireJeuZone(
     p_zone_set_id: jeu.id,
     p_cp: toJson(plan?.lignes ?? []),
     p_unites: toJson(unites),
-    p_resume: toJson({ ...(plan?.resume ?? {}), plateformes: resumes, plans_plateformes: plansPlateformes }),
+    // sql/344 : `algo` (moteur et empreinte des entrées) figé dans `resume_plan` ; absent en source `ts`.
+    p_resume: toJson({
+      ...(plan?.resume ?? {}), ...(plans?.algo ? { algo: plans.algo } : {}),
+      plateformes: resumes, plans_plateformes: plansPlateformes,
+    }),
     p_origine: corps.origine,
     p_commentaire: corps.commentaire,
     p_created_by: userId,

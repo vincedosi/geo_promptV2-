@@ -79,6 +79,25 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     ).toEqual([]);
   });
 
+  it('toute variable OPTIMISATION_* lue par Next (lib/optimisation/) est documentée et déclarée', () => {
+    // Tâche 1.6 : le client Next du service et ses drapeaux de bascule. Un drapeau
+    // que la doc ne nomme pas, c'est une bascule vers Python que personne ne sait
+    // activer — ou désactiver.
+    const dossier = join(RACINE, 'lib', 'optimisation');
+    const lues = new Set<string>();
+    for (const f of readdirSync(dossier).filter((n) => n.endsWith('.ts'))) {
+      for (const m of lire(join('lib', 'optimisation', f)).matchAll(/\b(OPTIMISATION_[A-Z_]+)\b/g)) lues.add(m[1]);
+    }
+    for (const v of ['OPTIMISATION_URL', 'OPTIMISATION_CLE_INTERNE', 'OPTIMISATION_PLAN_SOURCE', 'OPTIMISATION_CORRECTION_SOURCE']) {
+      expect(lues.has(v), `${v} n'est plus lue par lib/optimisation/ : retirer de la doc ou corriger ce test`).toBe(true);
+    }
+    const exemple = lire('.env.example');
+    const absentesDoc = [...lues].filter((v) => !archi.includes(`\`${v}\``));
+    const absentesExemple = [...lues].filter((v) => !new RegExp(`^${v}=`, 'm').test(exemple));
+    expect(absentesDoc, `Absentes d'ARCHITECTURE.md : ${absentesDoc.join(', ')}`).toEqual([]);
+    expect(absentesExemple, `Absentes de .env.example : ${absentesExemple.join(', ')}`).toEqual([]);
+  });
+
   it('toute dépendance externe appelée par le code est documentée', () => {
     // Modal manquait : un client appelait un serverless Python
     // tiers, invisible dans le doc autoritaire. Seul le doc PÉRIMÉ en parlait.

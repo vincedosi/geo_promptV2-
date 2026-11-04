@@ -19,7 +19,7 @@ import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson, toJson } from '@/lib/supabase/rpc-json';
 import { diffuserPeriode } from '@/lib/simulation/generateur';
 import { cibleParZone } from '@/lib/simulation/alignement';
-import { recaler } from '@/lib/simulation/recalage';
+import { recalageSousDrapeau } from '@/lib/optimisation/plans';
 import { dateDuJour, insererLignes, lireEntrees } from '@/lib/simulation/serveur';
 import { versCpSimulation } from '@/lib/simulation/entrees';
 import type { Agregats, EvenementSimulation } from '@/lib/simulation/payload';
@@ -114,7 +114,9 @@ export async function POST(
 
         const entrees = await lireEntrees(supabase, sim.extraction_v1_id);
         const cps = entrees.map(versCpSimulation);
-        const rc = recaler(cps, observees, cibleParZone(cps), P);
+        // `recaler`, ou le service Python, selon `OPTIMISATION_CORRECTION_SOURCE` (`lib/optimisation/plans.ts`). En
+        // `python`, une panne du service lève ici : le `catch` plus bas la dit et ne laisse rien à moitié écrit.
+        const { valeur: rc } = await recalageSousDrapeau(cps, observees, cibleParZone(cps), P);
 
         // Les lignes de la v1, recopiées avec leur multiplicateur corrigé : la
         // v2 garde tout ce qui décrit le code postal (bassin, classe, population),

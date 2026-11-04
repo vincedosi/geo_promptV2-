@@ -33,7 +33,8 @@ import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu } from '@/lib/zones/jeu';
-import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { type CpZone } from '@/lib/zones/plan';
+import { planRisqueSousDrapeau, reponseErreurOptimisation } from '@/lib/optimisation/plans';
 import { rpcJson } from '@/lib/supabase/rpc-json';
 
 export const dynamic = 'force-dynamic';
@@ -138,6 +139,11 @@ export async function GET(
         .from('zone_set_cp')
         .select('code_postal, classe, pop_en_zone, pop_totale, retenu')
         .eq('zone_set_id', id)
+        // Ordre TOTAL, la clé primaire (`zone_set_id, code_postal, cluster_id`, sql/225) : sans ordre, un code à
+        // cheval sur plusieurs grappes rendait ses lignes dans un ordre arbitraire — plan non reproductible (`genererPlanCp`
+        // somme les grappes dans l'ordre reçu), pages de `lireTout` qui pouvaient se recouvrir (tâche 1.6, comme 72185c97).
+        .order('code_postal')
+        .order('cluster_id')
         .range(de, a),
       PLAFOND_CP,
     ));
@@ -166,7 +172,13 @@ export async function GET(
     retenu: r.retenu,
   }));
 
-  const plan = genererPlanCp(cps, jeu);
+  // `genererPlanCp`, ou le service Python, selon `OPTIMISATION_PLAN_SOURCE` (`lib/optimisation/plans.ts`).
+  let plan: Awaited<ReturnType<typeof planRisqueSousDrapeau>>['valeur'];
+  try {
+    ({ valeur: plan } = await planRisqueSousDrapeau('cp_geo', cps, jeu));
+  } catch (e) {
+    return reponseErreurOptimisation(e, 'part du plan (cp-geo)');
+  }
   const partParCp = new Map(plan.lignes.map((l) => [l.code_postal, l.part_plan]));
 
   // ⚠ La part est posée sur la feature, pas calculée dans la carte : MapLibre

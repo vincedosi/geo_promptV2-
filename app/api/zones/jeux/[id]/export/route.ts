@@ -40,7 +40,8 @@ import { chargerJeu } from '@/lib/zones/charger-jeu';
 import { lireTout } from '@/lib/supabase/lire-tout';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { normaliserJeu, poidsDeClasse } from '@/lib/zones/jeu';
-import { genererPlanCp, type CpZone } from '@/lib/zones/plan';
+import { type CpZone } from '@/lib/zones/plan';
+import { planRisqueSousDrapeau, reponseErreurOptimisation } from '@/lib/optimisation/plans';
 import { lireGroupesCp } from '@/lib/zones/groupes';
 import { libelleClasse, anneauxParNiveau } from '@/lib/risques/libelle-classe';
 import { normaliserProfil, anneauxDuNiveau, LIBELLE_NIVEAU, libelleRayon, NIVEAUX, type Niveau } from '@/lib/risques/profil';
@@ -110,7 +111,11 @@ export async function GET(
         .from('zone_set_cp')
         .select('code_postal, classe, pop_en_zone, pop_totale, part_en_zone, retenu')
         .eq('zone_set_id', id)
+        // Ordre TOTAL, la clé primaire (`zone_set_id, code_postal, cluster_id`, sql/225) : par `code_postal` seul, un code à
+        // cheval sur plusieurs grappes rendait ses lignes dans un ordre arbitraire — plan non reproductible (`genererPlanCp`
+        // somme les grappes dans l'ordre reçu), pages de `lireTout` qui pouvaient se recouvrir (tâche 1.6, comme 72185c97).
         .order('code_postal')
+        .order('cluster_id')
         .range(de, a),
       PLAFOND_CP,
     ));
@@ -150,7 +155,13 @@ export async function GET(
   // Les codes postaux que le référentiel ne distingue pas : le plan les
   // achète TOUS, sans quoi on cible un quart d'une ville (lib/zones/groupes.ts).
   const groupes = await lireGroupesCp(supabase);
-  const plan = genererPlanCp(cps, jeu, groupes);
+  // `genererPlanCp`, ou le service Python, selon `OPTIMISATION_PLAN_SOURCE` (`lib/optimisation/plans.ts`).
+  let plan: Awaited<ReturnType<typeof planRisqueSousDrapeau>>['valeur'];
+  try {
+    ({ valeur: plan } = await planRisqueSousDrapeau('export', cps, jeu, groupes));
+  } catch (e) {
+    return reponseErreurOptimisation(e, 'export du jeu');
+  }
   const multiplicateurParCp = new Map(plan.lignes.map((l) => [l.code_postal, l.multiplicateur]));
 
   const profil = normaliserProfil(jeuRow.profil);
