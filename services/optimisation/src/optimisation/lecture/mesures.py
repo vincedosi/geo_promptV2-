@@ -19,7 +19,8 @@ from typing import Any
 import psycopg
 
 from optimisation.noyau.mesures import LigneCp, LigneJour, ParametresCampagne, Referentiel, StrategieSuivi
-from optimisation.noyau.prevu import LignePlan, StrategiePrevue
+from optimisation.noyau.prevu import LignePlan, StrategiePrevue, par_code, parts_du_plan
+from optimisation.noyau.tableaux import tableau_depuis_plan
 
 
 def _dec(v: Any) -> Decimal | None:
@@ -105,6 +106,26 @@ def lire_rollup_cp(connexion: psycopg.Connection[Any], campagne: str) -> list[Li
             )
             for cp, a, d, i, s, i7, p7, c, p in cur.fetchall()
         ]
+
+
+def lire_tableau_cp(connexion: psycopg.Connection[Any], campagne: str, depuis_plan: bool) -> list[LigneCp]:
+    """Le tableau par code postal des mesures (tâche 2.1).
+
+    `depuis_plan=False` (défaut du réglage `tableaux_depuis_plan`) : `campaign_cp_rollup` tel quel, comme en phase 1.
+    `depuis_plan=True` : complété des codes du plan JAMAIS servis, à 0 (`noyau/tableaux.py`) — le même tableau que
+    `refresh_campaign_rollups_depuis_plan(…, true)` (sql/346), sans dépendre de la façon dont le rollup a été
+    rafraîchi (ses lignes non servies, s'il en a, ne sont pas doublées). Aucune requête neuve : `lire_rollup_cp`,
+    `lire_strategie_suivi` et `lire_plan`, déjà mesurés.
+    """
+    lignes = lire_rollup_cp(connexion, campagne)
+    if not depuis_plan:
+        return lignes
+    lu = lire_strategie_suivi(connexion, campagne)
+    if lu is None:
+        return lignes
+    id_strategie, strategie = lu
+    parts = par_code(parts_du_plan(lire_plan(connexion, id_strategie), strategie.mode_hors_zone))
+    return tableau_depuis_plan(lignes, parts)
 
 
 def lire_rollup_jour(connexion: psycopg.Connection[Any], campagne: str) -> list[LigneJour]:

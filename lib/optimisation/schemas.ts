@@ -174,6 +174,37 @@ export const SchemaSortieRecaler: z.ZodType<S['SortieRecaler']> = z.object({
   algo: SchemaAlgo,
 }).passthrough();
 
+/** Le catalogue d'algorithmes (`GET /v1/algos`, tâche 2.6) : registre du service, rendu tel quel. */
+const SchemaParametreAlgo: z.ZodType<S['ParametreAlgo']> = z.object({
+  nom: z.string(),
+  libelle: z.string(),
+  defaut: nombre,
+  minimum: nombre,
+  maximum: nombre,
+  unite: z.string(),
+  entier: z.boolean(),
+}).passthrough();
+
+const SchemaAlgoCatalogue: z.ZodType<S['AlgoCatalogue']> = z.object({
+  id: z.string().regex(/^[a-z][a-z0-9_]*$/),
+  version: z.number().int().positive(),
+  libelle: z.string(),
+  description: z.string(),
+  familles: z.array(z.enum(['plan', 'correction'])),
+  proposable: z.boolean(),
+  etat: z.enum(['disponible', 'a_venir']),
+  parametres: z.array(SchemaParametreAlgo),
+  ordres: z.array(z.tuple([z.string(), z.string()])),
+}).passthrough();
+
+export const SchemaCatalogueAlgos: z.ZodType<S['CatalogueAlgos']> = z.object({
+  algos: z.array(SchemaAlgoCatalogue),
+  defaut_correction: z.string(),
+}).passthrough();
+
+export type CatalogueAlgos = S['CatalogueAlgos'];
+export type FamilleAlgo = S['AlgoCatalogue']['familles'][number];
+
 export type SortiePlanZone = S['SortiePlanZone'];
 export type SortiePlanRisque = S['SortiePlanRisque'];
 export type SortieRecaler = S['SortieRecaler'];

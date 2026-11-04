@@ -13,6 +13,9 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 
 from optimisation import __version__, config
+from optimisation.algos.contrat import RefusAlgo
+from optimisation.api.algos import refus_algo
+from optimisation.api.algos import routeur as routeur_algos
 from optimisation.api.erreurs import LimiteCorps, erreur_imprevue, refus_de_validation, refus_mode_abandonne
 from optimisation.api.historique import routeur as routeur_historique
 from optimisation.api.plans import routeur as routeur_plans
@@ -69,8 +72,10 @@ def creer_app() -> FastAPI:
 
     application.include_router(routeur_plans)
     application.include_router(routeur_historique)
+    application.include_router(routeur_algos)
     application.add_exception_handler(RequestValidationError, refus_de_validation)
     application.add_exception_handler(ModeAbandonne, refus_mode_abandonne)
+    application.add_exception_handler(RefusAlgo, refus_algo)
     application.add_exception_handler(Exception, erreur_imprevue)
     application.add_middleware(LimiteCorps)
     return application

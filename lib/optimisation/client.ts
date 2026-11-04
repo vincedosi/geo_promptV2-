@@ -16,8 +16,8 @@
 import type { z } from 'zod';
 import { DelaiDepasseError, fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 import {
-  SchemaSortiePlanRisque, SchemaSortiePlanZone, SchemaSortieRecaler,
-  type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
+  SchemaCatalogueAlgos, SchemaSortiePlanRisque, SchemaSortiePlanZone, SchemaSortieRecaler,
+  type CatalogueAlgos, type FamilleAlgo, type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
   type SortiePlanRisque, type SortiePlanZone, type SortieRecaler,
 } from '@/lib/optimisation/schemas';
 
@@ -86,16 +86,35 @@ function lireDetail(corps: unknown): { message?: string; refus?: string } {
  * @param schema  Zod de la sortie attendue
  * @param delaiMs délai, `DELAI_OPTIMISATION_MS` par défaut
  */
-export async function appelerOptimisation<T>(
+export function appelerOptimisation<T>(
   chemin: string, corps: unknown, schema: z.ZodType<T>, delaiMs: number = DELAI_OPTIMISATION_MS,
+): Promise<T> {
+  return requeter(chemin, { method: 'POST', body: JSON.stringify(corps) }, schema, delaiMs);
+}
+
+/**
+ * GET d'une lecture du service (sans corps), réponse validée — mêmes erreurs, même délai, aucune reprise.
+ *
+ * @param chemin  route du service, paramètres de requête compris (`/v1/algos?famille=correction`)
+ */
+function lireOptimisation<T>(
+  chemin: string, schema: z.ZodType<T>, delaiMs: number = DELAI_OPTIMISATION_MS,
+): Promise<T> {
+  return requeter(chemin, { method: 'GET' }, schema, delaiMs);
+}
+
+async function requeter<T>(
+  chemin: string, envoi: { method: 'GET' | 'POST'; body?: string }, schema: z.ZodType<T>, delaiMs: number,
 ): Promise<T> {
   const { url, cle } = config();
   let reponse: Response;
   try {
     reponse = await fetchAvecDelai(`${url}${chemin}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Optimisation-Cle': cle },
-      body: JSON.stringify(corps),
+      method: envoi.method,
+      headers: envoi.body === undefined
+        ? { 'X-Optimisation-Cle': cle }
+        : { 'Content-Type': 'application/json', 'X-Optimisation-Cle': cle },
+      ...(envoi.body === undefined ? {} : { body: envoi.body }),
       cache: 'no-store',
     }, delaiMs);
   } catch (e) {
@@ -140,6 +159,18 @@ export async function appelerOptimisation<T>(
       'reponse', reponse.status);
   }
   return valide.data;
+}
+
+/** Filtres de `GET /v1/algos` : famille et/ou « proposable à l'écran ⑦ ». */
+export interface FiltresAlgos { famille?: FamilleAlgo; proposable?: boolean }
+
+/** `GET /v1/algos` — le catalogue d'algorithmes du service (tâche 2.6), sans lecture en base côté service. */
+export function lireCatalogueAlgos(filtres: FiltresAlgos = {}, delaiMs?: number): Promise<CatalogueAlgos> {
+  const q = new URLSearchParams();
+  if (filtres.famille) q.set('famille', filtres.famille);
+  if (filtres.proposable !== undefined) q.set('proposable', String(filtres.proposable));
+  const suite = q.toString();
+  return lireOptimisation(`/v1/algos${suite ? `?${suite}` : ''}`, SchemaCatalogueAlgos, delaiMs);
 }
 
 /** `POST /v1/plans/zone` — plan commun, plans par plateforme, sorties de poids, `algo`. */

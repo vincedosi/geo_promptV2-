@@ -606,6 +606,11 @@ suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de 
 | 2.6 | `GET /v1/algos` (Python, sans lecture base) + passerelle Next `GET /api/optimisation/algos` ; types générés ; schéma exporté | 0,5 |
 | 2.7 | Réglage **`algo_id` par campagne** dans `optimisation_reglages` (défaut `uniformiser_global`) + `optimisation_reglages_journal` (qui, quand, avant, après ; `workspace_id`, policies, tests RLS) + `PUT …/optimisation/algo` (Next → Python) ; refus 422 d'un algorithme inconnu, réservé au simulateur ou d'une autre famille | 1 |
 
+**2.1-2.4 faits le 05/11** (sql/345, sql/346 appliquées ×2 en local) : tableaux depuis le plan (jumelle
+`refresh_campaign_rollups_depuis_plan`, réglage `tableaux_depuis_plan`), univers de la méthode A (réglage
+`univers_methode_a`, défaut `fige`), `optimisation_reglages` (colonne `algo_id` posée, sa logique reste 2.7), seuils lus
+par Python et `get_campaign_suivi`. Effet mesuré : `2026-11-05-optimisation-phase2-corrections-donnees.md`.
+
 ### Phase 3 — formule cible (≈ 6 j)
 
 | Tâche | Contenu | Jours |
