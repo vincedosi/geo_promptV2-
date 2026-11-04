@@ -3244,10 +3244,38 @@ grappes d'un même code changeait d'une lecture à l'autre, donc les sommes du p
 recouvrir. Charge en base en `ombre` : le service relit le registre (0,9 ms) et les volumes (6-12 ms local, 0,47 s national)
 pour un plan de zone ; rien pour le risque et le recalage.
 
+**Catalogue d'algorithmes — décisions du propriétaire du 05/11, À CONSTRUIRE (phases 2 à 5, plan § 16).** Rien de ceci
+n'existe encore dans le code ; ce paragraphe fixe ce qui sera construit.
+
+- **Un catalogue UNIQUE**, dans le service : `services/optimisation/src/optimisation/algos/`. Aucun algorithme ailleurs
+  (ni Next, ni Angular, ni SQL). Registre : `id` stable, `version` (monte quand la sortie change pour une même entrée),
+  libellé, description métier, familles (`plan` / `correction`), `proposable`, paramètres (défaut, minimum, maximum,
+  unité). Contrat commun, pur comme `noyau/`. **`GET /v1/algos`** (sans lecture base) le rend à l'écran, relayé par Next
+  (`GET /api/optimisation/algos`).
+- **Un algorithme de correction ACTIF à la fois par campagne**, **changeable en cours de campagne** : effet au cycle
+  suivant, départ des poids en cours (dernier envoi validé), cible du plan inchangée. Changement tracé — qui, quand,
+  algorithme et paramètres avant / après — dans `optimisation_reglages_journal` (`workspace_id`, policies testées).
+  Choisi dans l'onglet **⑦ Activation** par celui qui règle la campagne. Stocké dans `optimisation_reglages.algo_id` ;
+  chaque cycle écrit `algo_id` et `algo_version`. **Défaut : « uniformiser au global ».**
+- **« Uniformiser au global »** (`uniformiser_global`) : le poids de chaque zone est respecté sur la campagne, toutes
+  régies additionnées — Meta qui sur-diffuse et The Trade Desk qui sous-livre sur une même zone se compensent, on ne
+  pousse pas l'une contre l'autre. Ce sont les deux niveaux de score, « le global décide », la saturation et la
+  redistribution du cahier.
+- **« Uniformiser par régie »** (`uniformiser_par_regie`) : chaque régie respecte le poids de chaque zone, pour
+  elle-même ; aucun transfert ; une régie en butée sur une zone garde son réglage, et une alerte part au trader.
+- Les deux ont **la même formule de coefficient** (cahier, point 5 : `(1 / indice)^α` borné 0,8-1,2), **les mêmes
+  garde-fous** et **la même validation humaine** ; seule la mesure change (part globale contre part de la régie).
+- **Formules historiques** (rebid plafonné, recalage amorti, ports de la phase 1) : dans le catalogue, `proposable:
+  false`, réservées au simulateur, jamais proposées dans ⑦ — **proposition en attente de confirmation du propriétaire**.
+- **Modes de plan abandonnés** (05/11) : `by_tier` « par palier » et `by_subzone` « par sous-zone » ne sont pas portés
+  et n'entrent pas au catalogue (refus 422 `mode_abandonne`).
+- Calendrier : catalogue, `GET /v1/algos` et `algo_id` par campagne **avant la phase 3** (tâches 2.5-2.7) ; les deux
+  algorithmes en phase 4 ; sélecteur Angular dans ⑦ en phase 5 (tâche 5.6).
+
 **Calendrier.** T0-T2 (doc, socle, fixtures) livrés le 04/11, T3 (noyau du plan initial, parité verte) et T4 (routes `/v1/plans/{zone,risque}`, lecteurs) le même jour ; phase 1, lot 1 (méthode A, part, impressions prévues, mesures — 1.1-1.3) et lot 2 (rebid plafonné, recalage amorti, `math_js`, simulateur — 1.4-1.5) le 04/11 ; tâche 1.6 (client Next, drapeaux, mode ombre, sql/344) le 05/11 ; rapport de non-régression 1.7 le 05/11 (`docs/superpowers/plans/2026-11-05-optimisation-phase1-non-regression.md`). Le plan initial reste calculé en TS jusqu'à la parité (T3-T4),
 puis mode `ombre` et bascule `python` sur accord du propriétaire (phase 1) ; mesure quotidienne, proposition tous les N jours,
-`optimisation_cycles` avec `workspace_id` et policies, validation humaine avant tout envoi (phases 3-4) ; traducteurs et
-connecteur DV360 (phase 5).
+`optimisation_cycles` avec `workspace_id` et policies, validation humaine avant tout envoi (phase 3) ; les deux algorithmes
+du catalogue (phase 4) ; traducteurs, connecteur DV360 et sélecteur d'algorithme dans ⑦ (phase 5).
 
 ---
 

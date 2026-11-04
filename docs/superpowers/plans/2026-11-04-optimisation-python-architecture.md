@@ -5,6 +5,9 @@ Rédigé le 04/11/2026, branche `feat/optimisation-python`, code au commit `7218
 d'optimisation », 10 décisions non négociables, phases 0 à 5). **Le cahier prime sur tout le reste**, y compris sur la
 version précédente de ce document (18 tâches T0-T17) et sur `docs/rebid-v2.md`, qui devient **historique** (écarts au § 10).
 
+**Mis à jour le 05/11** : phase 1 close (rapport `2026-11-05-optimisation-phase1-non-regression.md`) ; décisions du
+propriétaire du 05/11 sur le **catalogue d'algorithmes** au § 16, qui prime sur les §§ 7.3, 7.4 et 12 là où ils divergent.
+
 Toutes les mesures : base locale le 04/11 (`docker exec supabase_db_genesis_app psql -U postgres`, lecture seule), dépôt au
 commit ci-dessus. Document de référence de l'algorithme : `C:\GENESIS\algorithme-optimisation-impressions-dentsu-explore.docx`
 (26/10/2026, annexe B = emplacement des formules). Ce document ne contient aucun code ; il est le livrable de la **phase 0**.
@@ -31,7 +34,11 @@ commit ci-dessus. Document de référence de l'algorithme : `C:\GENESIS\algorith
   point d'entrée authentifié et transmet l'identité.
 - **Défauts proposés** : volume minimum **100 impressions sur 7 jours** par zone et plateforme ; **N = 5 jours** ; envoi anticipé
   si le **score global lissé perd 5 points** depuis le dernier envoi (au plus tôt 3 jours après) ; K = 3 (§ 8).
-- **Volume** : ≈ 33 jours-dev pour les phases 1 à 5 restantes (§ 12), dont 9 pour finir la phase 1.
+- **Volume** : ≈ 33 jours-dev pour les phases 1 à 5 restantes (§ 12), dont 9 pour finir la phase 1. **Au 05/11** : phase 1
+  faite ; restent **≈ 29 jours** pour les phases 2 à 5, catalogue d'algorithmes compris (§ 16).
+- **Catalogue d'algorithmes (05/11, § 16)** : un registre UNIQUE dans le service, `GET /v1/algos` ; deux algorithmes de
+  correction au choix par campagne — « uniformiser au global » (défaut) et « uniformiser par régie » —, un seul actif à la
+  fois, changeable en cours de campagne, choisi dans l'onglet ⑦ Activation.
 - **3 questions** au propriétaire (§ 15) : la dilution ×0,6 à chaque envoi ou une fois ; les zones sous le volume minimum
   (TTD : 96 % des CP de la démo) ; le seuil « budget réellement dépensé » (à 0,85 il bloque toute la démo).
 
@@ -284,7 +291,8 @@ Angular → Next /api/campaigns/[id]/optimisation/...   getSession() (JWT local)
 - **Routes existantes** (`/extractions`, `/rattacher`, `/simulation/recaler`…) : contrat inchangé ; leur intérieur bascule par
   drapeau (`OPTIMISATION_PLAN_SOURCE`, `OPTIMISATION_CORRECTION_SOURCE` = `ts` / `ombre` / `python`). En `ombre`, Next calcule
   TS et Python, journalise l'écart, sert le TS. Le TS n'est supprimé qu'après validation du propriétaire.
-- **Écran de validation** : le cahier gèle le front Angular ; ce plan n'y touche pas. Les routes ci-dessus sont le contrat que
+- **Écran de validation** : le cahier gèle le front Angular ; ce plan n'y touche pas — **sauf** le sélecteur d'algorithme de
+  l'onglet ⑦ Activation, décidé par le propriétaire le 05/11 (§ 16, tâche 5.6). Les routes ci-dessus sont le contrat que
   l'écran ⑧ Live (chantier séparé) consommera. Tant qu'il n'existe pas, la validation n'est possible que par ces routes —
   donc rien ne part.
 
@@ -354,6 +362,10 @@ Ordre de grandeur sur la démo (4 départements, § 2.7) : coefficients 1,0995 (
 0,8 (29, brut 0,766). Au CP, le 13 à −48,4 % donne un coefficient brut 1,392, ramené à 1,2.
 
 ### 7.3 Deux niveaux de score (décision 7)
+
+> **05/11** : ce paragraphe et le suivant décrivent l'algorithme **« uniformiser au global »** du catalogue (§ 16), celui
+> par défaut. L'algorithme « uniformiser par régie » calcule les mêmes scores pour l'affichage, mais ne s'en sert pas
+> pour décider : il mesure chaque régie contre sa propre cible, sans transfert.
 
 - **Par plateforme** : `score_p` = formule de `calculer_alignement_geo` appliquée à la seule plateforme (plan = `cible_p`,
   livré = `L_p`, tolérance `tolerance_pct`, poids de sur-pression `overpressure_weight`).
@@ -582,7 +594,7 @@ Estimations en jours-dev ; « fait » = commité sur `feat/optimisation-python`.
 `PacingPanel.tsx` calcule dans le navigateur (React gelé) : porté pour la parité, jamais rebranché. La bascule `python` (et la
 suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de la phase.
 
-### Phase 2 — corrections de données (≈ 3 j)
+### Phase 2 — corrections de données et catalogue (≈ 5,5 j)
 
 | Tâche | Contenu | Jours |
 |---|---|---|
@@ -590,6 +602,9 @@ suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de 
 | 2.2 | Méthode A sur `ref_codes_postaux` (6 187) au lieu de `DISTINCT dsp_campaign_data` | 0,5 |
 | 2.3 | `optimisation_reglages` (avec `workspace_id`, policies, tests RLS) ; seuils du § 2.2 lus depuis les réglages par Python et par `get_campaign_suivi` (CREATE OR REPLACE, défaut = valeurs actuelles) | 1 |
 | 2.4 | Effet mesuré : démo **0 CP non servi** (tous servis) → on le dit et on prouve sur un cas construit (fixture) et sur les deux stratégies sans livraison (176 et 88 CP qui deviennent visibles) ; méthode A : +20 CP du référentiel, −5 248 codes étrangers | 0,5 |
+| 2.5 | **Catalogue** (§ 16) : paquet `algos/` (registre, contrat commun, description des paramètres), pureté vérifiée comme `noyau/` ; entrées « plan » (méthodes A et B) et « correction » historiques (rebid plafonné, recalage amorti) enveloppant les ports de la phase 1, sans rien changer à leurs sorties | 1 |
+| 2.6 | `GET /v1/algos` (Python, sans lecture base) + passerelle Next `GET /api/optimisation/algos` ; types générés ; schéma exporté | 0,5 |
+| 2.7 | Réglage **`algo_id` par campagne** dans `optimisation_reglages` (défaut `uniformiser_global`) + `optimisation_reglages_journal` (qui, quand, avant, après ; `workspace_id`, policies, tests RLS) + `PUT …/optimisation/algo` (Next → Python) ; refus 422 d'un algorithme inconnu, réservé au simulateur ou d'une autre famille | 1 |
 
 ### Phase 3 — formule cible (≈ 6 j)
 
@@ -597,20 +612,25 @@ suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de 
 |---|---|---|
 | 3.1 | `noyau/{lissage,correction,garde_fous,parametres}.py` (§ 7.1, 7.2, 7.5) ; invariants : point fixe, coefficient dans `[c_min, c_max]`, somme conservée, zone gelée intacte, cible inchangée sur 20 cycles, stabilité 1e-6 | 2 |
 | 3.2 | Migration `optimisation_cycles`, `optimisation_executions` (workspace_id, policies, tests RLS) ; `EXPLAIN ANALYZE` des lectures de fenêtre | 1 |
-| 3.3 | `cycles/` : mesure quotidienne, proposition tous les N jours, envoi anticipé, instantané, empreintes, rejeu, expiration ; ordonnanceur local | 1,5 |
+| 3.3 | `cycles/` : mesure quotidienne, proposition tous les N jours, envoi anticipé, instantané, empreintes, rejeu, expiration ; ordonnanceur local. Chaque cycle lit l'`algo_id` actif **au début du cycle** et l'écrit avec sa version (`algo_id`, `algo_version`) ; la formule unique tourne d'abord sous « uniformiser par régie », le global venant en phase 4 | 1,5 |
 | 3.4 | Validation contre le simulateur : **cycles pour converger** de la formule unique vs rebid plafonné vs recalage amorti (réponse proportionnelle et saturante, N = 3, 5, 7) ; confirme ou corrige N = 5 | 1 |
 | 3.5 | Rapport, arrêt | 0,5 |
 
-### Phase 4 — deux niveaux et saturation (≈ 4 j)
+### Phase 4 — les deux algorithmes de correction (≈ 5 j)
+
+Re-chiffrée le 05/11 (§ 16) : la phase 4 livre les **deux** algorithmes du catalogue, sur le même noyau (formule unique,
+garde-fous, validation humaine). Seule la mesure change.
 
 | Tâche | Contenu | Jours |
 |---|---|---|
-| 4.1 | `noyau/niveaux.py` : scores par plateforme et global, règle « le global décide » | 1 |
-| 4.2 | `noyau/saturation.py` : détection sur K cycles, receveurs, transfert et compensation (§ 7.4), levée manuelle | 1,5 |
-| 4.3 | Scénario à deux plateformes (simulateur : l'une plafonne sur une zone, l'autre a de la marge) : le total revient vers le plan, **Σ_p objectif_p(z) constant à 1e-9 pour toute zone**, budgets constants | 1 |
-| 4.4 | Rapport, arrêt | 0,5 |
+| 4.1 | `noyau/niveaux.py` : scores par plateforme et global (affichés sous les deux algorithmes) | 0,5 |
+| 4.2 | Algorithme **« uniformiser par régie »** : indice = part de la régie ÷ sa cible ; régie en butée K cycles sans réduction de l'écart → réglage conservé sur la zone + alerte « régie en butée, aucun relais » ; aucun transfert | 0,5 |
+| 4.3 | Algorithme **« uniformiser au global »** : indice = part globale, toutes régies additionnées ; règle « le global décide » (§ 7.3), saturation, transfert et compensation (§ 7.4), levée manuelle | 2 |
+| 4.4 | Scénarios à deux plateformes sous les DEUX algorithmes (simulateur : l'une plafonne sur une zone, l'autre a de la marge ; puis l'une sur-diffuse et l'autre sous-livre la même zone). Global : le total revient vers le plan, **Σ_p objectif_p(z) constant à 1e-9**, budgets constants, les deux régies ne sont pas poussées l'une contre l'autre. Par régie : chaque régie revient vers sa cible, la régie en butée garde son réglage et alerte | 1 |
+| 4.5 | **Changement d'algorithme en cours de campagne** (simulateur) : effet au cycle suivant, départ des poids en cours, journal avant/après, rejeu d'un cycle sous l'algorithme qui l'a produit | 0,5 |
+| 4.6 | Rapport, arrêt | 0,5 |
 
-### Phase 5 — traducteurs et connecteur DV360 (≈ 11 j)
+### Phase 5 — traducteurs, connecteur DV360, sélecteur ⑦ (≈ 12,5 j)
 
 | Tâche | Contenu | Jours |
 |---|---|---|
@@ -619,8 +639,11 @@ suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de 
 | 5.3 | Connecteur DV360 : rapport Bid Manager **quotidien au CP** → `dsp_campaign_data`/`campaign_dsp_report`, script de custom bidding, plafond **2 000 CP** par envoi (au-delà : refus avec renvoi au fichier), `lire_etat_courant`, `retablir` | 3,5 |
 | 5.4 | Envoi **après validation** seulement (routes Next `valider`/`refuser`/`annuler`), retour arrière, journal ; interfaces Meta/TTD/TikTok (Protocol seul, registre sans elles) | 2 |
 | 5.5 | Bascule par drapeau du ciblage `/activation/pousser` ; rapport, arrêt | 1,5 |
+| 5.6 | **Sélecteur d'algorithme dans l'onglet ⑦ Activation** (Angular, décision du 05/11) : liste lue par `GET /api/optimisation/algos` (famille « correction », proposables seulement), libellé et description métier, paramètres avec défaut et bornes, algorithme en cours, journal des changements ; réservé à qui règle la campagne ; preuve dans les deux thèmes | 1,5 |
 
-**Total restant ≈ 33 jours.** Chemin critique : 1.1-1.5 → 3.1 → 3.3 → 4.2 → 5.3 → 5.4. 5.2 peut avancer en parallèle de la
+**Total restant ≈ 33 jours** au 04/11 ; **≈ 29 jours au 05/11** (phase 1 faite ; + 2,5 j de catalogue en phase 2, + 1 j
+pour le second algorithme en phase 4, + 1,5 j de sélecteur ⑦ en phase 5). Chemin critique : 2.5 → 2.7 → 3.1 → 3.3 → 4.3 →
+5.3 → 5.4. 5.2 peut avancer en parallèle de la
 phase 3. Blocage externe : droits Google sur le compte partenaire DV360 (`dsp_connections` en `error`), nécessaires pour
 prouver 5.3 contre la vraie API.
 
@@ -650,7 +673,8 @@ prouver 5.3 contre la vraie API.
 1. Colonne **`workspace_id`** (nom de la revendication JWT), FK `organizations`, valeur = espace propriétaire de la campagne ;
    lecture ouverte aussi aux espaces avec qui la campagne est partagée (comme `dsp_campaigns_select`).
 2. « **Le global décide** » = un coefficient de plateforme n'est appliqué que si l'indice global de la zone est hors tolérance
-   et dans le même sens (§ 7.3).
+   et dans le même sens (§ 7.3). **05/11** : c'est l'algorithme « uniformiser au global », par défaut ; le propriétaire
+   ajoute « uniformiser par régie » au choix (§ 16).
 3. Redistribution par **échange compensé** entre plateformes, pour garder constants la cible globale de chaque zone **et** le
    volume de chaque plateforme (§ 7.4) ; levée de saturation manuelle.
 4. Échec de G2 ou G3 → toute la proposition de la plateforme est conservée (sinon la renormalisation surpondère en douce).
@@ -681,3 +705,98 @@ que si le département lui-même est sous `V_min`.
 bloquée sur DV360 (0,585) et TTD (0,59) : aucune surpondération proposée, alors que c'est le cas d'école du document.
 **Recommandation** : G3 = rythme de dépense de la plateforme sur la fenêtre **≥ 0,5** (elle dépense au moins la moitié de son
 rythme : le problème est la répartition, pas un blocage) ; l'alerte « pacing en retard » à 0,85 reste affichée à part.
+
+---
+
+## 16. Catalogue d'algorithmes (décisions du propriétaire, 05/11)
+
+Ces décisions priment sur les §§ 7.3, 7.4 et 12 là où ils divergent. Rien n'est encore codé : les tâches sont 2.5-2.7,
+3.3, 4.1-4.5 et 5.6.
+
+### 16.1 Un catalogue unique, dans le service
+
+- **Un seul endroit** : `services/optimisation/src/optimisation/algos/`. Aucun algorithme ailleurs (ni dans Next, ni dans
+  Angular, ni en SQL).
+- **Registre** (`algos/registre.py`) : un dictionnaire `id → algorithme`. Chaque entrée décrit :
+
+| Champ | Contenu |
+|---|---|
+| `id` | identifiant stable, en minuscules (`uniformiser_global`) — c'est lui qu'on stocke |
+| `version` | entier ; il monte quand la sortie change pour une même entrée |
+| `libelle` | nom affiché, en sentence case (« Uniformiser au global ») |
+| `description` | deux ou trois phrases en mots métier, pour l'écran ⑦ |
+| `familles` | `plan` et/ou `correction` |
+| `proposable` | `true` si l'écran ⑦ peut le proposer ; `false` pour les formules réservées au simulateur |
+| `parametres` | liste : nom, libellé, défaut, minimum, maximum, unité |
+
+- **Contrat commun** (`algos/contrat.py`), pur comme le noyau (même test de pureté en liste blanche) :
+  - famille `correction` : entrée = par régie et par zone, poids en cours, part cible FIXE, livraison quotidienne de la
+    fenêtre, valeur de la zone, taux d'inclusion ; dépense par régie ; état du cycle précédent (butées, saturations) ;
+    paramètres. Sortie = par régie et par zone, indice, coefficient brut et borné, poids proposé, raison ; alertes ;
+    scores par régie et global ; état pour le cycle suivant.
+  - famille `plan` : l'entrée et la sortie des plans déjà portés (méthodes A et B, phase 1), sans changement.
+- **`GET /v1/algos`** : le catalogue tel quel, sans lecture en base. Filtres `famille` et `proposable`. Next le relaie par
+  `GET /api/optimisation/algos` pour l'écran.
+- **Rejeu** : chaque cycle écrit `algo_id` et `algo_version`. Rejouer un cycle d'une version retirée rend « version
+  retirée », jamais un calcul fait avec une autre version.
+
+### 16.2 Un algorithme de correction actif à la fois, par campagne
+
+- **Un seul** algorithme de correction actif par campagne. **Défaut : « uniformiser au global ».**
+- **Changeable en cours de campagne.** Le changement prend effet **au cycle suivant**. Le nouvel algorithme **repart des
+  poids en cours** (ceux du dernier envoi validé), pas du plan. La cible du plan ne bouge pas.
+- **Tracé** : qui, quand, algorithme et paramètres avant, après. Table `optimisation_reglages_journal` (`workspace_id`,
+  policies et tests RLS comme le § 9.3).
+- **Qui choisit** : celui qui règle la campagne, dans l'onglet **⑦ Activation**. Next vérifie le droit ; Python vérifie que
+  l'algorithme existe, est de la famille `correction` et est proposable (sinon 422 en français).
+- Stockage : `optimisation_reglages.algo_id` (+ `algo_version` lue au début de chaque cycle).
+
+### 16.3 Les deux algorithmes proposés
+
+Les deux partagent **la même formule de coefficient** (cahier, point 5 ; § 7.2), **les mêmes garde-fous** (§ 7.5) et **la
+même validation humaine** avant tout envoi. **Seule la mesure change** : part globale ou part de la régie.
+
+**« Uniformiser au global »** (`uniformiser_global`, défaut)
+
+- Le poids de chaque zone est respecté **sur la campagne, toutes régies additionnées**.
+- Exemple : sur une zone, Meta sur-diffuse et The Trade Desk sous-livre. Si la somme est conforme au plan, on ne touche à
+  rien : les deux se compensent. On ne pousse pas une régie contre l'autre.
+- C'est ce que décrivent les §§ 7.3 et 7.4 : deux niveaux de score, « le global décide », saturation et redistribution
+  du cahier.
+
+**« Uniformiser par régie »** (`uniformiser_par_regie`)
+
+- **Chaque régie** respecte le poids de chaque zone, pour elle-même.
+- **Pas de transfert** entre régies.
+- Une régie **en butée** sur une zone (coefficient à la borne pendant K cycles, sans que l'écart se réduise) : son réglage
+  sur cette zone est **conservé**, et une **alerte** part au trader.
+
+### 16.4 Les formules historiques
+
+Le rebid plafonné (`lib/pacing/rebid.ts`) et le recalage amorti (`lib/simulation/recalage.ts`), portés à l'identique en
+phase 1, entrent dans le catalogue (famille `correction`, `proposable: false`). Ils servent **au simulateur seulement**,
+pour comparer les formules (tâche 3.4). Ils ne sont **pas proposés** dans ⑦.
+
+> **Proposition en attente de confirmation du propriétaire.** Tant qu'elle n'est pas confirmée, ils restent dans le
+> catalogue avec `proposable: false`.
+
+### 16.5 Ce que cela change aux tâches
+
+| Phase | Avant (04/11) | Après (05/11) | Écart |
+|---|---|---|---|
+| 2 | 2.1-2.4 (3 j) | + 2.5 catalogue, 2.6 `GET /v1/algos`, 2.7 `algo_id` par campagne et journal (2,5 j) — **avant la phase 3** | + 2,5 j |
+| 3 | 3.1-3.5 (6 j) | 3.3 lit l'`algo_id` au début du cycle et l'écrit | 0 |
+| 4 | deux niveaux et saturation (4 j) | **les deux algorithmes** : par régie (4.2), global (4.3), scénarios sous les deux (4.4), changement en cours de campagne (4.5) | + 1 j |
+| 5 | traducteurs, DV360 (11 j) | + 5.6 sélecteur Angular dans ⑦ | + 1,5 j |
+| **Total restant** | ≈ 24 j (phases 2-5) | **≈ 29 j** | + 5 j |
+
+### 16.6 Décisions prises seul, à valider
+
+1. **« Repartir des poids en cours »** : au changement, les saturations et les transferts du global ne sont pas repris par
+   « par régie » ; chaque régie y est mesurée contre sa cible du plan. Au retour vers le global, les compteurs de butée
+   repartent de zéro.
+2. **« En butée »** dans « par régie » = la même détection que la saturation du global (K cycles à la borne, écart réduit
+   de moins de 10 %), sans redistribution.
+3. Les deux algorithmes partagent un seul jeu de paramètres communs (α, bornes, fenêtre, dilution, garde-fous) ; le
+   global ajoute K, la réduction minimale et la tolérance de « le global décide ».
+4. Les plans (méthodes A et B) sont dans le catalogue pour la traçabilité, mais ne se choisissent pas dans ⑦.
