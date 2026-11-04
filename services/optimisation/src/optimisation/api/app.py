@@ -19,6 +19,7 @@ from optimisation.api.algos import routeur as routeur_algos
 from optimisation.api.erreurs import LimiteCorps, erreur_imprevue, refus_de_validation, refus_mode_abandonne
 from optimisation.api.historique import routeur as routeur_historique
 from optimisation.api.plans import routeur as routeur_plans
+from optimisation.api.reglages_algo import routeur as routeur_reglages_algo
 from optimisation.api.securite import exiger_cle
 from optimisation.base import EtatBase, sonder_base
 from optimisation.noyau.pression import ModeAbandonne
@@ -73,6 +74,7 @@ def creer_app() -> FastAPI:
     application.include_router(routeur_plans)
     application.include_router(routeur_historique)
     application.include_router(routeur_algos)
+    application.include_router(routeur_reglages_algo)
     application.add_exception_handler(RequestValidationError, refus_de_validation)
     application.add_exception_handler(ModeAbandonne, refus_mode_abandonne)
     application.add_exception_handler(RefusAlgo, refus_algo)

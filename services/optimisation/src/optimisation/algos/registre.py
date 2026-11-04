@@ -26,11 +26,14 @@ from collections.abc import Mapping
 from typing import Any
 
 from optimisation.algos.contrat import (
+    AlgoAutreFamille,
     AlgoAVenir,
     AlgoInconnu,
+    AlgoNonProposable,
     Algorithme,
     Famille,
     Parametre,
+    parametres_effectifs,
 )
 from optimisation.noyau.historique.rebid_plafonne import compute_rebid_weights
 from optimisation.noyau.historique.recalage_amorti import recaler
@@ -182,6 +185,21 @@ def catalogue(famille: Famille | None = None, proposable: bool | None = None) ->
         for a in _ENTREES
         if (famille is None or famille in a.familles) and (proposable is None or a.proposable is proposable)
     ]
+
+
+def valider_choix_correction(algo_id: str, surcharges: Mapping[str, float]) -> tuple[Algorithme, dict[str, float]]:
+    """Le choix d'un algorithme de correction pour une campagne (tâche 2.7, plan § 16.2) : l'algorithme et ses
+    paramètres effectifs, ou un refus français, dans cet ordre — inconnu, d'une autre famille, réservé au simulateur,
+    paramètre invalide (inconnu, hors bornes, non entier, ordre violé).
+
+    Un algorithme « à venir » PEUT être choisi : le défaut lui-même l'est tant que la phase 4 ne l'a pas codé, et le
+    choix ne calcule rien (effet au cycle suivant). C'est le cycle qui refusera de l'exécuter (`executer`)."""
+    algo = obtenir(algo_id)
+    if "correction" not in algo.familles:
+        raise AlgoAutreFamille(algo.id, algo.libelle, "correction")
+    if not algo.proposable:
+        raise AlgoNonProposable(algo.id, algo.libelle)
+    return algo, parametres_effectifs(algo, surcharges)
 
 
 def executer(algo_id: str, *args: Any, **kwargs: Any) -> Any:

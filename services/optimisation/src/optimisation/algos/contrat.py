@@ -60,6 +60,30 @@ class ParametreInvalide(RefusAlgo):
     refus = "parametre_invalide"
 
 
+class AlgoAutreFamille(RefusAlgo):
+    """Choix d'un algorithme qui n'est pas de la famille attendue (un plan proposé comme correction, tâche 2.7)."""
+
+    refus = "algo_autre_famille"
+
+    def __init__(self, algo_id: str, libelle: str, attendue: Famille) -> None:
+        super().__init__(
+            f"L'algorithme « {libelle} » n'est pas de la famille « {attendue} » : il ne peut pas être choisi ici.",
+            algo_id,
+        )
+
+
+class AlgoNonProposable(RefusAlgo):
+    """Choix d'une formule réservée au simulateur (`proposable = False`, plan § 16.4)."""
+
+    refus = "algo_non_proposable"
+
+    def __init__(self, algo_id: str, libelle: str) -> None:
+        super().__init__(
+            f"L'algorithme « {libelle} » est réservé au simulateur : il ne peut pas être choisi pour une campagne.",
+            algo_id,
+        )
+
+
 # --- Description d'un algorithme -----------------------------------------------------------------------------------
 
 

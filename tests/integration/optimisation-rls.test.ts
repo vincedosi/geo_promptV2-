@@ -1,5 +1,6 @@
 /**
- * `optimisation_reglages` (sql/345) — RLS ACTIVE AVEC POLICY ÉCRITE, attaquée par la vraie porte d'entrée.
+ * `optimisation_reglages` (sql/345) et `optimisation_reglages_journal` (sql/347, tâche 2.7) — RLS ACTIVE AVEC POLICY
+ * ÉCRITE, attaquée par la vraie porte d'entrée.
  *
  * Sur le modèle de `cloisonnement-rls.test.ts` : de VRAIS comptes, la clé PUBLIQUE, PostgREST — l'appelant pour qui la
  * RLS est la seule barrière (plan 2026-11-04-optimisation-python-architecture.md § 9.3). Le service Python, lui, est
@@ -11,7 +12,9 @@
  *  - insert / update / delete refusés à tous les comptes connectés, propriétaire compris (aucune policy d'écriture,
  *    REVOKE explicite) : la ligne relue par l'administrateur est inchangée.
  *
- * Les comptes, la campagne d'essai et sa ligne de réglages sont supprimés à la fin.
+ * Le journal des changements d'algorithme suit exactement les mêmes règles (même policy, mêmes refus d'écriture).
+ *
+ * Les comptes, la campagne d'essai, sa ligne de réglages et son journal sont supprimés à la fin (cascade).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -30,6 +33,10 @@ const anonyme = createClient(URL_SB, CLE_PUBLIQUE, { auth: { persistSession: fal
 let campagne = '';
 
 const PARAMETRES = { seuils: { cp_sous_plan_pct: 60 } };
+const JOURNAL = {
+  algo_avant: 'uniformiser_global', parametres_avant: {},
+  algo_apres: 'uniformiser_par_regie', algo_version_apres: 1, parametres_apres: { alpha: 0.4 },
+};
 
 async function orgParSlug(slug: string): Promise<string> {
   const { data, error } = await admin.from('organizations').select('id').eq('slug', slug).single();
@@ -87,6 +94,12 @@ beforeAll(async () => {
   const { error: errReglage } = await admin.from('optimisation_reglages')
     .insert({ campagne_id: campagne, workspace_id: comptes.proprietaire.orgId, parametres: PARAMETRES });
   if (errReglage) throw new Error(`réglage d essai : ${errReglage.message}`);
+
+  const { error: errJournal } = await admin.from('optimisation_reglages_journal').insert({
+    workspace_id: comptes.proprietaire.orgId, campagne_id: campagne, modifie_par: comptes.proprietaire.id,
+    role_auteur: 'client', ...JOURNAL,
+  });
+  if (errJournal) throw new Error(`journal d essai : ${errJournal.message}`);
 }, 60_000);
 
 afterAll(async () => {
@@ -166,5 +179,67 @@ describe('optimisation_reglages — aucune écriture par la clé publique', () =
       expect(error?.code).toBe('42501');
     }
     expect(await lireParAdmin()).toHaveLength(1);
+  });
+});
+
+describe('optimisation_reglages_journal — lecture cloisonnée par espace', () => {
+  const lireJournal = (c: SupabaseClient) => c.from('optimisation_reglages_journal')
+    .select('campagne_id, algo_avant, algo_apres, parametres_apres').eq('campagne_id', campagne);
+
+  it('l espace propriétaire lit le changement', async () => {
+    const { data, error } = await lireJournal(comptes.proprietaire.client);
+    expect(error).toBeNull();
+    expect(data).toEqual([{
+      campagne_id: campagne, algo_avant: 'uniformiser_global', algo_apres: 'uniformiser_par_regie',
+      parametres_apres: { alpha: 0.4 },
+    }]);
+  });
+
+  it('un autre espace lit zéro ligne', async () => {
+    const { data, error } = await lireJournal(comptes.etranger.client);
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+  });
+
+  it('l espace partagé et super_admin le lisent', async () => {
+    for (const c of [comptes.partage, comptes.superAdmin]) {
+      const { data, error } = await lireJournal(c.client);
+      expect(error).toBeNull();
+      expect(data).toHaveLength(1);
+    }
+  });
+
+  it('l anonyme ne lit rien', async () => {
+    const { data, error } = await lireJournal(anonyme);
+    expect(error?.code === '42501' || (data ?? []).length === 0).toBe(true);
+  });
+});
+
+describe('optimisation_reglages_journal — aucune écriture par la clé publique', () => {
+  async function lignesParAdmin() {
+    const { data, error } = await admin.from('optimisation_reglages_journal').select('algo_apres')
+      .eq('campagne_id', campagne);
+    if (error) throw new Error(`relecture admin : ${error.message}`);
+    return data;
+  }
+
+  it('insert refusé à tous, propriétaire et super_admin compris', async () => {
+    for (const c of Object.values(comptes)) {
+      const { error } = await c.client.from('optimisation_reglages_journal')
+        .insert({ workspace_id: c.orgId, campagne_id: campagne, ...JOURNAL });
+      expect(error?.code).toBe('42501');
+    }
+    expect(await lignesParAdmin()).toHaveLength(1);
+  });
+
+  it('update et delete refusés : la ligne est intacte', async () => {
+    for (const c of Object.values(comptes)) {
+      const maj = await c.client.from('optimisation_reglages_journal').update({ algo_apres: 'pirate' })
+        .eq('campagne_id', campagne);
+      expect(maj.error?.code).toBe('42501');
+      const sup = await c.client.from('optimisation_reglages_journal').delete().eq('campagne_id', campagne);
+      expect(sup.error?.code).toBe('42501');
+    }
+    expect(await lignesParAdmin()).toEqual([{ algo_apres: 'uniformiser_par_regie' }]);
   });
 });

@@ -98,6 +98,8 @@ class Reglages(BaseModel):
     campagne_id: str
     workspace_id: str
     algo_id: str = ALGO_DEFAUT
+    # Surcharges des paramètres de `algo_id` (sql/347, tâche 2.7) ; absent = défaut du catalogue.
+    algo_parametres: dict[str, float] = {}
     parametres: ParametresOptimisation = ParametresOptimisation()
     enregistre: bool = False  # une ligne existe en base (sinon : tous les défauts)
 
@@ -120,7 +122,7 @@ def parametres_depuis_json(texte: str) -> ParametresOptimisation:
 
 
 _REQUETE = """
-select c.organization_id::text, r.algo_id, r.parametres::text
+select c.organization_id::text, r.algo_id, r.parametres::text, r.algo_parametres::text
   from public.dsp_campaigns c
   left join public.optimisation_reglages r on r.campagne_id = c.id and r.workspace_id = c.organization_id
  where c.id = %(campagne)s and c.organization_id = %(espace)s
@@ -134,13 +136,14 @@ def lire_reglages(connexion: psycopg.Connection[Any], campagne: str, espace: str
         ligne = cur.fetchone()
     if ligne is None:
         raise CampagneHorsEspace(campagne)
-    espace_lu, algo, parametres = ligne
+    espace_lu, algo, parametres, algo_parametres = ligne
     if algo is None:
         return Reglages(campagne_id=campagne, workspace_id=str(espace_lu))
     return Reglages(
         campagne_id=campagne,
         workspace_id=str(espace_lu),
         algo_id=str(algo),
+        algo_parametres={str(k): float(v) for k, v in json.loads(str(algo_parametres)).items()},
         parametres=parametres_depuis_json(str(parametres)),
         enregistre=True,
     )
