@@ -1,4 +1,4 @@
-"""Refus en français : validation des corps (422), corps trop gros (413), erreur imprévue (500).
+"""Refus en français : validation des corps (422), mode abandonné (422), corps trop gros (413), erreur imprévue (500).
 
 Relecture B (I1, M2, M3) : les 422 de Pydantic parlaient anglais (« Field required »), une valeur NaN ou ∞ passait la
 validation puis faisait lever la sérialisation APRÈS le calcul (500 « Internal Server Error »), et aucun plafond ne
@@ -14,6 +14,8 @@ from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from optimisation.noyau.pression import ModeAbandonne
 
 journal = logging.getLogger("optimisation.api")
 
@@ -80,6 +82,26 @@ async def refus_de_validation(_requete: Request, erreur: Exception) -> JSONRespo
         raise erreur
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": traduire(erreur.errors())}
+    )
+
+
+async def refus_mode_abandonne(_requete: Request, erreur: Exception) -> JSONResponse:
+    """`by_tier` / `by_subzone` : modes abandonnés le 05/11, jamais calculés. Sans ce refus, la méthode A partirait en
+    500 « erreur imprévue » (relecture de phase 1, I2) alors que la demande est simplement hors catalogue."""
+    if not isinstance(erreur, ModeAbandonne):  # enregistré pour cette seule classe
+        raise erreur
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={
+            "detail": {
+                "refus": "mode_abandonne",
+                "mode": erreur.mode,
+                "message": (
+                    f"Mode de pondération « {erreur.libelle} » abandonné : il n'est plus calculé. "
+                    "Choisissez une pondération par donnée INSEE, uniforme ou par liste de codes postaux."
+                ),
+            }
+        },
     )
 
 

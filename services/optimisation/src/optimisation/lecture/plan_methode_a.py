@@ -37,7 +37,12 @@ def _json_decimal(texte: str) -> Any:
 
 
 def lire_strategie(connexion: psycopg.Connection[Any], campagne: str) -> StrategieMethodeA:
-    """La stratégie la plus récente de la campagne, comme `refresh_campaign_rollups` et `get_campaign_suivi`."""
+    """La stratégie la plus récente de la campagne, comme `refresh_campaign_rollups` et `get_campaign_suivi`.
+
+    Départage (relecture de phase 1, M1) : le SQL trie par `created_at DESC LIMIT 1` SANS second critère ; ici `, id`
+    s'ajoute. Pour deux stratégies créées au même instant, le Python est déterministe et le SQL ne l'est pas : ils
+    peuvent alors retenir deux stratégies différentes. Aucune campagne de la base n'est dans ce cas (05/11).
+    """
     with connexion.cursor() as cur:
         cur.execute(
             "select id::text, zone_id::text, in_zone_weights::text, out_zone_weights::text "

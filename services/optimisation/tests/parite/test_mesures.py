@@ -152,6 +152,15 @@ def test_alignement_par_maille_refuse_une_maille_inconnue() -> None:
         alignement_par_maille(lignes_cp(), referentiel(), campagne(), "commune")
 
 
+def test_alignement_par_maille_limite_comme_postgres() -> None:
+    # Relecture de phase 1, M3 : `LIMIT NULL` = aucune limite ; une limite négative lève (Postgres : « LIMIT must not
+    # be negative »), au lieu de rendre une liste vide.
+    sans_limite = alignement_par_maille(lignes_cp(), referentiel(), campagne(), "cp", limite=None)
+    assert len(sans_limite["unites"]) == sans_limite["n_total"] > 500
+    with pytest.raises(ValueError, match="LIMIT must not be negative"):
+        alignement_par_maille(lignes_cp(), referentiel(), campagne(), "departement", limite=-1)
+
+
 def _attendu_global() -> Decimal | None:
     au = max(j.jour for j in lignes_jour())
     return attendu_a_date(strategie().prevue, au)

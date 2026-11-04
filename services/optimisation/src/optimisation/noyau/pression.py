@@ -13,8 +13,11 @@ L'UNIVERS des codes est une ENTRÉE : le SQL le lit dans `dsp_campaign_data` (to
 campagnes confondues) au moment de l'appel. La parité porte donc sur l'univers figé de la démo (11 435 codes), pas sur
 celui d'aujourd'hui ; la correction « référentiel complet » est de la phase 2.
 
-Modes non portés : `by_tier` (il appelle la fonction SQL `infer_tier`) et `by_subzone` (il relit
-`bidding_strategy_subzones`) — `ModeNonPorte` est levé plutôt que de rendre 1,0 en silence.
+Modes ABANDONNÉS (décision du propriétaire, 05/11) : `by_tier` (« par palier » — le poids suit une liste de
+départements écrite à la main, grande ville / ville / périurbain / rural, sans aucune donnée INSEE) et `by_subzone`
+(« par sous-zone » — un poids fixe sur des groupes de CP choisis à la main). Aucune stratégie en base ne les emploie
+(mesuré le 05/11 : 1 `by_insee_variable`, 4 `by_zone_set`). Ils ne sont pas portés : `ModeAbandonne` est levé plutôt
+que de rendre 1,0 en silence, et l'API le traduit en refus 422 « mode abandonné » (`api/erreurs.py`).
 """
 
 import math
@@ -40,8 +43,16 @@ VARIABLE_DEFAUT = "abstention_pres_2022"
 _UN = Decimal("1.0")  # le littéral `1.0` du SQL (échelle 1)
 
 
-class ModeNonPorte(Exception):
-    """Mode de pondération dont le calcul dépend d'une table ou d'une fonction SQL non portée."""
+MODES_ABANDONNES: dict[str, str] = {"by_tier": "par palier", "by_subzone": "par sous-zone"}
+
+
+class ModeAbandonne(Exception):
+    """Mode de pondération abandonné (`by_tier`, `by_subzone`) : il n'est pas calculé, la demande est refusée."""
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        self.libelle = MODES_ABANDONNES.get(mode, mode)
+        super().__init__(f"mode de pondération abandonné : {mode}")
 
 
 @dataclass(frozen=True)
@@ -181,7 +192,7 @@ def multiplicateurs_methode_a(
             if mode_in == "uniform":
                 m = _valeur_mode(poids_en_zone, "value")
             elif mode_in in ("by_tier", "by_subzone") and (zone_definie or mode_in == "by_tier"):
-                raise ModeNonPorte(f"mode {mode_in} non porté (dépend d'une table ou fonction SQL)")
+                raise ModeAbandonne(mode_in)
             elif mode_in == "by_cp_csv" and zone_definie:
                 m = _valeur_mode(poids_en_zone, "values", code)
             elif mode_in == "by_insee_variable":
@@ -194,7 +205,7 @@ def multiplicateurs_methode_a(
         elif mode_out == "exclusion":
             m = Decimal("0.0")
         elif mode_out == "by_tier":
-            raise ModeNonPorte("mode by_tier non porté (dépend de la fonction SQL infer_tier)")
+            raise ModeAbandonne(mode_out)
         else:
             m = _UN
         sortie[code] = _borner(m)

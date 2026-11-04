@@ -12,7 +12,7 @@ import pytest
 
 from optimisation.noyau.numeric_pg import arrondir, diviser, echelle, texte
 from optimisation.noyau.pression import (
-    ModeNonPorte,
+    ModeAbandonne,
     borner_pression,
     compter_positifs,
     courbe_pression,
@@ -121,12 +121,12 @@ def test_modes_simples() -> None:
     assert _un_seul('{"mode": "uniform", "value": 2}', '{"mode": "exclusion"}', zone=False, en_zone=False) == "2.000"
 
 
-def test_modes_non_portes_levent() -> None:
-    with pytest.raises(ModeNonPorte):
+def test_modes_abandonnes_levent() -> None:
+    with pytest.raises(ModeAbandonne):
         _un_seul('{"mode": "by_tier", "values": {}}')
-    with pytest.raises(ModeNonPorte):
+    with pytest.raises(ModeAbandonne):
         _un_seul('{"mode": "by_subzone", "value": 1}')
-    with pytest.raises(ModeNonPorte):
+    with pytest.raises(ModeAbandonne):
         _un_seul("{}", '{"mode": "by_tier"}', en_zone=False)
 
 

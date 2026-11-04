@@ -44,7 +44,12 @@ def lire_parametres_campagne(connexion: psycopg.Connection[Any], campagne: str) 
 
 
 def lire_strategie_suivi(connexion: psycopg.Connection[Any], campagne: str) -> tuple[str, StrategieSuivi] | None:
-    """La stratégie la plus récente (`ORDER BY created_at DESC LIMIT 1`) : son id et ce qu'en lisent les mesures."""
+    """La stratégie la plus récente (`ORDER BY created_at DESC LIMIT 1`) : son id et ce qu'en lisent les mesures.
+
+    Départage (relecture de phase 1, M1) : le SQL trie par `created_at DESC LIMIT 1` SANS second critère ; ici `, id`
+    s'ajoute. Pour deux stratégies créées au même instant, le Python est déterministe et le SQL ne l'est pas : ils
+    peuvent alors retenir deux stratégies différentes. Aucune campagne de la base n'est dans ce cas (05/11).
+    """
     with connexion.cursor() as cur:
         cur.execute(
             "select id::text, total_budget::text, forecast_cpm::text, start_date, end_date, kpi_target::text, "

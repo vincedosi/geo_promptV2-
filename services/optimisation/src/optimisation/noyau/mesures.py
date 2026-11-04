@@ -258,9 +258,12 @@ def alignement_par_maille(
     maille: str = "departement",
     parent: str | None = None,
     tolerance: Decimal | None = None,
-    limite: int = 500,
+    limite: int | None = 500,
 ) -> Json:
     """`alignement_par_maille(campagne, maille, parent, tolérance, limite)`.
+
+    `limite=None` = `LIMIT NULL` du SQL (aucune limite) ; une limite négative lève, comme Postgres
+    (« LIMIT must not be negative ») — relecture de phase 1, M3.
 
     L'ordre des unités à volume déplacé ÉGAL n'est pas défini en SQL (tri non stable) : il est rendu ici dans l'ordre
     des codes. Les unités sans plan (volume NULL) sont classées en DERNIER pour la limite (`NULLS LAST`), mais en TÊTE
@@ -347,7 +350,9 @@ def alignement_par_maille(
     # ORDER BY volume_deplace DESC NULLS LAST LIMIT, puis jsonb_agg ORDER BY volume_deplace DESC (NULLS FIRST).
     avec = sorted((u for u in unites if u["volume_deplace"] is not None), key=lambda u: -u["volume_deplace"])
     sans = [u for u in unites if u["volume_deplace"] is None]
-    gardees = [*avec, *sans][: max(limite, 0)]
+    if limite is not None and limite < 0:
+        raise ValueError("LIMIT must not be negative")
+    gardees = [*avec, *sans][:limite]
     finale = [u for u in gardees if u["volume_deplace"] is None] + [
         u for u in gardees if u["volume_deplace"] is not None
     ]
