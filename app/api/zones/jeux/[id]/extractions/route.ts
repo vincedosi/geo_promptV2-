@@ -221,7 +221,12 @@ export async function POST(
         .from('zone_set_cp')
         .select('code_postal, classe, pop_en_zone, pop_totale, part_en_zone, retenu, cluster_id')
         .eq('zone_set_id', id)
+        // Ordre TOTAL, la clé primaire (`zone_set_id, code_postal, cluster_id`, sql/225). Par `code_postal` seul, un
+        // code à cheval sur plusieurs grappes rendait ses lignes dans un ordre arbitraire : le plan (`genererPlanCp`
+        // somme les grappes dans l'ordre reçu) n'était pas reproductible, et deux pages de `lireTout` pouvaient se
+        // recouvrir (relecture du groupe A de l'optimisation Python, M7).
         .order('code_postal')
+        .order('cluster_id')
         .range(de, a),
       PLAFOND_CP,
     ));
