@@ -59,6 +59,26 @@ describe('mg-colonne-plateforme', () => {
     expect(texte(o.el, '[data-exacte] span.font-mono')).toBe('1 cercle · population inconnue (territoire non carroyé)');
     expect(texte(o.el, '[data-population-inconnue]')).toBe('Diffusion à population inconnue : 1 cercle, acheté sans chiffre d’habitants');
   });
+  it('preuve T6 : zone entièrement hors carroyage — manqués, hors zone et couverture « inconnus », jamais « 0 »', async () => {
+    const { el, http, jeu, stable } = await colonne('dv360');
+    jeu.valider('dv360');
+    const inconnue = { code: '97110', nom: null, commune: null, n_carreaux: 0, pop_en_zone: null, pop_totale: null, part: null, part_brute: null, incluse: true };
+    http.expectOne(urlCouverture(Z1, 'cp')).flush({
+      ...couvertureCp, population: 0, n_carreaux: 0, lignes: [inconnue], motif_vide: 'territoire_non_carroye',
+      territoires_non_carroyes: [{ code: '971', nom: 'Guadeloupe' }],
+    });
+    await stable();
+    http.expectOne(urlSimulationCercles(Z1)).flush({
+      ...pavageMoinsBon(Z1), n_candidates: 0, n_cercles: 0, population: 0, couverte: 0, manques: 0, hors_zone: 0, achetee: 0,
+      taux_utile: null, n_carreaux: 0, motif_vide: 'territoire_non_carroye',
+    });
+    await stable();
+    expect(texte(el, '[data-manques]')).toBe('inconnue');
+    expect(texte(el, '[data-hors-zone]')).toBe('inconnue');
+    const defaut = texte(el, '[data-defaut]') ?? '';
+    expect(defaut).toContain(': population inconnue (territoire non carroyé), couverture et taux d’utile non chiffrables.');
+    expect(defaut).not.toContain('0 %');
+  });
   it('revue T6 (I-6) : repliée, une colonne à son défaut provisoire le dit dans son en-tête', async () => {
     const { el, fixture, stable } = await colonne('meta');
     fixture.componentRef.setInput('ouverte', false);

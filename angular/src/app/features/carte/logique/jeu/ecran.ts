@@ -66,7 +66,7 @@ export const LIBELLE_POUSSEE: Readonly<Record<ModePoussee, string>> = {
  * Sous la cible : la raison le dit. Provisoire ou sans simulation : la phrase le dit. Revue T6 (I-7) : une simulation
  * TRANSITOIREMENT en échec (429, réseau) garde le défaut provisoire et dit pourquoi ; une maille refusée se dit à la fin.
  */
-export function texteDefaut(d: DefautAffiche): string {
+export function texteDefaut(d: DefautAffiche, inconnue = false): string {
   const transitoires = (d.echecs ?? []).filter((e) => e.transitoire);
   const refus = (d.echecs ?? []).filter((e) => !e.transitoire)
     .map((e) => ` ${capitale(UNITE_MAILLE[e.maille].plusieurs)} écartés du choix : ${e.message}`).join('');
@@ -74,18 +74,20 @@ export function texteDefaut(d: DefautAffiche): string {
     const en = transitoires.map((e) => UNITE_MAILLE[e.maille].plusieurs).join(', ');
     return `${nomDefaut(d)}, provisoirement : la simulation en ${en} a échoué. ${transitoires.map((e) => e.message).join(' ')}${refus}`;
   }
-  return `${texteDefautSeul(d)}${refus}`;
+  return `${texteDefautSeul(d, inconnue)}${refus}`;
 }
 
 const capitale = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
 const nomDefaut = (d: DefautExplique) => `${capitale(UNITE_MAILLE[d.maille].plusieurs)} par défaut (${LIBELLE_POUSSEE[d.poussee]})`;
 
-function texteDefautSeul(d: DefautExplique): string {
+function texteDefautSeul(d: DefautExplique, inconnue: boolean): string {
   const Nom = nomDefaut(d);
   if (d.critere === 'en_attente') return `${Nom}, provisoirement : simulation des autres mailles en cours.`;
   if (d.critere === 'sans_simulation' || !d.simulation) {
     return `${Nom}, faute de simulation : la plus sûre, puis exacte, puis poussée par API, puis la plus fine.`;
   }
+  // Preuve T6 : zone hors carroyage (`inconnue`), couverture et taux d'utile valent 0 / 0 — jamais « 0 % » (E10, ARB-3).
+  if (inconnue) return `${Nom} : population inconnue (territoire non carroyé), couverture et taux d’utile non chiffrables.`;
   const chiffres = (s: Simulation) => `couverture ${pourcent(s.couverture)}, taux utile ${pourcent(s.taux_utile)}`;
   const c = d.comparee;
   const contre = c

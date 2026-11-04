@@ -14,7 +14,7 @@ import {
   M_PAR_KM, MESSAGE_MOTIF_VIDE, NOM_PLATEFORME, UNITE_MAILLE, bornesRayon, dateReleve, libelleCurseurSeuil, nombreUnites, texteAvertissement,
   texteChevauchement, texteDefaut, texteDiffusionInconnue, texteRayonDefaut, texteUnitePays,
 } from '../../logique/jeu/ecran';
-import { textePopulationForme } from '../../logique/jeu/ecran-population';
+import { textePopulationForme, zoneSansPopulation } from '../../logique/jeu/ecran-population';
 import type { Maille, Plateforme } from '../../logique/jeu/plateformes';
 import { ENCART_AVERTISSEMENT_LISIBLE, ENCART_ERREUR, PASTILLE, PASTILLE_INACTIVE, PASTILLE_PRIMAIRE_ACTIVE } from '../analyse/styles-analyse';
 import { PALIERS_CSS } from '../analyse/tableau-couverture-zone.component';
@@ -124,9 +124,9 @@ const DELAI_ATTENTE_SIMULATION_S = 1; // un délai d’écran, pas une borne de 
               <dt class="text-secondary">Taux d’utile</dt>
               <dd data-taux class="m-0 text-right font-mono text-primary">{{ tauxTexte() }}</dd>
               <dt class="text-secondary">Habitants manqués</dt>
-              <dd data-manques class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.manques) }} <span class="text-tertiary">({{ partManquee() }} de la zone)</span></dd>
+              <dd data-manques class="m-0 text-right font-mono text-primary">@if (zoneInconnue()) {inconnue} @else { {{ nombre(b.resume.manques) }} <span class="text-tertiary">({{ partManquee() }} de la zone)</span> }</dd>
               <dt class="text-secondary">Diffusion hors zone</dt>
-              <dd data-hors-zone class="m-0 text-right font-mono text-primary">{{ nombre(b.resume.hors_zone) }}</dd>
+              <dd data-hors-zone class="m-0 text-right font-mono text-primary">@if (zoneInconnue()) {inconnue} @else { {{ nombre(b.resume.hors_zone) }} }</dd>
               @if (diffusionTotale(); as d) {
                 <dt class="text-secondary">Diffusion achetée, population totale</dt>
                 <dd data-diffusion-totale class="m-0 text-right font-mono text-primary">{{ nombre(d) }}</dd>
@@ -240,7 +240,7 @@ export class ColonnePlateformeComponent {
     const d = this.jeu.defauts()[this.plateforme()];
     if (!d || d.maille !== this.choix()?.maille) return null;
     // Revue T6 (I-7) : une simulation en échec se dit tout de suite, sans attendre la seconde de D33.
-    return d.critere === 'en_attente' && !this.attenteLongue() && !d.echecs?.length ? null : texteDefaut(d);
+    return d.critere === 'en_attente' && !this.attenteLongue() && !d.echecs?.length ? null : texteDefaut(d, this.zoneInconnue());
   });
 
   constructor() {
@@ -276,6 +276,8 @@ export class ColonnePlateformeComponent {
     const b = this.bilan();
     return b?.resume.exacte ? textePopulationForme(b.resume.population, !!b.resume.n_inconnues && !b.pays, this.libellePopulation()) : '';
   });
+  /** Preuve T6 (E10) : zone entièrement hors carroyage, lue dans n'importe quelle conversion ou pavage déjà là. */
+  protected readonly zoneInconnue = computed(() => zoneSansPopulation([...Object.values(this.jeu.couvertures()), ...Object.values(this.jeu.cercles())]));
   /** A6 (sql/311) : cercles — la somme des disques dépasse la diffusion achetée (chevauchements) ; sinon `null`. */
   protected readonly chevauchement = computed(() => {
     const b = this.bilan();

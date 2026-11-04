@@ -294,6 +294,9 @@ describe('B9 (ARB-7) — la maille par défaut sur les simulations en mémoire',
     // Le pavage refusé : la maille sort de la course, les CP restent, sous la cible.
     const refus = defautsDe(regles, anneau, REGLAGES_DEFAUT_REPLI, (_p, c) => (c.maille === 'cp' ? cpVide : rien()), (_p, c) => c.maille === 'cercle').dv360!;
     expect(texteDefaut(refus)).toBe('Codes postaux par défaut (export manuel) : couverture 0 %, taux utile — (aucune maille n’atteint 80 % de couverture).');
+    // Preuve T6 : zone hors carroyage, la couverture est 0 / 0 — inconnue, jamais « 0 % » (E10, ARB-3).
+    expect(texteDefaut(refus, true)).toBe('Codes postaux par défaut (export manuel) : population inconnue (territoire non carroyé), couverture et taux d’utile non chiffrables.');
+    expect(texteDefaut(attente, true)).toBe('Codes postaux par défaut (export manuel), provisoirement : simulation des autres mailles en cours.');
   });
 });
 
