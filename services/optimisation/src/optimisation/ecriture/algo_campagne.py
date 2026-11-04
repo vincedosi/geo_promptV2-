@@ -4,8 +4,8 @@ Tables : `optimisation_reglages.algo_id` / `algo_parametres` et `optimisation_re
 
 CLOISONNEMENT (plan § 5 et § 9.3) : `optimisation_service` est BYPASSRLS, la barrière est ICI. Chaque requête exige
 que la campagne appartienne à l'espace reçu (`X-Espace` = `dsp_campaigns.organization_id`) ; le réglage et le journal
-ne sont lus que sous le même `workspace_id`. Une campagne d'un autre espace → `CampagneHorsEspace`, et RIEN n'est
-écrit (le contrôle précède toute écriture, dans la même transaction).
+sont ensuite lus par `campagne_id` (sql/348 : ils SUIVENT la campagne, même règle que le SQL). Une campagne d'un autre
+espace → `CampagneHorsEspace`, et RIEN n'est écrit (le contrôle précède toute écriture, dans la même transaction).
 
 ÉCRITURE (une transaction, celle de la connexion de l'appelant) :
   1. la campagne dans l'espace, sinon refus ;
@@ -95,14 +95,14 @@ def _verifier_campagne(cur: psycopg.Cursor[Any], campagne: str, espace: str) -> 
 _ETAT = """
 select algo_id, algo_parametres, maj_par::text, maj_le
   from public.optimisation_reglages
- where campagne_id = %(campagne)s and workspace_id = %(espace)s
+ where campagne_id = %(campagne)s
 """
 
 _JOURNAL = """
 select j.id::text, j.modifie_par::text, j.role_auteur, j.modifie_le, j.algo_avant, j.parametres_avant, j.algo_apres,
        j.algo_version_apres, j.parametres_apres
   from public.optimisation_reglages_journal j
- where j.campagne_id = %(campagne)s and j.workspace_id = %(espace)s
+ where j.campagne_id = %(campagne)s
  -- Colonnes QUALIFIÉES : `id` seul désignerait la colonne de sortie `id::text` (tri texte, index inutilisable).
  order by j.modifie_le desc, j.id desc
  limit %(limite)s
@@ -190,12 +190,12 @@ def ecrire_algo_campagne(
                 {"campagne": campagne, "espace": espace},
             )
             ligne = _exiger(_verrouiller(cur, campagne))  # insérée ou existante, verrouillée
-        # Une ligne posée sous un AUTRE espace (campagne changée d'espace depuis) ne vaut pas pour celui-ci : comme à la
-        # lecture (`lire_reglages`), son « avant » est le défaut, et l'écriture la rattache à l'espace propriétaire.
-        meme_espace = ligne[2] == espace
-        algo_avant = str(ligne[0]) if meme_espace else ALGO_CORRECTION_DEFAUT
-        avant = _en_surcharges(ligne[1]) if meme_espace else {}
-        if meme_espace and algo_avant == algo_id and avant == apres:
+        # La ligne SUIT la campagne (sql/348) : son « avant » est le réglage en cours, même si la campagne a changé
+        # d'espace depuis qu'il a été posé. `workspace_id` est réécrit à l'espace propriétaire (déjà égal, par le
+        # déclencheur ; l'écriture le garantit aussi).
+        algo_avant = str(ligne[0])
+        avant = _en_surcharges(ligne[1])
+        if algo_avant == algo_id and avant == apres:
             etat = EtatAlgo(algo_avant, avant, enregistre=True, maj_par=ligne[3], maj_le=ligne[4])
             return ResultatEcriture(etat, change=False, entree=None)
         cur.execute(

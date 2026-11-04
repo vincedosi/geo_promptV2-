@@ -6,9 +6,14 @@ par le CHECK `optimisation_parametres_valides` ; les deux listes de clés doiven
 (`tests/lecture/test_reglages.py` les compare).
 
 CLOISONNEMENT (plan § 6 et § 9.3) : `optimisation_service` est BYPASSRLS, la barrière est donc ICI. La lecture exige
-l'espace (`X-Espace`) et ne rend la campagne que si elle appartient à cet espace (`dsp_campaigns.organization_id`) ; le
-réglage n'est joint que s'il porte le même `workspace_id`. Une campagne d'un autre espace → `CampagneHorsEspace` (que
-l'API traduira en 404, sans dire si la campagne existe).
+l'espace (`X-Espace`) et ne rend la campagne que si elle appartient à cet espace (`dsp_campaigns.organization_id`). Une
+campagne d'un autre espace → `CampagneHorsEspace` (que l'API traduira en 404, sans dire si la campagne existe).
+
+RÈGLE DE RÉSOLUTION (sql/348, relecture de la phase 2, I1) : le réglage SUIT LA CAMPAGNE. Il est joint par
+`campagne_id` SEUL — exactement comme le lisent `get_campaign_suivi` et `refresh_campaign_rollups` — et non plus sur
+`workspace_id = organization_id` : après un déplacement de la campagne, Python retombait sur les défauts pendant que le
+SQL appliquait le réglage. `workspace_id` est tenu égal à l'espace propriétaire par un déclencheur sur `dsp_campaigns`
+et ne sert qu'à la policy de lecture.
 
 EXPLAIN ANALYZE (local, 05/11) : 4 tampons, 0,9 ms — `dsp_campaigns` en parcours séquentiel (11 lignes : le
 planificateur préfère le parcours à la clé primaire tant que la table est minuscule), `optimisation_reglages` par sa
@@ -124,7 +129,7 @@ def parametres_depuis_json(texte: str) -> ParametresOptimisation:
 _REQUETE = """
 select c.organization_id::text, r.algo_id, r.parametres::text, r.algo_parametres::text
   from public.dsp_campaigns c
-  left join public.optimisation_reglages r on r.campagne_id = c.id and r.workspace_id = c.organization_id
+  left join public.optimisation_reglages r on r.campagne_id = c.id
  where c.id = %(campagne)s and c.organization_id = %(espace)s
 """
 
