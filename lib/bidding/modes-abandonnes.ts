@@ -12,8 +12,8 @@
  */
 import { z } from 'zod';
 
-export const MODES_ABANDONNES = { by_tier: 'par palier', by_subzone: 'par sous-zone' } as const;
-export type ModeAbandonne = keyof typeof MODES_ABANDONNES;
+const MODES_ABANDONNES = { by_tier: 'par palier', by_subzone: 'par sous-zone' } as const;
+type ModeAbandonne = keyof typeof MODES_ABANDONNES;
 
 /** Code d'erreur stable des refus (`params.refus` de l'issue Zod, `error` de la réponse). */
 export const REFUS_MODE_ABANDONNE = 'mode_abandonne';
@@ -23,7 +23,7 @@ function estAbandonne(mode: unknown): mode is ModeAbandonne {
 }
 
 /** Le message français d'un mode abandonné — le même que celui du service d'optimisation. */
-export function messageModeAbandonne(mode: ModeAbandonne): string {
+function messageModeAbandonne(mode: ModeAbandonne): string {
   return `Mode de pondération « ${MODES_ABANDONNES[mode]} » abandonné : il n'est plus calculé. `
     + 'Choisissez une pondération par donnée INSEE, uniforme ou par liste de codes postaux.';
 }
