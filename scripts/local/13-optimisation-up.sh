@@ -10,7 +10,11 @@
 #   2. si services/optimisation/.env n'existe pas, l'ÉCRIT avec un mot de passe
 #      et une clé interne tirés au hasard (fichier ignoré par git, jamais affiché) ;
 #   3. applique sql/342 (rôle optimisation_service, idempotent) avec le mot de
-#      passe de .env — chaque passage réaligne le rôle sur le fichier ;
+#      passe de .env — chaque passage réaligne le rôle sur le fichier. Le mot de
+#      passe n'atteint JAMAIS Postgres en clair : haché en SCRAM-SHA-256 côté
+#      client (optimisation.outils.scram, lu sur stdin), seul le vérificateur
+#      part dans ALTER ROLE — la base journalise le DDL (log_statement = ddl) et
+#      pg_stat_statements garde le texte (relecture A, I1) ;
 #   4. construit et démarre le conteneur (docker compose up -d --build) ;
 #   5. interroge GET /sante avec la clé interne, jusqu'à 30 s.
 #
@@ -63,17 +67,27 @@ CLE="$(lire_env OPTIMISATION_CLE_INTERNE)"
 MDP="$(printf '%s' "$URL" | sed -n 's#^postgres\(ql\)\{0,1\}://optimisation_service:\([^@]*\)@.*#\2#p')"
 [ -n "$MDP" ] || { echo "✗ OPTIMISATION_DATABASE_URL doit être postgresql://optimisation_service:<mdp>@..."; exit 1; }
 
-docker exec -i "$CONTENEUR_PG" psql -U postgres -q -v ON_ERROR_STOP=1 -v optimisation_mdp="$MDP" \
-  < sql/342_role_optimisation_service.sql
-echo "  ✓ sql/342 appliqué (rôle optimisation_service)"
+# Haché côté client : le mot de passe entre par stdin, le vérificateur SCRAM sort. Rien en argument (visible dans `ps`).
+VERIF="$(printf '%s' "$MDP" | uv run --quiet --project "$SERVICE" python -m optimisation.outils.scram)"
+case "$VERIF" in
+  'SCRAM-SHA-256$'*) ;;
+  *) echo "✗ vérificateur SCRAM non calculé (uv run --project $SERVICE python -m optimisation.outils.scram)"; exit 1 ;;
+esac
+# La variable psql est posée par la PREMIÈRE ligne de stdin (\set), pas par `-v` : rien en argument.
+{ printf "\\\\set optimisation_mdp '%s'\n" "$VERIF"; cat sql/342_role_optimisation_service.sql; } \
+  | docker exec -i "$CONTENEUR_PG" psql -U postgres -q -v ON_ERROR_STOP=1
+unset VERIF MDP
+echo "  ✓ sql/342 appliqué (rôle optimisation_service, vérificateur SCRAM)"
 
 docker compose -f "$SERVICE/compose.yaml" up -d --build
 echo "  … attente de /sante"
 
+# L'en-tête de la clé est lu sur stdin (`-H @-`), jamais passé en argument.
+sante() { printf 'X-Optimisation-Cle: %s\n' "$CLE" | curl -s -H @- "$@" http://127.0.0.1:8090/sante; }
 for _ in $(seq 1 30); do
-  CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "X-Optimisation-Cle: $CLE" http://127.0.0.1:8090/sante || true)"
+  CODE="$(sante -o /dev/null -w '%{http_code}' || true)"
   if [ "$CODE" = "200" ]; then
-    echo "  ✓ /sante : $(curl -s -H "X-Optimisation-Cle: $CLE" http://127.0.0.1:8090/sante)"
+    echo "  ✓ /sante : $(sante)"
     exit 0
   fi
   sleep 1

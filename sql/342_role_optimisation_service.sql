@@ -14,10 +14,19 @@
 -- Droits limités à ce qui EXISTE au 04/11. Les tables `optimisation_cycles`, `optimisation_reglages`,
 -- `cp_geoloc_defaut`, `optimisation_executions` (T8) recevront leurs droits dans leur propre migration.
 --
--- MOT DE PASSE : jamais dans ce fichier. Il est lu dans la variable psql `optimisation_mdp` ; la migration échoue sans
--- elle. `scripts/local/13-optimisation-up.sh` la passe depuis `services/optimisation/.env` (non suivi par git) :
---   docker exec -i supabase_db_genesis_app psql -U postgres -v optimisation_mdp="$MDP" < sql/342_role_optimisation_service.sql
--- Chaque passage RÉALIGNE le mot de passe sur la valeur fournie.
+-- MOT DE PASSE : jamais dans ce fichier, et jamais EN CLAIR vers Postgres. La variable psql `optimisation_mdp` porte un
+-- VÉRIFICATEUR SCRAM-SHA-256 calculé côté client (`SCRAM-SHA-256$4096:<sel>$<StoredKey>:<ServerKey>`,
+-- `services/optimisation/src/optimisation/outils/scram.py`), que Postgres stocke tel quel. Raison (relecture A, I1) : la
+-- base journalise le DDL (`log_statement = ddl`) et `pg_stat_statements` garde le texte de l'`ALTER ROLE` — un mot de
+-- passe en clair y restait lisible. Une valeur qui n'est pas un vérificateur est REFUSÉE (contrôle plus bas), et la
+-- migration échoue sans la variable. `scripts/local/13-optimisation-up.sh` hache le mot de passe de
+-- `services/optimisation/.env` (non suivi) et pose la variable par la première ligne de stdin (`\set`), jamais en
+-- argument (visible dans `ps`). Chaque passage RÉALIGNE le mot de passe sur la valeur fournie.
+--
+-- EXECUTE par défaut (relecture A, M6) : comme tout rôle, `optimisation_service` hérite de l'EXECUTE accordé à PUBLIC —
+-- dont 7 fonctions SECURITY DEFINER de `public` (`get_user_org`, `get_user_role`, `st_estimatedextent`…), exécutables
+-- aussi par `anon`. Les deux `grant execute` de la fin ne sont donc pas la seule borne d'exécution. Aucun REVOKE ici :
+-- base partagée, il toucherait tous les rôles.
 --
 -- Rejouable : création seulement si le rôle n'existe pas, puis ALTER/GRANT (idempotents). Aucun DROP, aucun REVOKE.
 
@@ -25,8 +34,17 @@
 
 \if :{?optimisation_mdp}
 \else
-  \echo 'sql/342 : variable psql optimisation_mdp absente — passer -v optimisation_mdp=... (voir l en-tete).'
+  \echo 'sql/342 : variable psql optimisation_mdp absente — poser le verificateur SCRAM (voir l en-tete).'
   select 1 / 0 as optimisation_mdp_absente;
+\endif
+
+-- Jamais un mot de passe en clair : seul un vérificateur SCRAM-SHA-256 passe.
+select :'optimisation_mdp' ~ '^SCRAM-SHA-256\$[0-9]+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$'
+  as optimisation_mdp_est_scram \gset
+\if :optimisation_mdp_est_scram
+\else
+  \echo 'sql/342 : optimisation_mdp doit etre un verificateur SCRAM-SHA-256, jamais le mot de passe en clair.'
+  select 1 / 0 as optimisation_mdp_en_clair;
 \endif
 
 select not exists (select 1 from pg_roles where rolname = 'optimisation_service') as optimisation_role_a_creer \gset
