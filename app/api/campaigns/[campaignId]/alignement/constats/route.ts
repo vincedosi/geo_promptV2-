@@ -3,8 +3,9 @@
  * corriger » : au plus trois constats CALCULÉS (`calculerConstats`,
  * `lib/campagne/constats.ts`), jamais rédigés en dur.
  *
- * Deux appels, séquentiels (jamais de `Promise.all` au-delà des deux déjà
- * groupés dans `checkCampaignAccess`) :
+ * Trois appels, séquentiels (jamais de `Promise.all` au-delà des deux déjà
+ * groupés dans `checkCampaignAccess`) — le troisième lit le seuil ± réglé
+ * (`optimisation_reglages`, clé primaire) :
  *  - `alignement_par_maille` (sql/165) à la maille DÉPARTEMENT, sans parent
  *    (vue nationale — c'est la granularité à laquelle « Ce qu'il faut
  *    corriger » raisonne, cf. maquette : « Le 13 et le 59… ») pour les
@@ -37,7 +38,7 @@ import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { checkCampaignAccess } from '@/lib/campaigns/access';
 import { createRateLimiter, rateLimitResponse } from '@/lib/api/rate-limit';
 import { rpcJson } from '@/lib/supabase/rpc-json';
-import { calculerConstats, type UniteConstat, type CanalConstat } from '@/lib/campagne/constats';
+import { calculerConstats, seuilEcartSignale, type UniteConstat, type CanalConstat } from '@/lib/campagne/constats';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,7 +154,16 @@ export async function GET(
   const sommeSpend = listeActeurs.reduce((s, a) => s + (a.spend ?? 0), 0);
   const cpmMoyen = sommeImpressions > 0 ? (sommeSpend / sommeImpressions) * 1000 : null;
 
-  const constats = calculerConstats({ unites, cpm_moyen: cpmMoyen, canaux });
+  // 3) Le seuil ± des constats réglé pour la campagne (relecture de la phase 2 de l'optimisation, I4) : une ligne par
+  //    clé primaire, lue par `campagne_id` comme `get_campaign_suivi` (sql/348 : le réglage suit la campagne). Sans
+  //    ligne ou sans clé : 20 %, le comportement d'avant. Une lecture en échec ne bloque pas les constats : elle est
+  //    journalisée et le défaut s'applique — le seuil ne protège rien, il règle ce qu'on affiche.
+  const { data: reglage, error: erreurReglage } = await supabase
+    .from('optimisation_reglages').select('parametres').eq('campagne_id', campaignId).maybeSingle();
+  if (erreurReglage) console.error('[alignement/constats] optimisation_reglages:', erreurReglage.message);
+  const seuilEcartPct = seuilEcartSignale((reglage as { parametres?: unknown } | null)?.parametres ?? null);
+
+  const constats = calculerConstats({ unites, cpm_moyen: cpmMoyen, canaux }, { seuilEcartPct });
 
   return NextResponse.json({ constats }, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -91,6 +91,21 @@ def connexion(url: str | None) -> Iterator[psycopg.Connection[Any]]:
         raise BaseIndisponible(f"{type(erreur).__name__}: {texte.splitlines()[0] if texte else ''}") from erreur
 
 
+@contextmanager
+def connexion_ecriture(url: str | None) -> Iterator[psycopg.Connection[Any]]:
+    """Une connexion du pool OUVERTE EN ÉCRITURE (tâche 2.7, seule écriture à ce jour : `optimisation_reglages*`).
+
+    Le pool valide la transaction à la sortie normale du `with`, l'annule sur exception. `read_only` est reposé à
+    chaque emprunt par `connexion` : une connexion rendue ici ne reste pas en écriture pour un lecteur suivant."""
+    try:
+        with _obtenir_pool(url).connection(timeout=DELAI_EMPRUNT_S) as conn:
+            conn.read_only = False
+            yield conn
+    except psycopg.Error as erreur:
+        texte = str(erreur).strip()
+        raise BaseIndisponible(f"{type(erreur).__name__}: {texte.splitlines()[0] if texte else ''}") from erreur
+
+
 def fermer_pool() -> None:
     global _pool
     with _verrou:

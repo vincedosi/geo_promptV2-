@@ -6,9 +6,14 @@ par le CHECK `optimisation_parametres_valides` ; les deux listes de clés doiven
 (`tests/lecture/test_reglages.py` les compare).
 
 CLOISONNEMENT (plan § 6 et § 9.3) : `optimisation_service` est BYPASSRLS, la barrière est donc ICI. La lecture exige
-l'espace (`X-Espace`) et ne rend la campagne que si elle appartient à cet espace (`dsp_campaigns.organization_id`) ; le
-réglage n'est joint que s'il porte le même `workspace_id`. Une campagne d'un autre espace → `CampagneHorsEspace` (que
-l'API traduira en 404, sans dire si la campagne existe).
+l'espace (`X-Espace`) et ne rend la campagne que si elle appartient à cet espace (`dsp_campaigns.organization_id`). Une
+campagne d'un autre espace → `CampagneHorsEspace` (que l'API traduira en 404, sans dire si la campagne existe).
+
+RÈGLE DE RÉSOLUTION (sql/348, relecture de la phase 2, I1) : le réglage SUIT LA CAMPAGNE. Il est joint par
+`campagne_id` SEUL — exactement comme le lisent `get_campaign_suivi` et `refresh_campaign_rollups` — et non plus sur
+`workspace_id = organization_id` : après un déplacement de la campagne, Python retombait sur les défauts pendant que le
+SQL appliquait le réglage. `workspace_id` est tenu égal à l'espace propriétaire par un déclencheur sur `dsp_campaigns`
+et ne sert qu'à la policy de lecture.
 
 EXPLAIN ANALYZE (local, 05/11) : 4 tampons, 0,9 ms — `dsp_campaigns` en parcours séquentiel (11 lignes : le
 planificateur préfère le parcours à la clé primaire tant que la table est minuscule), `optimisation_reglages` par sa
@@ -34,27 +39,34 @@ from optimisation.noyau.mesures import (
 )
 
 ALGO_DEFAUT = "uniformiser_global"
-# ± 20 % des constats (`lib/campagne/constats.ts:76`, `SEUIL_ECART_SIGNALE_PCT`) : validé et stocké, lu par personne
-# aujourd'hui (le calcul des constats reste TS, affichage React gelé).
+# ± 20 % des constats (`lib/campagne/constats.ts`, `SEUIL_ECART_SIGNALE_PCT`) : validé et stocké ici, LU par la route
+# Next `alignement/constats` (`seuilEcartSignale`, relecture de la phase 2, I4) — le calcul des constats reste en TS.
 ECART_SIGNALE_PCT = Decimal(20)
 
 UniversMethodeA = Literal["fige", "referentiel"]
 
+# Bornes hautes des seuils (sql/350) : `*_pct` ≤ 100, rythmes et facteur de CPM ≤ 10.
+BORNE_PCT = Decimal(100)
+BORNE_FACTEUR = Decimal(10)
+
 
 class Seuils(BaseModel):
-    """`parametres.seuils` : chaque seuil est facultatif et strictement positif ; défaut = la valeur d'avant."""
+    """`parametres.seuils` : chaque seuil est facultatif et strictement positif ; défaut = la valeur d'avant.
+
+    Bornes hautes (sql/350, mineur M2 de la relecture) : un pourcentage ≤ 100, un rythme ou un facteur de CPM ≤ 10 —
+    les mêmes que le CHECK `optimisation_parametres_valides` (comparées par `tests/lecture/test_reglages.py`)."""
 
     # Strict : un nombre écrit en texte ("0.85") est refusé, comme par le CHECK (`jsonb_typeof = 'number'`).
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    rythme_retard: Decimal = Field(default=RYTHME_RETARD, gt=0)
-    rythme_retard_grave: Decimal = Field(default=RYTHME_RETARD_GRAVE, gt=0)
-    rythme_avance: Decimal = Field(default=RYTHME_AVANCE, gt=0)
-    rythme_avance_grave: Decimal = Field(default=RYTHME_AVANCE_GRAVE, gt=0)
-    cpm_depassement: Decimal = Field(default=CPM_DEPASSEMENT, gt=0)
-    cp_sous_plan_pct: Decimal = Field(default=CP_SOUS_PLAN_PCT, gt=0)
-    fuite_pct: Decimal = Field(default=FUITE_PCT, gt=0)
-    ecart_signale_pct: Decimal = Field(default=ECART_SIGNALE_PCT, gt=0)
+    rythme_retard: Decimal = Field(default=RYTHME_RETARD, gt=0, le=BORNE_FACTEUR)
+    rythme_retard_grave: Decimal = Field(default=RYTHME_RETARD_GRAVE, gt=0, le=BORNE_FACTEUR)
+    rythme_avance: Decimal = Field(default=RYTHME_AVANCE, gt=0, le=BORNE_FACTEUR)
+    rythme_avance_grave: Decimal = Field(default=RYTHME_AVANCE_GRAVE, gt=0, le=BORNE_FACTEUR)
+    cpm_depassement: Decimal = Field(default=CPM_DEPASSEMENT, gt=0, le=BORNE_FACTEUR)
+    cp_sous_plan_pct: Decimal = Field(default=CP_SOUS_PLAN_PCT, gt=0, le=BORNE_PCT)
+    fuite_pct: Decimal = Field(default=FUITE_PCT, gt=0, le=BORNE_PCT)
+    ecart_signale_pct: Decimal = Field(default=ECART_SIGNALE_PCT, gt=0, le=BORNE_PCT)
 
     @model_validator(mode="after")
     def _ordonnes(self) -> "Seuils":
@@ -98,6 +110,8 @@ class Reglages(BaseModel):
     campagne_id: str
     workspace_id: str
     algo_id: str = ALGO_DEFAUT
+    # Surcharges des paramètres de `algo_id` (sql/347, tâche 2.7) ; absent = défaut du catalogue.
+    algo_parametres: dict[str, float] = {}
     parametres: ParametresOptimisation = ParametresOptimisation()
     enregistre: bool = False  # une ligne existe en base (sinon : tous les défauts)
 
@@ -120,9 +134,9 @@ def parametres_depuis_json(texte: str) -> ParametresOptimisation:
 
 
 _REQUETE = """
-select c.organization_id::text, r.algo_id, r.parametres::text
+select c.organization_id::text, r.algo_id, r.parametres::text, r.algo_parametres::text
   from public.dsp_campaigns c
-  left join public.optimisation_reglages r on r.campagne_id = c.id and r.workspace_id = c.organization_id
+  left join public.optimisation_reglages r on r.campagne_id = c.id
  where c.id = %(campagne)s and c.organization_id = %(espace)s
 """
 
@@ -134,13 +148,14 @@ def lire_reglages(connexion: psycopg.Connection[Any], campagne: str, espace: str
         ligne = cur.fetchone()
     if ligne is None:
         raise CampagneHorsEspace(campagne)
-    espace_lu, algo, parametres = ligne
+    espace_lu, algo, parametres, algo_parametres = ligne
     if algo is None:
         return Reglages(campagne_id=campagne, workspace_id=str(espace_lu))
     return Reglages(
         campagne_id=campagne,
         workspace_id=str(espace_lu),
         algo_id=str(algo),
+        algo_parametres={str(k): float(v) for k, v in json.loads(str(algo_parametres)).items()},
         parametres=parametres_depuis_json(str(parametres)),
         enregistre=True,
     )

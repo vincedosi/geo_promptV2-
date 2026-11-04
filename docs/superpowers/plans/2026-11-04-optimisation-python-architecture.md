@@ -611,6 +611,10 @@ suppression du TS) n'a lieu qu'après accord du propriétaire, pas à la fin de 
 `univers_methode_a`, défaut `fige`), `optimisation_reglages` (colonne `algo_id` posée, sa logique reste 2.7), seuils lus
 par Python et `get_campaign_suivi`. Effet mesuré : `2026-11-05-optimisation-phase2-corrections-donnees.md`.
 
+**2.7 fait le 05/11** (sql/347 appliquée ×2 en local) : `optimisation_reglages.algo_parametres` (surcharges),
+`optimisation_reglages_journal` (policy et tests RLS), `GET`/`PUT /v1/campagnes/{id}/algo` et la passerelle
+`/api/campaigns/[campaignId]/optimisation/algo`. Rapport : `.superpowers/sdd/2026-11-04-optimisation-python/phase2-7-report.md`.
+
 ### Phase 3 — formule cible (≈ 6 j)
 
 | Tâche | Contenu | Jours |

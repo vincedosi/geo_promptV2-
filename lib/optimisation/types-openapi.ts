@@ -2,7 +2,7 @@
  * GÉNÉRÉ — ne pas modifier à la main. Source : services/optimisation/openapi.json
  * (exporté par services/optimisation/tests/api/test_openapi.py), openapi-typescript 7.13.0.
  * Régénérer : node scripts/optimisation/generer-types.mjs
- * openapi-sha256: 13fe41d5ce3f3620c623c7296f3ac7d13f37d6c55c396ce9ffa7d01d1277f763
+ * openapi-sha256: 43c7932c2f59d62a2a0891bca6269bbedff6cd78ce900967608b566423dda2e0
  */
 /* eslint-disable */
 /**
@@ -104,6 +104,56 @@ export interface paths {
          */
         get: operations["lister_algos_v1_algos_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campagnes/{campagne_id}/algo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lire Algo
+         * @description Le réglage courant (défaut du catalogue s'il n'y en a pas) et les 50 derniers changements, du plus récent.
+         */
+        get: operations["lire_algo_v1_campagnes__campagne_id__algo_get"];
+        /**
+         * Regler Algo
+         * @description Choisit l'algorithme de correction de la campagne ; effet au cycle suivant ; changement tracé au journal.
+         *
+         *     Le refus du catalogue (`RefusAlgo`, 422) part AVANT toute connexion : rien n'est lu ni écrit s'il est refusé.
+         */
+        put: operations["regler_algo_v1_campagnes__campagne_id__algo_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campagnes/{campagne_id}/reglages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lire Reglages Donnees
+         * @description Les réglages de données courants (défauts sans ligne) et les 50 derniers changements, du plus récent.
+         */
+        get: operations["lire_reglages_donnees_v1_campagnes__campagne_id__reglages_get"];
+        /**
+         * Regler Reglages Donnees
+         * @description Remplace les réglages de données de la campagne ; changement tracé au journal (`nature = 'reglages'`).
+         */
+        put: operations["regler_reglages_donnees_v1_campagnes__campagne_id__reglages_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -263,6 +313,15 @@ export interface components {
             /** Defaut Correction */
             defaut_correction: string;
         };
+        /** ChoixAlgo */
+        ChoixAlgo: {
+            /** Algo Id */
+            algo_id: string;
+            /** Parametres */
+            parametres?: {
+                [key: string]: number;
+            };
+        };
         /** ChoixEntree */
         ChoixEntree: {
             /**
@@ -274,6 +333,13 @@ export interface components {
             seuil: number;
             /** N Codes Conversion */
             n_codes_conversion: number;
+        };
+        /** ChoixReglages */
+        ChoixReglages: {
+            /** Parametres */
+            parametres?: {
+                [key: string]: unknown;
+            };
         };
         /** CpRecalageEntree */
         CpRecalageEntree: {
@@ -301,6 +367,56 @@ export interface components {
             pop_totale: number;
             /** Retenu */
             retenu: boolean;
+        };
+        /** EntreeJournalReglagesSortie */
+        EntreeJournalReglagesSortie: {
+            /** Id */
+            id: string;
+            /** Modifie Par */
+            modifie_par: string | null;
+            /** Role Auteur */
+            role_auteur: string | null;
+            /**
+             * Modifie Le
+             * Format: date-time
+             */
+            modifie_le: string;
+            /** Avant */
+            avant: {
+                [key: string]: unknown;
+            };
+            /** Apres */
+            apres: {
+                [key: string]: unknown;
+            };
+        };
+        /** EntreeJournalSortie */
+        EntreeJournalSortie: {
+            /** Id */
+            id: string;
+            /** Modifie Par */
+            modifie_par: string | null;
+            /** Role Auteur */
+            role_auteur: string | null;
+            /**
+             * Modifie Le
+             * Format: date-time
+             */
+            modifie_le: string;
+            /** Algo Avant */
+            algo_avant: string;
+            /** Parametres Avant */
+            parametres_avant: {
+                [key: string]: number;
+            };
+            /** Algo Apres */
+            algo_apres: string;
+            /** Algo Version Apres */
+            algo_version_apres: number;
+            /** Parametres Apres */
+            parametres_apres: {
+                [key: string]: number;
+            };
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -417,6 +533,17 @@ export interface components {
             /** Entier */
             entier: boolean;
         };
+        /** ParametresEffectifs */
+        ParametresEffectifs: {
+            seuils: components["schemas"]["SeuilsSortie"];
+            /** Tableaux Depuis Plan */
+            tableaux_depuis_plan: boolean;
+            /**
+             * Univers Methode A
+             * @enum {string}
+             */
+            univers_methode_a: "fige" | "referentiel";
+        };
         /**
          * ParamsRecalageEntree
          * @description Les trois paramètres lus par `recaler`, sous les noms du TS (`ParamsSimulation`).
@@ -520,6 +647,88 @@ export interface components {
             a_verifier?: components["schemas"]["AVerifierSortie"];
         };
         /**
+         * ReglageAlgo
+         * @description Le réglage courant. `algo_version`, `libelle`, `etat` et `parametres_effectifs` valent `None` si l'algorithme
+         *     enregistré n'est plus au catalogue ; `parametres_effectifs` aussi si ses surcharges ne passent plus ses bornes.
+         */
+        ReglageAlgo: {
+            /** Campagne Id */
+            campagne_id: string;
+            /** Algo Id */
+            algo_id: string;
+            /** Algo Version */
+            algo_version: number | null;
+            /** Libelle */
+            libelle: string | null;
+            /** Etat */
+            etat: ("disponible" | "a_venir") | null;
+            /** Surcharges */
+            surcharges: {
+                [key: string]: number;
+            };
+            /** Parametres Effectifs */
+            parametres_effectifs: {
+                [key: string]: number;
+            } | null;
+            /** Enregistre */
+            enregistre: boolean;
+            /** Maj Par */
+            maj_par: string | null;
+            /** Maj Le */
+            maj_le: string | null;
+        };
+        /** ReglageAlgoEtJournal */
+        ReglageAlgoEtJournal: {
+            reglage: components["schemas"]["ReglageAlgo"];
+            /** Journal */
+            journal: components["schemas"]["EntreeJournalSortie"][];
+            /** Journal Tronque */
+            journal_tronque: boolean;
+        };
+        /**
+         * ReglagesDonnees
+         * @description `parametres` : ce qui est réglé (clés données seulement) ; `effectifs` : défauts compris.
+         */
+        ReglagesDonnees: {
+            /** Campagne Id */
+            campagne_id: string;
+            /** Parametres */
+            parametres: {
+                [key: string]: unknown;
+            };
+            effectifs: components["schemas"]["ParametresEffectifs"];
+            /** Enregistre */
+            enregistre: boolean;
+            /** Maj Par */
+            maj_par: string | null;
+            /** Maj Le */
+            maj_le: string | null;
+        };
+        /** ReglagesDonneesEtJournal */
+        ReglagesDonneesEtJournal: {
+            reglages: components["schemas"]["ReglagesDonnees"];
+            /** Journal */
+            journal: components["schemas"]["EntreeJournalReglagesSortie"][];
+            /** Journal Tronque */
+            journal_tronque: boolean;
+        };
+        /** ResultatReglageAlgo */
+        ResultatReglageAlgo: {
+            reglage: components["schemas"]["ReglageAlgo"];
+            /** Change */
+            change: boolean;
+            entree: components["schemas"]["EntreeJournalSortie"] | null;
+        };
+        /** ResultatReglagesDonnees */
+        ResultatReglagesDonnees: {
+            reglages: components["schemas"]["ReglagesDonnees"];
+            /** Change */
+            change: boolean;
+            entree: components["schemas"]["EntreeJournalReglagesSortie"] | null;
+            /** Tableaux A Reconstruire */
+            tableaux_a_reconstruire: boolean;
+        };
+        /**
          * ResumeCommun
          * @description Le résumé du plan commun, `algo` compris (`resume_plan.algo`, sql/344).
          */
@@ -595,6 +804,25 @@ export interface components {
             role?: string | null;
             /** Erreur */
             erreur?: string | null;
+        };
+        /** SeuilsSortie */
+        SeuilsSortie: {
+            /** Rythme Retard */
+            rythme_retard: number;
+            /** Rythme Retard Grave */
+            rythme_retard_grave: number;
+            /** Rythme Avance */
+            rythme_avance: number;
+            /** Rythme Avance Grave */
+            rythme_avance_grave: number;
+            /** Cpm Depassement */
+            cpm_depassement: number;
+            /** Cp Sous Plan Pct */
+            cp_sous_plan_pct: number;
+            /** Fuite Pct */
+            fuite_pct: number;
+            /** Ecart Signale Pct */
+            ecart_signale_pct: number;
         };
         /**
          * SortiePlanRisque
@@ -852,6 +1080,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogueAlgos"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lire_algo_v1_campagnes__campagne_id__algo_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-espace": string;
+                "x-optimisation-cle"?: string | null;
+            };
+            path: {
+                campagne_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReglageAlgoEtJournal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regler_algo_v1_campagnes__campagne_id__algo_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-espace": string;
+                "x-utilisateur": string;
+                "x-role": "super_admin" | "admin" | "client";
+                "x-optimisation-cle"?: string | null;
+            };
+            path: {
+                campagne_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChoixAlgo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultatReglageAlgo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lire_reglages_donnees_v1_campagnes__campagne_id__reglages_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-espace": string;
+                "x-optimisation-cle"?: string | null;
+            };
+            path: {
+                campagne_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReglagesDonneesEtJournal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regler_reglages_donnees_v1_campagnes__campagne_id__reglages_put: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-espace": string;
+                "x-utilisateur": string;
+                "x-role": "super_admin" | "admin" | "client";
+                "x-optimisation-cle"?: string | null;
+            };
+            path: {
+                campagne_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChoixReglages"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultatReglagesDonnees"];
                 };
             };
             /** @description Validation Error */

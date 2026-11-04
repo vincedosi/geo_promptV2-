@@ -16,8 +16,11 @@
 import type { z } from 'zod';
 import { DelaiDepasseError, fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 import {
-  SchemaCatalogueAlgos, SchemaSortiePlanRisque, SchemaSortiePlanZone, SchemaSortieRecaler,
-  type CatalogueAlgos, type FamilleAlgo, type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
+  SchemaCatalogueAlgos, SchemaReglageAlgoEtJournal, SchemaReglagesDonneesEtJournal, SchemaResultatReglageAlgo,
+  SchemaResultatReglagesDonnees, SchemaSortiePlanRisque,
+  SchemaSortiePlanZone, SchemaSortieRecaler,
+  type CatalogueAlgos, type ChoixAlgo, type FamilleAlgo, type ReglageAlgoEtJournal, type ResultatReglageAlgo,
+  type ReglagesDonneesEtJournal, type ResultatReglagesDonnees, type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
   type SortiePlanRisque, type SortiePlanZone, type SortieRecaler,
 } from '@/lib/optimisation/schemas';
 
@@ -99,21 +102,26 @@ export function appelerOptimisation<T>(
  */
 function lireOptimisation<T>(
   chemin: string, schema: z.ZodType<T>, delaiMs: number = DELAI_OPTIMISATION_MS,
+  entetes: Record<string, string> = {},
 ): Promise<T> {
-  return requeter(chemin, { method: 'GET' }, schema, delaiMs);
+  return requeter(chemin, { method: 'GET', entetes }, schema, delaiMs);
 }
 
+interface Envoi { method: 'GET' | 'POST' | 'PUT'; body?: string; entetes?: Record<string, string> }
+
 async function requeter<T>(
-  chemin: string, envoi: { method: 'GET' | 'POST'; body?: string }, schema: z.ZodType<T>, delaiMs: number,
+  chemin: string, envoi: Envoi, schema: z.ZodType<T>, delaiMs: number,
 ): Promise<T> {
   const { url, cle } = config();
   let reponse: Response;
   try {
     reponse = await fetchAvecDelai(`${url}${chemin}`, {
       method: envoi.method,
-      headers: envoi.body === undefined
-        ? { 'X-Optimisation-Cle': cle }
-        : { 'Content-Type': 'application/json', 'X-Optimisation-Cle': cle },
+      headers: {
+        ...(envoi.entetes ?? {}),
+        ...(envoi.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        'X-Optimisation-Cle': cle,
+      },
       ...(envoi.body === undefined ? {} : { body: envoi.body }),
       cache: 'no-store',
     }, delaiMs);
@@ -186,4 +194,58 @@ export function calculerPlanRisque(entree: EntreePlanRisque, delaiMs?: number): 
 /** `POST /v1/historique/recaler` — recalage amorti v1 → v2 (`recaler`), `Map` en listes de paires. */
 export function calculerRecalage(entree: EntreeRecaler, delaiMs?: number): Promise<SortieRecaler> {
   return appelerOptimisation('/v1/historique/recaler', entree, SchemaSortieRecaler, delaiMs);
+}
+
+/**
+ * L'identité que Next transmet au service pour une écriture (plan § 5) : l'espace PROPRIÉTAIRE de la campagne
+ * (`dsp_campaigns.organization_id`, que le service revérifie), l'auteur et son rôle (tracés au journal). Next a vérifié
+ * la session et le droit AVANT ; le service ne vérifie que l'appartenance de la campagne à l'espace.
+ */
+export interface IdentiteOptimisation { espace: string; utilisateur: string; role: string }
+
+/** `GET /v1/campagnes/{id}/algo` — l'algorithme de correction de la campagne et son journal (tâche 2.7). */
+export function lireAlgoCampagne(
+  campagne: string, espace: string, delaiMs?: number,
+): Promise<ReglageAlgoEtJournal> {
+  return lireOptimisation(
+    `/v1/campagnes/${encodeURIComponent(campagne)}/algo`, SchemaReglageAlgoEtJournal, delaiMs, { 'X-Espace': espace });
+}
+
+/**
+ * `PUT /v1/campagnes/{id}/algo` — choisit l'algorithme de correction (effet au cycle suivant, tracé au journal).
+ * Refus du catalogue → `ErreurOptimisation` motif `refus`, statut 422, `refus` = `algo_inconnu`,
+ * `algo_non_proposable`, `algo_autre_famille`, `parametre_invalide` ou `validation`.
+ */
+export function reglerAlgoCampagne(
+  campagne: string, choix: ChoixAlgo, identite: IdentiteOptimisation, delaiMs: number = DELAI_OPTIMISATION_MS,
+): Promise<ResultatReglageAlgo> {
+  return requeter(`/v1/campagnes/${encodeURIComponent(campagne)}/algo`, {
+    method: 'PUT',
+    body: JSON.stringify(choix),
+    entetes: { 'X-Espace': identite.espace, 'X-Utilisateur': identite.utilisateur, 'X-Role': identite.role },
+  }, SchemaResultatReglageAlgo, delaiMs);
+}
+
+/** `GET /v1/campagnes/{id}/reglages` — seuils d'alerte et corrections de données de la campagne, et leur journal. */
+export function lireReglagesCampagne(
+  campagne: string, espace: string, delaiMs?: number,
+): Promise<ReglagesDonneesEtJournal> {
+  return lireOptimisation(
+    `/v1/campagnes/${encodeURIComponent(campagne)}/reglages`, SchemaReglagesDonneesEtJournal, delaiMs,
+    { 'X-Espace': espace });
+}
+
+/**
+ * `PUT /v1/campagnes/{id}/reglages` — REMPLACE les réglages de données (clé absente = défaut), tracé au journal.
+ * Refus → `ErreurOptimisation` motif `refus`, statut 422, `refus` = `parametre_invalide` ou `validation`.
+ */
+export function reglerReglagesCampagne(
+  campagne: string, parametres: Record<string, unknown>, identite: IdentiteOptimisation,
+  delaiMs: number = DELAI_OPTIMISATION_MS,
+): Promise<ResultatReglagesDonnees> {
+  return requeter(`/v1/campagnes/${encodeURIComponent(campagne)}/reglages`, {
+    method: 'PUT',
+    body: JSON.stringify({ parametres }),
+    entetes: { 'X-Espace': identite.espace, 'X-Utilisateur': identite.utilisateur, 'X-Role': identite.role },
+  }, SchemaResultatReglagesDonnees, delaiMs);
 }

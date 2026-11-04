@@ -202,6 +202,99 @@ export const SchemaCatalogueAlgos: z.ZodType<S['CatalogueAlgos']> = z.object({
   defaut_correction: z.string(),
 }).passthrough();
 
+/** L'algorithme de correction d'une campagne et son journal (`GET` / `PUT /v1/campagnes/{id}/algo`, tâche 2.7). */
+const parametresAlgo = z.record(z.string(), nombre);
+const horodatage = z.string().min(1);
+
+const SchemaReglageAlgo: z.ZodType<S['ReglageAlgo']> = z.object({
+  campagne_id: z.string().uuid(),
+  algo_id: z.string(),
+  algo_version: z.number().int().positive().nullable(),
+  libelle: z.string().nullable(),
+  etat: z.enum(['disponible', 'a_venir']).nullable(),
+  surcharges: parametresAlgo,
+  parametres_effectifs: parametresAlgo.nullable(),
+  enregistre: z.boolean(),
+  maj_par: z.string().nullable(),
+  maj_le: horodatage.nullable(),
+}).passthrough();
+
+const SchemaEntreeJournal: z.ZodType<S['EntreeJournalSortie']> = z.object({
+  id: z.string(),
+  modifie_par: z.string().nullable(),
+  role_auteur: z.string().nullable(),
+  modifie_le: horodatage,
+  algo_avant: z.string(),
+  parametres_avant: parametresAlgo,
+  algo_apres: z.string(),
+  algo_version_apres: z.number().int().positive(),
+  parametres_apres: parametresAlgo,
+}).passthrough();
+
+export const SchemaReglageAlgoEtJournal: z.ZodType<S['ReglageAlgoEtJournal']> = z.object({
+  reglage: SchemaReglageAlgo,
+  journal: z.array(SchemaEntreeJournal),
+  journal_tronque: z.boolean(),
+}).passthrough();
+
+export const SchemaResultatReglageAlgo: z.ZodType<S['ResultatReglageAlgo']> = z.object({
+  reglage: SchemaReglageAlgo,
+  change: z.boolean(),
+  entree: SchemaEntreeJournal.nullable(),
+}).passthrough();
+
+/**
+ * Réglages de DONNÉES d'une campagne (`GET` / `PUT /v1/campagnes/{id}/reglages`, relecture de la phase 2, I3) :
+ * seuils d'alerte et bascules des corrections. `parametres` = ce qui est réglé (clés données seulement), `effectifs`
+ * = défauts compris. La forme fine de `parametres` est validée par le service (Pydantic strict + CHECK sql/350).
+ */
+const objetJson = z.record(z.string(), z.unknown());
+
+const SchemaReglagesDonnees: z.ZodType<S['ReglagesDonnees']> = z.object({
+  campagne_id: z.string().uuid(),
+  parametres: objetJson,
+  effectifs: z.object({
+    seuils: z.object({
+      rythme_retard: nombre, rythme_retard_grave: nombre, rythme_avance: nombre, rythme_avance_grave: nombre,
+      cpm_depassement: nombre, cp_sous_plan_pct: nombre, fuite_pct: nombre, ecart_signale_pct: nombre,
+    }).passthrough(),
+    tableaux_depuis_plan: z.boolean(),
+    univers_methode_a: z.enum(['fige', 'referentiel']),
+  }).passthrough(),
+  enregistre: z.boolean(),
+  maj_par: z.string().nullable(),
+  maj_le: horodatage.nullable(),
+}).passthrough();
+
+const SchemaEntreeJournalReglages: z.ZodType<S['EntreeJournalReglagesSortie']> = z.object({
+  id: z.string(),
+  modifie_par: z.string().nullable(),
+  role_auteur: z.string().nullable(),
+  modifie_le: horodatage,
+  avant: objetJson,
+  apres: objetJson,
+}).passthrough();
+
+export const SchemaReglagesDonneesEtJournal: z.ZodType<S['ReglagesDonneesEtJournal']> = z.object({
+  reglages: SchemaReglagesDonnees,
+  journal: z.array(SchemaEntreeJournalReglages),
+  journal_tronque: z.boolean(),
+}).passthrough();
+
+export const SchemaResultatReglagesDonnees: z.ZodType<S['ResultatReglagesDonnees']> = z.object({
+  reglages: SchemaReglagesDonnees,
+  change: z.boolean(),
+  entree: SchemaEntreeJournalReglages.nullable(),
+  tableaux_a_reconstruire: z.boolean(),
+}).passthrough();
+
+export type ReglagesDonneesEtJournal = S['ReglagesDonneesEtJournal'];
+export type ResultatReglagesDonnees = S['ResultatReglagesDonnees'];
+
+export type ReglageAlgoEtJournal = S['ReglageAlgoEtJournal'];
+export type ResultatReglageAlgo = S['ResultatReglageAlgo'];
+export type ChoixAlgo = S['ChoixAlgo'];
+
 export type CatalogueAlgos = S['CatalogueAlgos'];
 export type FamilleAlgo = S['AlgoCatalogue']['familles'][number];
 

@@ -305,6 +305,338 @@
           }
         }
       }
+    },
+    "/v1/campagnes/{campagne_id}/algo": {
+      "get": {
+        "summary": "Lire Algo",
+        "description": "Le réglage courant (défaut du catalogue s'il n'y en a pas) et les 50 derniers changements, du plus récent.",
+        "operationId": "lire_algo_v1_campagnes__campagne_id__algo_get",
+        "parameters": [
+          {
+            "name": "campagne_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "Campagne Id"
+            }
+          },
+          {
+            "name": "x-espace",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Espace"
+            }
+          },
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReglageAlgoEtJournal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Regler Algo",
+        "description": "Choisit l'algorithme de correction de la campagne ; effet au cycle suivant ; changement tracé au journal.\n\nLe refus du catalogue (`RefusAlgo`, 422) part AVANT toute connexion : rien n'est lu ni écrit s'il est refusé.",
+        "operationId": "regler_algo_v1_campagnes__campagne_id__algo_put",
+        "parameters": [
+          {
+            "name": "campagne_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "Campagne Id"
+            }
+          },
+          {
+            "name": "x-espace",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Espace"
+            }
+          },
+          {
+            "name": "x-utilisateur",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Utilisateur"
+            }
+          },
+          {
+            "name": "x-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "enum": [
+                "super_admin",
+                "admin",
+                "client"
+              ],
+              "type": "string",
+              "title": "X-Role"
+            }
+          },
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChoixAlgo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultatReglageAlgo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/campagnes/{campagne_id}/reglages": {
+      "get": {
+        "summary": "Lire Reglages Donnees",
+        "description": "Les réglages de données courants (défauts sans ligne) et les 50 derniers changements, du plus récent.",
+        "operationId": "lire_reglages_donnees_v1_campagnes__campagne_id__reglages_get",
+        "parameters": [
+          {
+            "name": "campagne_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "Campagne Id"
+            }
+          },
+          {
+            "name": "x-espace",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Espace"
+            }
+          },
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReglagesDonneesEtJournal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Regler Reglages Donnees",
+        "description": "Remplace les réglages de données de la campagne ; changement tracé au journal (`nature = 'reglages'`).",
+        "operationId": "regler_reglages_donnees_v1_campagnes__campagne_id__reglages_put",
+        "parameters": [
+          {
+            "name": "campagne_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "Campagne Id"
+            }
+          },
+          {
+            "name": "x-espace",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Espace"
+            }
+          },
+          {
+            "name": "x-utilisateur",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "title": "X-Utilisateur"
+            }
+          },
+          {
+            "name": "x-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "enum": [
+                "super_admin",
+                "admin",
+                "client"
+              ],
+              "type": "string",
+              "title": "X-Role"
+            }
+          },
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChoixReglages"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultatReglagesDonnees"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -699,6 +1031,34 @@
         ],
         "title": "CatalogueAlgos"
       },
+      "ChoixAlgo": {
+        "properties": {
+          "algo_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Algo Id"
+          },
+          "parametres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 50,
+            "title": "Parametres"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "algo_id"
+        ],
+        "title": "ChoixAlgo"
+      },
       "ChoixEntree": {
         "properties": {
           "plateforme": {
@@ -732,6 +1092,18 @@
           "n_codes_conversion"
         ],
         "title": "ChoixEntree"
+      },
+      "ChoixReglages": {
+        "properties": {
+          "parametres": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parametres"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ChoixReglages"
       },
       "CpRecalageEntree": {
         "properties": {
@@ -817,6 +1189,135 @@
         ],
         "title": "CpZoneEntree",
         "description": "Une ligne de `zone_set_cp` (une par grappe), telle que la route risque la convertit."
+      },
+      "EntreeJournalReglagesSortie": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "modifie_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modifie Par"
+          },
+          "role_auteur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Auteur"
+          },
+          "modifie_le": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modifie Le"
+          },
+          "avant": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Avant"
+          },
+          "apres": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Apres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "modifie_par",
+          "role_auteur",
+          "modifie_le",
+          "avant",
+          "apres"
+        ],
+        "title": "EntreeJournalReglagesSortie"
+      },
+      "EntreeJournalSortie": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "modifie_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modifie Par"
+          },
+          "role_auteur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Auteur"
+          },
+          "modifie_le": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modifie Le"
+          },
+          "algo_avant": {
+            "type": "string",
+            "title": "Algo Avant"
+          },
+          "parametres_avant": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parametres Avant"
+          },
+          "algo_apres": {
+            "type": "string",
+            "title": "Algo Apres"
+          },
+          "algo_version_apres": {
+            "type": "integer",
+            "title": "Algo Version Apres"
+          },
+          "parametres_apres": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parametres Apres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "modifie_par",
+          "role_auteur",
+          "modifie_le",
+          "algo_avant",
+          "parametres_avant",
+          "algo_apres",
+          "algo_version_apres",
+          "parametres_apres"
+        ],
+        "title": "EntreeJournalSortie"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1202,6 +1703,32 @@
         ],
         "title": "ParametreAlgo"
       },
+      "ParametresEffectifs": {
+        "properties": {
+          "seuils": {
+            "$ref": "#/components/schemas/SeuilsSortie"
+          },
+          "tableaux_depuis_plan": {
+            "type": "boolean",
+            "title": "Tableaux Depuis Plan"
+          },
+          "univers_methode_a": {
+            "type": "string",
+            "enum": [
+              "fige",
+              "referentiel"
+            ],
+            "title": "Univers Methode A"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seuils",
+          "tableaux_depuis_plan",
+          "univers_methode_a"
+        ],
+        "title": "ParametresEffectifs"
+      },
       "ParamsRecalageEntree": {
         "properties": {
           "amortissement": {
@@ -1558,6 +2085,283 @@
         "title": "Reglage",
         "description": "`ReglagePlan` tel que le TS l'écrit : clés absentes omises."
       },
+      "ReglageAlgo": {
+        "properties": {
+          "campagne_id": {
+            "type": "string",
+            "title": "Campagne Id"
+          },
+          "algo_id": {
+            "type": "string",
+            "title": "Algo Id"
+          },
+          "algo_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algo Version"
+          },
+          "libelle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Libelle"
+          },
+          "etat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "disponible",
+                  "a_venir"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etat"
+          },
+          "surcharges": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Surcharges"
+          },
+          "parametres_effectifs": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parametres Effectifs"
+          },
+          "enregistre": {
+            "type": "boolean",
+            "title": "Enregistre"
+          },
+          "maj_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maj Par"
+          },
+          "maj_le": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maj Le"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campagne_id",
+          "algo_id",
+          "algo_version",
+          "libelle",
+          "etat",
+          "surcharges",
+          "parametres_effectifs",
+          "enregistre",
+          "maj_par",
+          "maj_le"
+        ],
+        "title": "ReglageAlgo",
+        "description": "Le réglage courant. `algo_version`, `libelle`, `etat` et `parametres_effectifs` valent `None` si l'algorithme\nenregistré n'est plus au catalogue ; `parametres_effectifs` aussi si ses surcharges ne passent plus ses bornes."
+      },
+      "ReglageAlgoEtJournal": {
+        "properties": {
+          "reglage": {
+            "$ref": "#/components/schemas/ReglageAlgo"
+          },
+          "journal": {
+            "items": {
+              "$ref": "#/components/schemas/EntreeJournalSortie"
+            },
+            "type": "array",
+            "title": "Journal"
+          },
+          "journal_tronque": {
+            "type": "boolean",
+            "title": "Journal Tronque"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reglage",
+          "journal",
+          "journal_tronque"
+        ],
+        "title": "ReglageAlgoEtJournal"
+      },
+      "ReglagesDonnees": {
+        "properties": {
+          "campagne_id": {
+            "type": "string",
+            "title": "Campagne Id"
+          },
+          "parametres": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parametres"
+          },
+          "effectifs": {
+            "$ref": "#/components/schemas/ParametresEffectifs"
+          },
+          "enregistre": {
+            "type": "boolean",
+            "title": "Enregistre"
+          },
+          "maj_par": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maj Par"
+          },
+          "maj_le": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maj Le"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campagne_id",
+          "parametres",
+          "effectifs",
+          "enregistre",
+          "maj_par",
+          "maj_le"
+        ],
+        "title": "ReglagesDonnees",
+        "description": "`parametres` : ce qui est réglé (clés données seulement) ; `effectifs` : défauts compris."
+      },
+      "ReglagesDonneesEtJournal": {
+        "properties": {
+          "reglages": {
+            "$ref": "#/components/schemas/ReglagesDonnees"
+          },
+          "journal": {
+            "items": {
+              "$ref": "#/components/schemas/EntreeJournalReglagesSortie"
+            },
+            "type": "array",
+            "title": "Journal"
+          },
+          "journal_tronque": {
+            "type": "boolean",
+            "title": "Journal Tronque"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reglages",
+          "journal",
+          "journal_tronque"
+        ],
+        "title": "ReglagesDonneesEtJournal"
+      },
+      "ResultatReglageAlgo": {
+        "properties": {
+          "reglage": {
+            "$ref": "#/components/schemas/ReglageAlgo"
+          },
+          "change": {
+            "type": "boolean",
+            "title": "Change"
+          },
+          "entree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntreeJournalSortie"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "reglage",
+          "change",
+          "entree"
+        ],
+        "title": "ResultatReglageAlgo"
+      },
+      "ResultatReglagesDonnees": {
+        "properties": {
+          "reglages": {
+            "$ref": "#/components/schemas/ReglagesDonnees"
+          },
+          "change": {
+            "type": "boolean",
+            "title": "Change"
+          },
+          "entree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntreeJournalReglagesSortie"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tableaux_a_reconstruire": {
+            "type": "boolean",
+            "title": "Tableaux A Reconstruire"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reglages",
+          "change",
+          "entree",
+          "tableaux_a_reconstruire"
+        ],
+        "title": "ResultatReglagesDonnees"
+      },
       "ResumeCommun": {
         "properties": {
           "n_cp": {
@@ -1785,6 +2589,54 @@
           "ok"
         ],
         "title": "SanteBase"
+      },
+      "SeuilsSortie": {
+        "properties": {
+          "rythme_retard": {
+            "type": "number",
+            "title": "Rythme Retard"
+          },
+          "rythme_retard_grave": {
+            "type": "number",
+            "title": "Rythme Retard Grave"
+          },
+          "rythme_avance": {
+            "type": "number",
+            "title": "Rythme Avance"
+          },
+          "rythme_avance_grave": {
+            "type": "number",
+            "title": "Rythme Avance Grave"
+          },
+          "cpm_depassement": {
+            "type": "number",
+            "title": "Cpm Depassement"
+          },
+          "cp_sous_plan_pct": {
+            "type": "number",
+            "title": "Cp Sous Plan Pct"
+          },
+          "fuite_pct": {
+            "type": "number",
+            "title": "Fuite Pct"
+          },
+          "ecart_signale_pct": {
+            "type": "number",
+            "title": "Ecart Signale Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rythme_retard",
+          "rythme_retard_grave",
+          "rythme_avance",
+          "rythme_avance_grave",
+          "cpm_depassement",
+          "cp_sous_plan_pct",
+          "fuite_pct",
+          "ecart_signale_pct"
+        ],
+        "title": "SeuilsSortie"
       },
       "SortiePlanRisque": {
         "properties": {
