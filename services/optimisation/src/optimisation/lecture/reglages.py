@@ -10,8 +10,9 @@ l'espace (`X-Espace`) et ne rend la campagne que si elle appartient à cet espac
 réglage n'est joint que s'il porte le même `workspace_id`. Une campagne d'un autre espace → `CampagneHorsEspace` (que
 l'API traduira en 404, sans dire si la campagne existe).
 
-EXPLAIN ANALYZE (local, 05/11) : `dsp_campaigns` par sa clé primaire, `optimisation_reglages` par la sienne — deux
-parcours d'index, 4 tampons, < 0,1 ms.
+EXPLAIN ANALYZE (local, 05/11) : 4 tampons, 0,9 ms — `dsp_campaigns` en parcours séquentiel (11 lignes : le
+planificateur préfère le parcours à la clé primaire tant que la table est minuscule), `optimisation_reglages` par sa
+clé primaire.
 """
 
 import json
