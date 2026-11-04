@@ -210,6 +210,38 @@ describe('AuthService', () => {
     expect(await auth.connecter('a@exemple.test', 'bon')).toBeNull();
   });
 
+  describe('ouvrirSession (connexion automatique de développement)', () => {
+    function clientSetSession(reponse: () => Promise<unknown>) {
+      const client = fauxClient();
+      const setSession = vi.fn(reponse);
+      return { client: { ...client, auth: { ...client.auth, setSession } }, setSession };
+    }
+
+    it('pose les jetons et ouvre la session', async () => {
+      const { client, setSession } = clientSetSession(async () => ({ data: { session }, error: null }));
+      const auth = creer(client as unknown as ReturnType<typeof fauxClient>);
+      expect(await auth.ouvrirSession('a', 'r')).toBe(true);
+      expect(setSession).toHaveBeenCalledWith({ access_token: 'a', refresh_token: 'r' });
+      expect(auth.connecte()).toBe(true);
+    });
+
+    it('rend false sur une erreur, une absence de session ou une exception — jamais ne lève', async () => {
+      for (const reponse of [
+        async () => ({ data: { session: null }, error: { message: 'Invalid Refresh Token' } }),
+        async () => ({ data: { session: null }, error: null }),
+        async () => {
+          throw new Error('réseau');
+        },
+      ]) {
+        TestBed.resetTestingModule();
+        const { client } = clientSetSession(reponse);
+        const auth = creer(client as unknown as ReturnType<typeof fauxClient>);
+        expect(await auth.ouvrirSession('a', 'r')).toBe(false);
+        expect(auth.connecte()).toBe(false);
+      }
+    });
+  });
+
   it('repasse par signOut local si la déconnexion réseau échoue (item 3)', async () => {
     const client = fauxClient({ session, erreurSignOut: true });
     const auth = creer(client);

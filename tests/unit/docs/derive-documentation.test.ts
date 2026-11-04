@@ -53,7 +53,9 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     const exemple = lire('.env.example');
     const declarees = Array.from(exemple.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)).map(m => m[1]);
     const critiques = declarees.filter(v =>
-      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|ORS|DSP_ENC)/.test(v));
+      // DEV_CONNEXION_AUTO_* (2026-11-02) : optionnelles, mais une route les lit
+      // et leur absence change le parcours de connexion — elles restent documentées.
+      /^(SUPABASE|NEXT_PUBLIC_SUPABASE|ORS|DSP_ENC|DEV_CONNEXION_AUTO)/.test(v));
 
     const absentes = critiques.filter(v => !archi.includes(v));
     expect(

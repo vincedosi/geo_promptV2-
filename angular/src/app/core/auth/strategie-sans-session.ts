@@ -7,9 +7,14 @@ import { InjectionToken } from '@angular/core';
  *   `/connexion`, et y naviguer rendait un cadre vide (`NG04002`, épreuve du
  *   2026-09-30).
  * - `rediriger` : envoyer vers la page de connexion avec la page à reprendre.
- *   C'est le lancement autonome.
+ *   C'est le lancement autonome. Avec `connexionAuto`, `authGuard` tente
+ *   d'abord la connexion automatique de développement (`ConnexionAutoService`,
+ *   `/api/dev/connexion-auto`) — en mode développement seulement — et ne
+ *   renvoie vers `chemin` que si elle échoue.
  */
-export type StrategieSansSession = { mode: 'message' } | { mode: 'rediriger'; chemin: string };
+export type StrategieSansSession =
+  | { mode: 'message' }
+  | { mode: 'rediriger'; chemin: string; connexionAuto?: boolean };
 
 /**
  * ⚠ **Le défaut RACINE est `message`** : un hôte ne fournit rien, et c'est
@@ -30,8 +35,12 @@ export const STRATEGIE_SANS_SESSION = new InjectionToken<StrategieSansSession>('
   factory: () => ({ mode: 'message' }),
 });
 
-/** Le chemin de connexion du lancement autonome, fourni par la route `app`. */
-export const STRATEGIE_AUTONOME: StrategieSansSession = { mode: 'rediriger', chemin: '/connexion' };
+/**
+ * Le lancement autonome, fourni par la route `app` : connexion automatique de
+ * développement d'abord (2026-11-02), page `/connexion` en repli. Un hôte AIDA
+ * ne fournit jamais cette valeur — chez lui, rien ne change.
+ */
+export const STRATEGIE_AUTONOME: StrategieSansSession = { mode: 'rediriger', chemin: '/connexion', connexionAuto: true };
 
 /** Le texte affiché sans session dans l'hôte. */
 export const MESSAGE_SANS_SESSION = 'Session requise — connectez-vous à AIDA pour accéder à dentsu.explore.';
