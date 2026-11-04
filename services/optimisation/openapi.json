@@ -1,0 +1,1854 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "dentsu.explore — service d'optimisation",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/sante": {
+      "get": {
+        "summary": "Sante",
+        "description": "Service et base. 200 si la base répond, 503 sinon (le corps dit pourquoi).",
+        "operationId": "sante_sante_get",
+        "parameters": [
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sante"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plans/zone": {
+      "post": {
+        "summary": "Plan Zone",
+        "description": "Plan commun (D32, déprécié mais encore écrit) + un plan par plateforme au CP (B12) + sorties de poids.",
+        "operationId": "plan_zone_v1_plans_zone_post",
+        "parameters": [
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanZoneEntree"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SortiePlanZone"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plans/risque": {
+      "post": {
+        "summary": "Plan Risque",
+        "description": "Plan d'un jeu RISQUE, sémantique `repartition` (`genererPlanCp` avec les groupes divisés). Aucune lecture.",
+        "operationId": "plan_risque_v1_plans_risque_post",
+        "parameters": [
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRisqueEntree"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SortiePlanRisque"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/historique/recaler": {
+      "post": {
+        "summary": "Route Recaler",
+        "description": "`recaler(cps, utilesObservees, cible, P)` — formule historique, comparée en ombre avant toute bascule.",
+        "operationId": "route_recaler_v1_historique_recaler_post",
+        "parameters": [
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecalerEntree"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SortieRecaler"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AVerifierSortie": {
+        "properties": {
+          "min": {
+            "type": "boolean",
+            "title": "Min"
+          },
+          "max": {
+            "type": "boolean",
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "AVerifierSortie"
+      },
+      "Ajustement": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "multiplicateur_min",
+              "multiplicateur_max"
+            ],
+            "title": "Code"
+          },
+          "limite": {
+            "type": "number",
+            "title": "Limite"
+          },
+          "valeur": {
+            "type": "number",
+            "title": "Valeur"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "limite",
+          "valeur",
+          "n"
+        ],
+        "title": "Ajustement"
+      },
+      "Algo": {
+        "properties": {
+          "moteur": {
+            "type": "string",
+            "const": "python",
+            "title": "Moteur"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "entrees_sha256": {
+            "type": "string",
+            "title": "Entrees Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "moteur",
+          "version",
+          "entrees_sha256"
+        ],
+        "title": "Algo",
+        "description": "Moteur, version et sha256 du JSON canonique des entrées : rejouer ces entrées rend le même résultat."
+      },
+      "AvertissementPoids": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "limite": {
+            "type": "number",
+            "title": "Limite"
+          },
+          "valeur": {
+            "type": "number",
+            "title": "Valeur"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "mecanisme": {
+            "type": "string",
+            "title": "Mecanisme"
+          },
+          "a_verifier": {
+            "type": "boolean",
+            "const": true,
+            "title": "A Verifier"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "limite",
+          "valeur",
+          "n"
+        ],
+        "title": "AvertissementPoids"
+      },
+      "BilanMultiplicateur": {
+        "properties": {
+          "normalisation": {
+            "type": "string",
+            "const": "non_ponderee",
+            "title": "Normalisation"
+          },
+          "bornes": {
+            "$ref": "#/components/schemas/BornesJson"
+          },
+          "moyenne_avant_ecretage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moyenne Avant Ecretage"
+          },
+          "moyenne_apres_ecretage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moyenne Apres Ecretage"
+          },
+          "n_ecretes": {
+            "type": "integer",
+            "title": "N Ecretes"
+          },
+          "ajustements": {
+            "items": {
+              "$ref": "#/components/schemas/Ajustement"
+            },
+            "type": "array",
+            "title": "Ajustements"
+          },
+          "hors_zone": {
+            "$ref": "#/components/schemas/LigneHorsZone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "normalisation",
+          "bornes",
+          "moyenne_avant_ecretage",
+          "moyenne_apres_ecretage",
+          "n_ecretes",
+          "ajustements",
+          "hors_zone"
+        ],
+        "title": "BilanMultiplicateur"
+      },
+      "BilanMultiplicateurZone": {
+        "properties": {
+          "normalisation": {
+            "type": "string",
+            "const": "non_ponderee",
+            "title": "Normalisation"
+          },
+          "bornes": {
+            "$ref": "#/components/schemas/BornesJson"
+          },
+          "moyenne_avant_ecretage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moyenne Avant Ecretage"
+          },
+          "moyenne_apres_ecretage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moyenne Apres Ecretage"
+          },
+          "n_ecretes": {
+            "type": "integer",
+            "title": "N Ecretes"
+          },
+          "ajustements": {
+            "items": {
+              "$ref": "#/components/schemas/Ajustement"
+            },
+            "type": "array",
+            "title": "Ajustements"
+          },
+          "hors_zone": {
+            "$ref": "#/components/schemas/LigneHorsZone"
+          },
+          "unite_de_compte": {
+            "type": "string",
+            "const": "unite_cp",
+            "title": "Unite De Compte"
+          },
+          "poids_groupe_cp": {
+            "type": "string",
+            "enum": [
+              "meme",
+              "divise"
+            ],
+            "title": "Poids Groupe Cp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "normalisation",
+          "bornes",
+          "moyenne_avant_ecretage",
+          "moyenne_apres_ecretage",
+          "n_ecretes",
+          "ajustements",
+          "hors_zone",
+          "unite_de_compte",
+          "poids_groupe_cp"
+        ],
+        "title": "BilanMultiplicateurZone"
+      },
+      "BornesJson": {
+        "properties": {
+          "min": {
+            "type": "number",
+            "title": "Min"
+          },
+          "max": {
+            "type": "number",
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "BornesJson"
+      },
+      "BornesSortie": {
+        "properties": {
+          "min": {
+            "type": "number",
+            "title": "Min"
+          },
+          "max": {
+            "type": "number",
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "BornesSortie"
+      },
+      "ChoixEntree": {
+        "properties": {
+          "plateforme": {
+            "type": "string",
+            "enum": [
+              "dv360",
+              "ttd",
+              "meta",
+              "tiktok"
+            ],
+            "title": "Plateforme"
+          },
+          "seuil": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Seuil"
+          },
+          "n_codes_conversion": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "N Codes Conversion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plateforme",
+          "seuil",
+          "n_codes_conversion"
+        ],
+        "title": "ChoixEntree"
+      },
+      "CpRecalageEntree": {
+        "properties": {
+          "code_postal": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code Postal"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "multiplicateur": {
+            "type": "number",
+            "maximum": 999.999,
+            "minimum": 0.0,
+            "title": "Multiplicateur"
+          },
+          "part_en_zone": {
+            "type": "number",
+            "maximum": 100.000001,
+            "minimum": 0.0,
+            "title": "Part En Zone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code_postal",
+          "cluster_id",
+          "multiplicateur",
+          "part_en_zone"
+        ],
+        "title": "CpRecalageEntree"
+      },
+      "CpZoneEntree": {
+        "properties": {
+          "code_postal": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code Postal"
+          },
+          "classe": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Classe"
+          },
+          "pop_en_zone": {
+            "type": "number",
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Pop En Zone"
+          },
+          "pop_totale": {
+            "type": "number",
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Pop Totale"
+          },
+          "retenu": {
+            "type": "boolean",
+            "title": "Retenu"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code_postal",
+          "classe",
+          "pop_en_zone",
+          "pop_totale",
+          "retenu"
+        ],
+        "title": "CpZoneEntree",
+        "description": "Une ligne de `zone_set_cp` (une par grappe), telle que la route risque la convertit."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JeuEntree": {
+        "properties": {
+          "mode_plan": {
+            "type": "string",
+            "enum": [
+              "exclusif",
+              "pondere"
+            ],
+            "title": "Mode Plan"
+          },
+          "poids": {
+            "additionalProperties": {
+              "type": "number",
+              "maximum": 5.0,
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 40,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 200,
+            "title": "Poids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode_plan"
+        ],
+        "title": "JeuEntree"
+      },
+      "LigneCouvertureEntree": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "pop_en_zone": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pop En Zone"
+          },
+          "pop_totale": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pop Totale"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.000001,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part"
+          },
+          "part_brute": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.000001,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Brute"
+          },
+          "membres": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 16,
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 50,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membres"
+          },
+          "incluse": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incluse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "pop_en_zone",
+          "pop_totale",
+          "part",
+          "part_brute"
+        ],
+        "title": "LigneCouvertureEntree",
+        "description": "Une unité de `couverture_zone` (maille CP). Les champs d'affichage (`nom`, `commune`…) sont ignorés."
+      },
+      "LigneHorsZone": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "HORS_ZONE",
+            "title": "Code"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "strict",
+              "national"
+            ],
+            "title": "Mode"
+          },
+          "multiplicateur": {
+            "type": "number",
+            "title": "Multiplicateur"
+          },
+          "part": {
+            "type": "integer",
+            "title": "Part"
+          },
+          "classe": {
+            "type": "number",
+            "title": "Classe"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "univers": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "METRO",
+                  "FR"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Univers"
+          },
+          "part_prevue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Prevue"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "mode",
+          "multiplicateur",
+          "part",
+          "classe"
+        ],
+        "title": "LigneHorsZone"
+      },
+      "LignePlan": {
+        "properties": {
+          "code_postal": {
+            "type": "string",
+            "title": "Code Postal"
+          },
+          "part_plan": {
+            "type": "number",
+            "title": "Part Plan"
+          },
+          "multiplicateur": {
+            "type": "number",
+            "title": "Multiplicateur"
+          },
+          "multiplicateur_calcule": {
+            "type": "number",
+            "title": "Multiplicateur Calcule"
+          },
+          "classe": {
+            "type": "string",
+            "title": "Classe"
+          },
+          "retenu": {
+            "type": "boolean",
+            "title": "Retenu"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code_postal",
+          "part_plan",
+          "multiplicateur",
+          "classe",
+          "retenu"
+        ],
+        "title": "LignePlan"
+      },
+      "LignePlanZone": {
+        "properties": {
+          "code_postal": {
+            "type": "string",
+            "title": "Code Postal"
+          },
+          "code_canonique": {
+            "type": "string",
+            "title": "Code Canonique"
+          },
+          "classe": {
+            "type": "string",
+            "title": "Classe"
+          },
+          "retenu": {
+            "type": "boolean",
+            "title": "Retenu"
+          },
+          "multiplicateur": {
+            "type": "number",
+            "title": "Multiplicateur"
+          },
+          "pop_en_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pop En Zone"
+          },
+          "pop_totale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pop Totale"
+          },
+          "part_en_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part En Zone"
+          },
+          "part_prevue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Prevue"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code_postal",
+          "code_canonique",
+          "classe",
+          "retenu",
+          "multiplicateur",
+          "pop_en_zone",
+          "pop_totale",
+          "part_en_zone",
+          "part_prevue"
+        ],
+        "title": "LignePlanZone"
+      },
+      "ParamsRecalageEntree": {
+        "properties": {
+          "amortissement": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Amortissement"
+          },
+          "seuilDilution": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Seuildilution"
+          },
+          "baisseDilues": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Baissedilues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amortissement",
+          "seuilDilution",
+          "baisseDilues"
+        ],
+        "title": "ParamsRecalageEntree",
+        "description": "Les trois paramètres lus par `recaler`, sous les noms du TS (`ParamsSimulation`)."
+      },
+      "PlanCommun": {
+        "properties": {
+          "lignes": {
+            "items": {
+              "$ref": "#/components/schemas/LignePlanZone"
+            },
+            "type": "array",
+            "title": "Lignes"
+          },
+          "resume": {
+            "$ref": "#/components/schemas/ResumeCommun"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lignes",
+          "resume"
+        ],
+        "title": "PlanCommun"
+      },
+      "PlanParPlateforme": {
+        "properties": {
+          "plateforme": {
+            "type": "string",
+            "title": "Plateforme"
+          },
+          "seuil": {
+            "type": "number",
+            "title": "Seuil"
+          },
+          "reglage": {
+            "$ref": "#/components/schemas/Reglage"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanZone"
+          },
+          "poids": {
+            "items": {
+              "$ref": "#/components/schemas/SortiePoids"
+            },
+            "type": "array",
+            "title": "Poids"
+          },
+          "avertissements": {
+            "items": {
+              "$ref": "#/components/schemas/AvertissementPoids"
+            },
+            "type": "array",
+            "title": "Avertissements"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plateforme",
+          "seuil",
+          "reglage",
+          "plan",
+          "poids",
+          "avertissements"
+        ],
+        "title": "PlanParPlateforme"
+      },
+      "PlanRisqueEntree": {
+        "properties": {
+          "cps": {
+            "items": {
+              "$ref": "#/components/schemas/CpZoneEntree"
+            },
+            "type": "array",
+            "maxItems": 20000,
+            "minItems": 1,
+            "title": "Cps"
+          },
+          "jeu": {
+            "$ref": "#/components/schemas/JeuEntree"
+          },
+          "groupes": {
+            "additionalProperties": {
+              "items": {
+                "type": "string",
+                "maxLength": 16,
+                "minLength": 1
+              },
+              "type": "array",
+              "maxItems": 50,
+              "minItems": 1
+            },
+            "propertyNames": {
+              "maxLength": 16,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 2000,
+            "title": "Groupes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cps",
+          "jeu"
+        ],
+        "title": "PlanRisqueEntree"
+      },
+      "PlanZone": {
+        "properties": {
+          "lignes": {
+            "items": {
+              "$ref": "#/components/schemas/LignePlanZone"
+            },
+            "type": "array",
+            "title": "Lignes"
+          },
+          "resume": {
+            "$ref": "#/components/schemas/ResumePlanZone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lignes",
+          "resume"
+        ],
+        "title": "PlanZone"
+      },
+      "PlanZoneEntree": {
+        "properties": {
+          "couverture": {
+            "items": {
+              "$ref": "#/components/schemas/LigneCouvertureEntree"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Couverture"
+          },
+          "choix": {
+            "items": {
+              "$ref": "#/components/schemas/ChoixEntree"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Choix"
+          },
+          "mode_plan": {
+            "type": "string",
+            "enum": [
+              "exclusif",
+              "pondere"
+            ],
+            "title": "Mode Plan"
+          },
+          "groupes": {
+            "additionalProperties": {
+              "items": {
+                "type": "string",
+                "maxLength": 16,
+                "minLength": 1
+              },
+              "type": "array",
+              "maxItems": 50,
+              "minItems": 1
+            },
+            "propertyNames": {
+              "maxLength": 16,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 2000,
+            "title": "Groupes"
+          },
+          "codes_exacts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 16,
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codes Exacts"
+          },
+          "recette": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecetteEntree"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "couverture",
+          "choix",
+          "mode_plan"
+        ],
+        "title": "PlanZoneEntree"
+      },
+      "RecalerEntree": {
+        "properties": {
+          "cps": {
+            "items": {
+              "$ref": "#/components/schemas/CpRecalageEntree"
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Cps"
+          },
+          "utiles_observees": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                {
+                  "type": "number",
+                  "maximum": 1000000000000.0,
+                  "minimum": 0.0
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Utiles Observees"
+          },
+          "cible": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                {
+                  "type": "number",
+                  "maximum": 1.000000001,
+                  "minimum": 0.0
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 10000,
+            "title": "Cible"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ParamsRecalageEntree"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cps",
+          "utiles_observees",
+          "cible",
+          "params"
+        ],
+        "title": "RecalerEntree"
+      },
+      "RecetteEntree": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Type"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "RecetteEntree"
+      },
+      "Reglage": {
+        "properties": {
+          "bornes": {
+            "$ref": "#/components/schemas/BornesSortie"
+          },
+          "poids_groupe_cp": {
+            "type": "string",
+            "enum": [
+              "meme",
+              "divise"
+            ],
+            "title": "Poids Groupe Cp"
+          },
+          "a_verifier": {
+            "$ref": "#/components/schemas/AVerifierSortie"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Reglage",
+        "description": "`ReglagePlan` tel que le TS l'écrit : clés absentes omises."
+      },
+      "ResumeCommun": {
+        "properties": {
+          "n_cp": {
+            "type": "integer",
+            "title": "N Cp"
+          },
+          "n_retenus": {
+            "type": "integer",
+            "title": "N Retenus"
+          },
+          "n_codes": {
+            "type": "integer",
+            "title": "N Codes"
+          },
+          "taux_utile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taux Utile"
+          },
+          "part_plan_en_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Plan En Zone"
+          },
+          "population_exposee": {
+            "type": "number",
+            "title": "Population Exposee"
+          },
+          "multiplicateur": {
+            "$ref": "#/components/schemas/BilanMultiplicateurZone"
+          },
+          "part_prevue": {
+            "$ref": "#/components/schemas/ResumePartPrevue"
+          },
+          "algo": {
+            "$ref": "#/components/schemas/Algo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "n_cp",
+          "n_retenus",
+          "n_codes",
+          "taux_utile",
+          "part_plan_en_zone",
+          "population_exposee",
+          "multiplicateur",
+          "part_prevue",
+          "algo"
+        ],
+        "title": "ResumeCommun",
+        "description": "Le résumé du plan commun, `algo` compris (`resume_plan.algo`, sql/344)."
+      },
+      "ResumePartPrevue": {
+        "properties": {
+          "volume_attendu": {
+            "type": "string",
+            "const": "population_totale",
+            "title": "Volume Attendu"
+          },
+          "unite_de_somme": {
+            "type": "string",
+            "const": "unite_cp",
+            "title": "Unite De Somme"
+          },
+          "repartition_groupe": {
+            "type": "string",
+            "const": "egale",
+            "title": "Repartition Groupe"
+          },
+          "hors_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hors Zone"
+          },
+          "unites_sans_part": {
+            "type": "integer",
+            "title": "Unites Sans Part"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "volume_attendu",
+          "unite_de_somme",
+          "repartition_groupe",
+          "hors_zone",
+          "unites_sans_part"
+        ],
+        "title": "ResumePartPrevue"
+      },
+      "ResumePlanZone": {
+        "properties": {
+          "n_cp": {
+            "type": "integer",
+            "title": "N Cp"
+          },
+          "n_retenus": {
+            "type": "integer",
+            "title": "N Retenus"
+          },
+          "n_codes": {
+            "type": "integer",
+            "title": "N Codes"
+          },
+          "taux_utile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taux Utile"
+          },
+          "part_plan_en_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Plan En Zone"
+          },
+          "population_exposee": {
+            "type": "number",
+            "title": "Population Exposee"
+          },
+          "multiplicateur": {
+            "$ref": "#/components/schemas/BilanMultiplicateurZone"
+          },
+          "part_prevue": {
+            "$ref": "#/components/schemas/ResumePartPrevue"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "n_cp",
+          "n_retenus",
+          "n_codes",
+          "taux_utile",
+          "part_plan_en_zone",
+          "population_exposee",
+          "multiplicateur",
+          "part_prevue"
+        ],
+        "title": "ResumePlanZone"
+      },
+      "Sante": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "base": {
+            "$ref": "#/components/schemas/SanteBase"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "version",
+          "base"
+        ],
+        "title": "Sante"
+      },
+      "SanteBase": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "erreur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Erreur"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "SanteBase"
+      },
+      "SortiePlanRisque": {
+        "properties": {
+          "lignes": {
+            "items": {
+              "$ref": "#/components/schemas/LignePlan"
+            },
+            "type": "array",
+            "title": "Lignes"
+          },
+          "part_plan_en_zone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Plan En Zone"
+          },
+          "taux_utile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taux Utile"
+          },
+          "n_retenus": {
+            "type": "integer",
+            "title": "N Retenus"
+          },
+          "multiplicateur": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BilanMultiplicateur"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "algo": {
+            "$ref": "#/components/schemas/Algo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lignes",
+          "part_plan_en_zone",
+          "taux_utile",
+          "n_retenus",
+          "algo"
+        ],
+        "title": "SortiePlanRisque",
+        "description": "`genererPlanCp` (sémantique `repartition`) + `algo`. `multiplicateur` (bilan d'écrêtage) n'est rendu qu'en\nsémantique `multiplicateur`, jamais par cette route : déclaré facultatif, comme dans le type TS."
+      },
+      "SortiePlanZone": {
+        "properties": {
+          "commun": {
+            "$ref": "#/components/schemas/PlanCommun"
+          },
+          "reglage": {
+            "$ref": "#/components/schemas/Reglage"
+          },
+          "par_plateforme": {
+            "items": {
+              "$ref": "#/components/schemas/PlanParPlateforme"
+            },
+            "type": "array",
+            "title": "Par Plateforme"
+          },
+          "sorties_poids": {
+            "items": {
+              "$ref": "#/components/schemas/SortiesPoidsCommun"
+            },
+            "type": "array",
+            "title": "Sorties Poids"
+          },
+          "algo": {
+            "$ref": "#/components/schemas/Algo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "commun",
+          "reglage",
+          "par_plateforme",
+          "sorties_poids",
+          "algo"
+        ],
+        "title": "SortiePlanZone"
+      },
+      "SortiePoids": {
+        "properties": {
+          "mecanisme": {
+            "type": "string",
+            "title": "Mecanisme"
+          },
+          "branche": {
+            "type": "boolean",
+            "title": "Branche"
+          },
+          "poids_groupe_cp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "meme",
+                  "divise"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poids Groupe Cp"
+          },
+          "parametres_a_verifier": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parametres A Verifier"
+          },
+          "n_codes": {
+            "type": "integer",
+            "title": "N Codes"
+          },
+          "valeur_min": {
+            "type": "number",
+            "title": "Valeur Min"
+          },
+          "valeur_max": {
+            "type": "number",
+            "title": "Valeur Max"
+          },
+          "nb_max_entrees": {
+            "type": "integer",
+            "title": "Nb Max Entrees"
+          },
+          "n_envois": {
+            "type": "integer",
+            "title": "N Envois"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mecanisme",
+          "branche",
+          "poids_groupe_cp",
+          "parametres_a_verifier",
+          "n_codes"
+        ],
+        "title": "SortiePoids"
+      },
+      "SortieRecaler": {
+        "properties": {
+          "multiplicateurs": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Multiplicateurs"
+          },
+          "corrections": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Corrections"
+          },
+          "dilues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dilues"
+          },
+          "algo": {
+            "$ref": "#/components/schemas/Algo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "multiplicateurs",
+          "corrections",
+          "dilues",
+          "algo"
+        ],
+        "title": "SortieRecaler",
+        "description": "`recaler` : les `Map` du TS en listes de paires, dans leur ordre d'insertion. Un code postal est une clé\n« numérique » : dans un objet JSON relu par JavaScript, il passerait en tête et l'ordre serait perdu."
+      },
+      "SortiesPoidsCommun": {
+        "properties": {
+          "plateforme": {
+            "type": "string",
+            "title": "Plateforme"
+          },
+          "poids": {
+            "items": {
+              "$ref": "#/components/schemas/SortiePoids"
+            },
+            "type": "array",
+            "title": "Poids"
+          },
+          "avertissements": {
+            "items": {
+              "$ref": "#/components/schemas/AvertissementPoids"
+            },
+            "type": "array",
+            "title": "Avertissements"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plateforme",
+          "poids",
+          "avertissements"
+        ],
+        "title": "SortiesPoidsCommun"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

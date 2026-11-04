@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from optimisation import __version__, config
 from optimisation.api.json_js import ReponseJson, normaliser
+from optimisation.api.sorties import SortiePlanRisque, SortiePlanZone
 from optimisation.base import BaseIndisponible, connexion
 from optimisation.lecture.registre import RegistreIllisible, lire_poids
 from optimisation.lecture.volumes import VolumesIllisibles, lire_volumes
@@ -274,7 +275,7 @@ def _illisible(erreur: Exception) -> HTTPException:
 routeur = APIRouter(prefix="/v1/plans", default_response_class=ReponseJson)
 
 
-@routeur.post("/zone")
+@routeur.post("/zone", responses={200: {"model": SortiePlanZone}})
 def plan_zone(entree: PlanZoneEntree, source: Annotated[SourceLecture, Depends(obtenir_source)]) -> ReponseJson:
     """Plan commun (D32, déprécié mais encore écrit) + un plan par plateforme au CP (B12) + sorties de poids."""
     plateformes = [c.plateforme for c in entree.choix]
@@ -377,7 +378,7 @@ def _calculer_plan_zone(
     )
 
 
-@routeur.post("/risque")
+@routeur.post("/risque", responses={200: {"model": SortiePlanRisque}})
 def plan_risque(entree: PlanRisqueEntree) -> ReponseJson:
     """Plan d'un jeu RISQUE, sémantique `repartition` (`genererPlanCp` avec les groupes divisés). Aucune lecture."""
     with verrou_calcul():
