@@ -66,3 +66,10 @@ def test_arrondi_js_garde_la_multiplication_intermediaire() -> None:
 def test_arrondi_js_refuse_des_decimales_negatives() -> None:
     with pytest.raises(ValueError, match="positif"):
         arrondi_js(1.0, -1)
+
+
+def test_arrondi_js_refuse_des_decimales_hors_double() -> None:
+    # Relecture B, M8 : `arrondi_js(x, 400)` levait OverflowError ; 308 reste calculable.
+    with pytest.raises(ValueError, match="308"):
+        arrondi_js(1.0, 400)
+    assert arrondi_js(0.0, 308) == 0.0

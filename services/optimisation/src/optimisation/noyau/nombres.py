@@ -53,5 +53,9 @@ def arrondi_js(valeur: float, decimales: int) -> float:
     """
     if decimales < 0:
         raise ValueError("decimales doit être positif ou nul")
+    if decimales > 308:
+        # 10**309 ne tient pas dans un double : `float()` lèverait OverflowError (relecture B, M8). Aucun appelant
+        # n'arrondit à plus de quelques décimales ; refuser en le disant plutôt que d'imiter le NaN du JS.
+        raise ValueError("decimales doit être au plus 308")
     facteur = float(10**decimales)  # int ** int est typé Any ; x * 1000 et x * 1000.0 sont le même double
     return math_round(valeur * facteur) / facteur

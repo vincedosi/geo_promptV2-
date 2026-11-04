@@ -42,6 +42,17 @@ def _regle(v: object) -> RegleGroupe | None:
     raise RegistreIllisible(f"plateformes_poids.poids_groupe_cp inconnu : {v!r}")
 
 
+def _limite(v: object) -> int | None:
+    # `CHECK nb_max_entrees > 0` (sql/305) l'interdit en base ; s'il passait quand même, `ceil(n ÷ 0)` lèverait au
+    # milieu du calcul (500). Registre incohérent = registre illisible : 503 nommé, avant tout calcul (relecture B).
+    if v is None:
+        return None
+    limite = int(str(v))
+    if limite <= 0:
+        raise RegistreIllisible(f"plateformes_poids.nb_max_entrees doit être > 0 : {limite}")
+    return limite
+
+
 def lire_poids(connexion: psycopg.Connection[Any], plateformes: list[str], maille: str = "cp") -> list[PlateformePoids]:
     """Les mécanismes des plateformes demandées à la maille donnée, triés comme le TS."""
     with connexion.cursor() as curseur:
@@ -61,7 +72,7 @@ def lire_poids(connexion: psycopg.Connection[Any], plateformes: list[str], maill
                 mecanisme=str(mecanisme),
                 valeur_min=_nombre(vmin),
                 valeur_max=_nombre(vmax),
-                nb_max_entrees=None if nb_max is None else int(nb_max),
+                nb_max_entrees=_limite(nb_max),
                 poids_groupe_cp=_regle(groupe),
                 branche=bool(branche),
                 parametres_a_verifier=tuple(str(p) for p in a_verifier),
