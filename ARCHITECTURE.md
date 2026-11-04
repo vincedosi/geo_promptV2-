@@ -3180,7 +3180,10 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
 > **Remplace l'architecture du 26/10** (noyau TypeScript pur `lib/optimisation/noyau/` + un adaptateur par DSP,
 > `docs/rebid-v2.md` § 5) : elle n'a **jamais été codée** — `lib/optimisation/` n'existe pas (mesuré le 04/11).
 > Décision du propriétaire, 04/11 : **tout l'algorithme d'optimisation est en Python**, plan initial et adaptateurs DSP
-> compris. Plan de référence : `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md` (18 tâches T0-T17).
+> compris. Plan de référence : `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md`, réécrit le 04/11
+> (phase 0) pour se conformer au cahier des charges du propriétaire : phases 1 à 5, formule unique `(1/indice)^α` bornée
+> 0,8-1,2, deux niveaux de score, saturation, connecteur DV360 seul (Meta, TTD, TikTok en interface seule, aucun mode
+> simulé). `docs/rebid-v2.md` est historique.
 
 **Frontière.** Le découpage (TS/SQL, écrans ①-⑤) produit et fige les unités (code, populations, part, `retenu` au seuil de la
 plateforme), les groupes de CP, la liste exacte et le bilan. Python commence au premier nombre qui n'est pas une population :
@@ -3214,8 +3217,9 @@ registre ; `SELECT`/`UPDATE` `dsp_connections` ; `INSERT` `campaign_dsp_report`,
 Règles I/O : pool ≤ 3 connexions, `statement_timeout` 30 s, campagnes une par une.
 
 **Calendrier.** T0-T2 (doc, socle, fixtures) livrés le 04/11, T3 (noyau du plan initial, parité verte) et T4 (routes `/v1/plans/{zone,risque}`, lecteurs) le même jour. Le plan initial reste calculé en TS jusqu'à la parité (T3-T4),
-puis mode `ombre` (T5) et bascule `python` (T6) ; cycle quotidien (ordonnanceur Python, `optimisation_cycles`, validation humaine
-avant tout envoi) à T8-T12 ; adaptateurs DSP à T13-T16.
+puis mode `ombre` et bascule `python` sur accord du propriétaire (phase 1) ; mesure quotidienne, proposition tous les N jours,
+`optimisation_cycles` avec `workspace_id` et policies, validation humaine avant tout envoi (phases 3-4) ; traducteurs et
+connecteur DV360 (phase 5).
 
 ---
 

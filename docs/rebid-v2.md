@@ -1,5 +1,10 @@
 # Spec : correction des poids v2 (rebid) et script custom bidding
 
+> **HISTORIQUE depuis le 2026-11-04.** Le cahier des charges du propriétaire (refonte de l'algorithme d'optimisation, 04/11)
+> remplace cette spec : formule unique `(1/indice)^α` bornée 0,8-1,2, cible du plan fixe (plus de « reste à livrer »), pas de
+> correction hiérarchique, deux niveaux de score, saturation. Écarts point par point : § 10 de
+> `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md`. Ne pas implémenter ce qui suit.
+
 Statut : à implémenter. Référence : `docs/algorithme-optimisation-impressions.docx` (version 26/10/2026), chapitres 10, 11, 15.
 Objectif : rendre la boucle quotidienne (étapes 4 à 8) stable et effectivement appliquée par DV360.
 
