@@ -20,6 +20,9 @@ config`) en sort — vers le service, qui importe psycopg. Le relatif est donc r
 
 L'analyse se fait sur l'AST et non sur le texte : une docstring qui EXPLIQUE pourquoi `sum()` est
 interdit ne doit pas faire échouer le test.
+
+CATALOGUE (`algos/`, phase 2.5, plan § 16.1) : pur comme le noyau, même liste blanche. Il peut importer le noyau (il
+en référence les ports) ; le noyau, lui, n'importe jamais le catalogue. Ses imports sont absolus.
 """
 
 import ast
@@ -28,6 +31,7 @@ from pathlib import Path
 import pytest
 
 NOYAU = Path(__file__).resolve().parents[2] / "src" / "optimisation" / "noyau"
+ALGOS = NOYAU.parent / "algos"
 
 MODULES_PERMIS = frozenset(
     {
@@ -45,6 +49,7 @@ MODULES_PERMIS = frozenset(
     }
 )
 PREFIXE_PERMIS = "optimisation.noyau"
+PREFIXE_ALGOS = "optimisation.algos"
 
 NOMS_INTERDITS = frozenset(
     {
@@ -66,32 +71,35 @@ NOMS_INTERDITS = frozenset(
 )
 
 
-def _module_permis(nom: str) -> bool:
-    return nom in MODULES_PERMIS or nom == PREFIXE_PERMIS or nom.startswith(PREFIXE_PERMIS + ".")
+def _module_permis(nom: str, prefixes: tuple[str, ...] = (PREFIXE_PERMIS,)) -> bool:
+    return nom in MODULES_PERMIS or any(nom == p or nom.startswith(p + ".") for p in prefixes)
 
 
-def _module_absolu(noeud: ast.ImportFrom) -> str:
-    """Le module visé par un `from … import`, relatif résolu depuis `optimisation.noyau` (paquet plat)."""
+def _module_absolu(noeud: ast.ImportFrom, paquet: str = PREFIXE_PERMIS) -> str:
+    """Le module visé par un `from … import`, relatif résolu depuis `paquet` (paquet plat)."""
     if noeud.level == 0:
         return noeud.module or ""
     if noeud.level >= 2:
         # Remonte au-dessus du noyau : `optimisation`, `optimisation.base`… — jamais permis.
         parent = "optimisation" if noeud.level == 2 else ""
         return ".".join(x for x in (parent, noeud.module or "") if x) or "<au-dessus d'optimisation>"
-    return PREFIXE_PERMIS + ("." + noeud.module if noeud.module else "")
+    return paquet + ("." + noeud.module if noeud.module else "")
 
 
-def violations(source: str, nom: str) -> list[str]:
-    """Liste les imports hors liste blanche et les usages de noms interdits d'un fichier source du noyau."""
+def violations(source: str, nom: str, paquet: str = PREFIXE_PERMIS) -> list[str]:
+    """Liste les imports hors liste blanche et les usages de noms interdits d'un fichier source de `paquet`.
+
+    Le noyau ne peut importer que lui-même ; le catalogue (`optimisation.algos`), lui-même et le noyau."""
+    prefixes = (PREFIXE_PERMIS,) if paquet == PREFIXE_PERMIS else (PREFIXE_PERMIS, paquet)
     trouvees: list[str] = []
     for noeud in ast.walk(ast.parse(source, filename=nom)):
         if isinstance(noeud, ast.Import):
             for alias in noeud.names:
-                if not _module_permis(alias.name):
+                if not _module_permis(alias.name, prefixes):
                     trouvees.append(f"{nom}:{noeud.lineno} import {alias.name} (hors liste blanche)")
         elif isinstance(noeud, ast.ImportFrom):
-            module = _module_absolu(noeud)
-            if not _module_permis(module):
+            module = _module_absolu(noeud, paquet)
+            if not _module_permis(module, prefixes):
                 trouvees.append(
                     f"{nom}:{noeud.lineno} from {'.' * noeud.level}{noeud.module or ''} → {module} (hors liste blanche)"
                 )
@@ -118,6 +126,42 @@ def test_le_noyau_existe_et_porte_des_fichiers() -> None:
 def test_aucun_fichier_du_noyau_ne_sort_de_la_liste_blanche() -> None:
     toutes = [v for f in fichiers_du_noyau() for v in violations(f.read_text(encoding="utf-8"), f.name)]
     assert toutes == [], "Le noyau doit rester pur (somme : somme_gauche) :\n" + "\n".join(toutes)
+
+
+def test_le_catalogue_existe_et_porte_des_fichiers() -> None:
+    assert (ALGOS / "__init__.py").is_file()
+    assert (ALGOS / "registre.py").is_file()
+    assert (ALGOS / "contrat.py").is_file()
+
+
+def test_aucun_fichier_du_catalogue_ne_sort_de_la_liste_blanche() -> None:
+    toutes = [
+        v for f in sorted(ALGOS.rglob("*.py")) for v in violations(f.read_text(encoding="utf-8"), f.name, PREFIXE_ALGOS)
+    ]
+    assert toutes == [], "Le catalogue doit rester pur, comme le noyau :\n" + "\n".join(toutes)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from optimisation.api.algos import routeur",
+        "from optimisation.lecture.registre import lire_poids",
+        "from optimisation import base",
+        "from ..base import connexion",
+        "import time",
+        "x = sum([1.0])",
+    ],
+)
+def test_le_detecteur_du_catalogue_voit_chaque_forme_interdite(source: str) -> None:
+    assert violations(source, "essai.py", PREFIXE_ALGOS) != []
+
+
+def test_le_catalogue_peut_importer_le_noyau_mais_pas_l_inverse() -> None:
+    source = (
+        "from optimisation.noyau.pression import multiplicateurs_methode_a\nfrom optimisation.algos import contrat\n"
+    )
+    assert violations(source, "essai.py", PREFIXE_ALGOS) == []
+    assert violations("from optimisation.algos.registre import REGISTRE\n", "essai.py") != []
 
 
 @pytest.mark.parametrize(
