@@ -33,10 +33,16 @@ def obtenir_sonde() -> Callable[[], EtatBase]:
 
 
 def creer_app() -> FastAPI:
+    # Pas de /docs, /redoc ni /openapi.json servis : les routes de documentation de FastAPI échappent aux dépendances
+    # d'application, donc à la clé (relecture A, M1). Le schéma reste produit par `application.openapi()`, que le test
+    # d'export utilisera (plan § 3.2).
     application = FastAPI(
         title="dentsu.explore — service d'optimisation",
         version=__version__,
         dependencies=[Depends(exiger_cle)],
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
     @application.get("/sante")

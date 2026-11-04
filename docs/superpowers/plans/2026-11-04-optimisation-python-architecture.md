@@ -362,8 +362,11 @@ empreinte md5 recalculée (formule sql/317) identique.
 **Pièges identifiés avant de coder** :
 - Python ≥ 3.12 : `sum()` sur flottants = sommation compensée (Neumaier) ≠ `reduce` JS → `somme_gauche()` ; un test interdit
   `sum(` dans `noyau/`.
-- `round()` arrondit au pair ; `Math.round` vers +∞ à la moitié → `arrondi_js(x, n) = floor(x × 10ⁿ + 0,5) / 10ⁿ`, même
-  multiplication intermédiaire.
+- `round()` arrondit au pair ; `Math.round` vers +∞ à la moitié → `arrondi_js(x, n) = math_round(x × 10ⁿ) / 10ⁿ`, même
+  multiplication intermédiaire, où `math_round(v)` = `floor(v) + 1` si `v − floor(v) ≥ 0,5`, `floor(v)` sinon (zéro
+  signé conservé, |v| ≥ 2⁵² rendu tel quel). ⚠ Amendé le 04/11 (relecture A, M3) : la formule d'origine
+  `floor(x × 10ⁿ + 0,5)` rend 1 pour 0.49999999999999994 (la somme s'arrondit à 1.0) là où `Math.round` rend 0 —
+  `nombres.py` a raison, ne pas le « corriger » vers l'ancienne formule.
 - `Math.min(...[])` = `Infinity`, `min([])` lève → cas vides codés explicitement.
 - Ordre d'itération : `Map` JS et `dict` Python suivent l'insertion, mais les entrées doivent arriver dans le même ordre (fixé par
   les fixtures).

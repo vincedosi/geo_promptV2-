@@ -20,6 +20,8 @@ def exiger_cle(x_optimisation_cle: Annotated[str | None, Header()] = None) -> No
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service d'optimisation mal configuré : OPTIMISATION_CLE_INTERNE absente.",
         )
-    recue = x_optimisation_cle or ""
+    # Normalisée comme la clé attendue (`config.cle_interne` retire les blancs) : une clé recopiée avec un espace final
+    # d'un côté seulement ne doit pas produire un 401 incompréhensible (relecture A, M4).
+    recue = (x_optimisation_cle or "").strip()
     if not hmac.compare_digest(recue.encode("utf-8"), attendue.encode("utf-8")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Clé interne absente ou invalide.")

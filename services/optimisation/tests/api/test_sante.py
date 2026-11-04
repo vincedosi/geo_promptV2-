@@ -62,3 +62,19 @@ def test_sonde_base_injoignable_ne_leve_pas_et_ne_fuit_pas_le_mot_de_passe() -> 
     assert etat.ok is False
     assert etat.erreur is not None
     assert "motdepasse-factice" not in etat.erreur
+
+
+@pytest.mark.parametrize("chemin", ["/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"])
+def test_documentation_non_servie_meme_avec_la_cle(client: TestClient, chemin: str) -> None:
+    assert client.get(chemin).status_code in (401, 404)
+    assert client.get(chemin, headers={"X-Optimisation-Cle": CLE}).status_code == 404
+
+
+def test_schema_openapi_reste_produit_en_interne() -> None:
+    assert "/sante" in app.openapi()["paths"]
+
+
+def test_cle_recue_normalisee_comme_la_cle_attendue(client: TestClient) -> None:
+    app.dependency_overrides[obtenir_sonde] = sonde(EtatBase(ok=True, role="optimisation_service"))
+    assert client.get("/sante", headers={"X-Optimisation-Cle": f" {CLE} "}).status_code == 200
+    assert client.get("/sante", headers={"X-Optimisation-Cle": "   "}).status_code == 401
