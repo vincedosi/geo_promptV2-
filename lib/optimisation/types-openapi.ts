@@ -2,7 +2,7 @@
  * GÉNÉRÉ — ne pas modifier à la main. Source : services/optimisation/openapi.json
  * (exporté par services/optimisation/tests/api/test_openapi.py), openapi-typescript 7.13.0.
  * Régénérer : node scripts/optimisation/generer-types.mjs
- * openapi-sha256: baaffbde776354fc694e1e3abb70e18bfae0567ecf81e0355b9f099e305ef0c7
+ * openapi-sha256: 13fe41d5ce3f3620c623c7296f3ac7d13f37d6c55c396ce9ffa7d01d1277f763
  */
 /* eslint-disable */
 /**
@@ -91,6 +91,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/algos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lister Algos
+         * @description Le catalogue, filtré. Sans lecture en base : il vit dans le code (`algos/registre.py`).
+         */
+        get: operations["lister_algos_v1_algos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -130,6 +150,33 @@ export interface components {
             version: string;
             /** Entrees Sha256 */
             entrees_sha256: string;
+        };
+        /** AlgoCatalogue */
+        AlgoCatalogue: {
+            /** Id */
+            id: string;
+            /** Version */
+            version: number;
+            /** Libelle */
+            libelle: string;
+            /** Description */
+            description: string;
+            /** Familles */
+            familles: ("plan" | "correction")[];
+            /** Proposable */
+            proposable: boolean;
+            /**
+             * Etat
+             * @enum {string}
+             */
+            etat: "disponible" | "a_venir";
+            /** Parametres */
+            parametres: components["schemas"]["ParametreAlgo"][];
+            /** Ordres */
+            ordres: [
+                string,
+                string
+            ][];
         };
         /** AvertissementPoids */
         AvertissementPoids: {
@@ -208,6 +255,13 @@ export interface components {
             min: number;
             /** Max */
             max: number;
+        };
+        /** CatalogueAlgos */
+        CatalogueAlgos: {
+            /** Algos */
+            algos: components["schemas"]["AlgoCatalogue"][];
+            /** Defaut Correction */
+            defaut_correction: string;
         };
         /** ChoixEntree */
         ChoixEntree: {
@@ -345,6 +399,23 @@ export interface components {
             part_en_zone: number | null;
             /** Part Prevue */
             part_prevue: number | null;
+        };
+        /** ParametreAlgo */
+        ParametreAlgo: {
+            /** Nom */
+            nom: string;
+            /** Libelle */
+            libelle: string;
+            /** Defaut */
+            defaut: number;
+            /** Minimum */
+            minimum: number;
+            /** Maximum */
+            maximum: number;
+            /** Unite */
+            unite: string;
+            /** Entier */
+            entier: boolean;
         };
         /**
          * ParamsRecalageEntree
@@ -747,6 +818,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SortieRecaler"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lister_algos_v1_algos_get: {
+        parameters: {
+            query?: {
+                famille?: ("plan" | "correction") | null;
+                proposable?: boolean | null;
+            };
+            header?: {
+                "x-optimisation-cle"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueAlgos"];
                 };
             };
             /** @description Validation Error */

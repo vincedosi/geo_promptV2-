@@ -222,6 +222,89 @@
           }
         }
       }
+    },
+    "/v1/algos": {
+      "get": {
+        "summary": "Lister Algos",
+        "description": "Le catalogue, filtré. Sans lecture en base : il vit dans le code (`algos/registre.py`).",
+        "operationId": "lister_algos_v1_algos_get",
+        "parameters": [
+          {
+            "name": "famille",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "plan",
+                    "correction"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Famille"
+            }
+          },
+          {
+            "name": "proposable",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Proposable"
+            }
+          },
+          {
+            "name": "x-optimisation-cle",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Optimisation-Cle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueAlgos"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -303,6 +386,86 @@
         ],
         "title": "Algo",
         "description": "Moteur, version et sha256 du JSON canonique des entrées : rejouer ces entrées rend le même résultat."
+      },
+      "AlgoCatalogue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "libelle": {
+            "type": "string",
+            "title": "Libelle"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "familles": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "plan",
+                "correction"
+              ]
+            },
+            "type": "array",
+            "title": "Familles"
+          },
+          "proposable": {
+            "type": "boolean",
+            "title": "Proposable"
+          },
+          "etat": {
+            "type": "string",
+            "enum": [
+              "disponible",
+              "a_venir"
+            ],
+            "title": "Etat"
+          },
+          "parametres": {
+            "items": {
+              "$ref": "#/components/schemas/ParametreAlgo"
+            },
+            "type": "array",
+            "title": "Parametres"
+          },
+          "ordres": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Ordres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "libelle",
+          "description",
+          "familles",
+          "proposable",
+          "etat",
+          "parametres",
+          "ordres"
+        ],
+        "title": "AlgoCatalogue"
       },
       "AvertissementPoids": {
         "properties": {
@@ -514,6 +677,27 @@
           "max"
         ],
         "title": "BornesSortie"
+      },
+      "CatalogueAlgos": {
+        "properties": {
+          "algos": {
+            "items": {
+              "$ref": "#/components/schemas/AlgoCatalogue"
+            },
+            "type": "array",
+            "title": "Algos"
+          },
+          "defaut_correction": {
+            "type": "string",
+            "title": "Defaut Correction"
+          }
+        },
+        "type": "object",
+        "required": [
+          "algos",
+          "defaut_correction"
+        ],
+        "title": "CatalogueAlgos"
       },
       "ChoixEntree": {
         "properties": {
@@ -974,6 +1158,49 @@
           "part_prevue"
         ],
         "title": "LignePlanZone"
+      },
+      "ParametreAlgo": {
+        "properties": {
+          "nom": {
+            "type": "string",
+            "title": "Nom"
+          },
+          "libelle": {
+            "type": "string",
+            "title": "Libelle"
+          },
+          "defaut": {
+            "type": "number",
+            "title": "Defaut"
+          },
+          "minimum": {
+            "type": "number",
+            "title": "Minimum"
+          },
+          "maximum": {
+            "type": "number",
+            "title": "Maximum"
+          },
+          "unite": {
+            "type": "string",
+            "title": "Unite"
+          },
+          "entier": {
+            "type": "boolean",
+            "title": "Entier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nom",
+          "libelle",
+          "defaut",
+          "minimum",
+          "maximum",
+          "unite",
+          "entier"
+        ],
+        "title": "ParametreAlgo"
       },
       "ParamsRecalageEntree": {
         "properties": {
