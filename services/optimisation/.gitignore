@@ -1,0 +1,12 @@
+# Secrets du service : jamais suivis. Le .gitignore racine ignore déjà .env* ;
+# on ne ré-autorise que l'exemple, qui ne porte que des NOMS.
+.env
+.env.*
+!.env.example
+
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

@@ -160,6 +160,18 @@ appliqué **avant** la normalisation `part = brut / Σ brut`. Une seule fois, à
 
 ## 5. Fichiers à modifier
 
+> **Amendé le 2026-11-04 — le noyau est en Python.** Décision du propriétaire (04/11) : tout l'algorithme d'optimisation est
+> en Python. Le noyau vit dans **`services/optimisation/src/optimisation/noyau/`** (module pur : ni base, ni réseau, ni horloge,
+> ni hasard — vérifié par `tests/noyau/test_purete.py`), et non dans `lib/optimisation/noyau/`, qui n'a jamais été créé. Les
+> fichiers TS ci-dessous se lisent avec cette correspondance : `correction.ts` → `noyau/correction.py`, `paliers.ts` →
+> `noyau/paliers.py`, `index.ts` → le paquet `optimisation.noyau`, `types/optimisation.ts` → `noyau/types.py` (dataclasses
+> figées) et `types/optimisation.gen.ts` (généré depuis l'OpenAPI du service). `lib/pacing/rebid.ts`, `PacingPanel.tsx` et
+> `/api/demo/apply-rebid` ne servent que le React gelé : **non portés**, supprimés au lot 7 (Q2). `lib/simulation/recalage.ts`
+> est supprimé à T9, `/simulation/recaler` appelant le service. Pas de `computeRebidWeightsV1` ni de drapeau `REBID_V1` : la
+> formule plafonnée n'est pas portée. Les formules (§ 2-4), les invariants et les critères (§ 7) sont inchangés. Plan :
+> `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md` ; architecture : `ARCHITECTURE.md` § « Service
+> d'optimisation (Python) ».
+
 La formule de correction vit **à un seul endroit** : `lib/optimisation/noyau/`, module pur (aucun accès base ni réseau, sortie déterministe pour une même entrée). `lib/pacing/rebid.ts` et `lib/simulation/recalage.ts` ne portent plus aucune formule : ils deviennent des réexports du noyau, puis sont supprimés.
 
 | Fichier | Action |

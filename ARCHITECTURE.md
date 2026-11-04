@@ -790,6 +790,9 @@ genesis_app/
 │   ├── populate_geom_3857.ts        # Reprojection geom
 │   └── export_iris_geojson.py       # Export GeoJSON IRIS
 │
+├── services/optimisation/      # Service Python de l'algorithme d'optimisation (2026-11-04) :
+│                               # paquet `optimisation` (src/optimisation/noyau/ PUR), FastAPI,
+│                               # Dockerfile + compose.yaml — voir « Service d'optimisation (Python) »
 ├── sql/                        # Migrations SQL (Supabase Dashboard)
 ├── supabase/migrations/        # Migrations Supabase CLI
 ├── tests/                      # unit/ + integration/
@@ -2458,6 +2461,23 @@ leurs verrous (`tests/unit/api/voronoi-route.test.ts`, `tests/unit/carte/voronoi
 | `DATABASE_URL` / `POSTGRES_URL` | Replis de `SUPABASE_DB_URL` dans `scripts/populate_geom_3857.ts`, seul consommateur. Les trois noms y sont essayes dans cet ordre |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vue Street View d'un panneau dans `app/map/_components/MapPanel.tsx` — l'unique consommateur, et **la seule dependance Google Maps du produit** (la cartographie est MapLibre + OpenFreeMap). `NEXT_PUBLIC_`, donc **inlinee dans le bundle client** : restreindre la cle par referent cote console Google, elle est lisible par tout visiteur. Absente, le composant remplace l'iframe par un bandeau rouge qui NOMME la variable (`MapPanel.tsx:327`) — verifie, pas de plantage |
 
+### Service d'optimisation (Python, 2026-11-04)
+
+Lues par `services/optimisation/` (fichier `services/optimisation/.env`, **non suivi par git** ;
+`services/optimisation/.env.example` n'en porte que les NOMS) ou par Next pour joindre le service.
+Plan : `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md` § 3.5.
+
+| Variable | Où | Description |
+|----------|----|-------------|
+| `OPTIMISATION_DATABASE_URL` | Python | URL Postgres du rôle `optimisation_service` (sql/342) — `postgresql://optimisation_service:…@supabase_db_genesis_app:5432/postgres` depuis le conteneur, port 54322 depuis l'hôte. **Jamais** la clé `service_role` |
+| `OPTIMISATION_CLE_INTERNE` | Python + Next | Clé de la passerelle Next → Python, envoyée dans l'en-tête `X-Optimisation-Cle`, comparée à temps constant (`hmac.compare_digest`). Absente côté Python : toutes les routes répondent 503, jamais « ouvert » |
+| `OPTIMISATION_URL` | Next | Adresse du service, `http://127.0.0.1:8090` en local. Lue à partir de T5 (`lib/optimisation/client.ts`) |
+| `OPTIMISATION_PLAN_SOURCE` | Next | `ts` / `ombre` / `python` (bascule du plan initial, plan § 5.2) ; supprimée à T6 |
+| `DSP_ENC_KEY` | Python ; Next jusqu'à T14 | Même clé que ci-dessus (AES-256-GCM `iv:tag:ct` + HMAC du `state` OAuth) — reprise par Python sans rechiffrement |
+| `DV360_OAUTH_CLIENT_ID`, `DV360_OAUTH_CLIENT_SECRET` | Python (à T13-T14) | Client OAuth DV360 de secours, comme côté Next |
+| `OPTIMISATION_HEURE_CYCLE` | Python | Heure du passage quotidien de l'ordonnanceur (06:30 proposé, T11) |
+| `TZ` | Python | `Europe/Paris` : le `jour` d'un cycle est un jour de Paris |
+
 ---
 
 ## Contraintes operationnelles
@@ -3151,6 +3171,47 @@ rejouer — et savoir dans quel ORDRE**, d'ou la liste ci-dessus.
 - Le mot de passe Postgres de prod n'est dans aucun fichier suivi :
   `02-dump-prod.sh` le lit dans `SUPABASE_DB_PASSWORD` (`.env.local`, gitignore)
   ou dans l'environnement.
+
+---
+
+## Service d'optimisation (Python) (2026-11-04)
+
+> **Remplace l'architecture du 26/10** (noyau TypeScript pur `lib/optimisation/noyau/` + un adaptateur par DSP,
+> `docs/rebid-v2.md` § 5) : elle n'a **jamais été codée** — `lib/optimisation/` n'existe pas (mesuré le 04/11).
+> Décision du propriétaire, 04/11 : **tout l'algorithme d'optimisation est en Python**, plan initial et adaptateurs DSP
+> compris. Plan de référence : `docs/superpowers/plans/2026-11-04-optimisation-python-architecture.md` (18 tâches T0-T17).
+
+**Frontière.** Le découpage (TS/SQL, écrans ①-⑤) produit et fige les unités (code, populations, part, `retenu` au seuil de la
+plateforme), les groupes de CP, la liste exacte et le bilan. Python commence au premier nombre qui n'est pas une population :
+multiplicateur, part prévue, `HORS_ZONE`, écrêtage, plan par plateforme, correction quotidienne, paliers, envoi aux DSP. Ce qui
+agrège des livraisons ou lit un référentiel reste SQL ; l'écriture de l'extraction reste `creer_extraction_jeu_zone` (verrou,
+empreinte md5, idempotence). Restent hors Python : le front Angular, l'API Next.js comme passerelle authentifiée (`getSession`
+sur `/api/*`, rôle, espace), les écrans ①-⑤.
+
+**Emplacement** : `services/optimisation/`, même dépôt (fixtures de parité générées par le TS du même commit).
+
+| Élément | Ce qu'il est |
+|---|---|
+| `pyproject.toml`, `uv.lock` | Python 3.13, géré par `uv` ; ruff, `mypy --strict`, pytest |
+| `src/optimisation/noyau/` | **Pur** : ni psycopg, ni httpx, ni horloge (`time`, `datetime`), ni hasard (`random`), ni `sum(` — vérifié par `tests/noyau/test_purete.py`. `nombres.py` : `somme_gauche` (somme de gauche à droite comme `reduce` JS — `sum()` est compensée depuis Python 3.12) et `arrondi_js` (`Math.round`, vers +∞ à la moitié — `round()` arrondit au pair) |
+| `src/optimisation/api/` | FastAPI. `GET /sante` (T1) : service + base (`select 1` par psycopg). Toutes les routes exigent l'en-tête `X-Optimisation-Cle` = `OPTIMISATION_CLE_INTERNE`, comparé à temps constant ; clé absente du service → 503 |
+| `Dockerfile`, `compose.yaml` | Image `python:3.13-slim`, service `optimisation_api` (uvicorn, **1 worker**) sur le réseau Docker externe `supabase_network_genesis_app`, base `supabase_db_genesis_app:5432` ; publié sur `127.0.0.1:8090` seulement — **jamais joint par le navigateur** |
+| `scripts/local/13-optimisation-up.sh` | Construit et démarre le conteneur après `00-docker-up.sh` et `01-supabase-up.sh`, puis interroge `/sante` |
+| `tests/parite/fixtures/*.json.gz` | `{entree, sortie}` produits par le TS actuel (`tests/parite/generer-fixtures.ts`, T2) : 73 cas unitaires, 6 zones de référence, 4 extractions risque — critère de parité du plan initial Python (multiplicateurs au millième, `part_prevue` à 1e-12) |
+
+**Base : psycopg 3 en direct, pas PostgREST** — donc pas de plafond `db-max-rows` (un plan national de 6 009 lignes en une
+requête), transactions et verrous consultatifs. Rôle dédié **`optimisation_service`** (`sql/342_role_optimisation_service.sql`) :
+`LOGIN BYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE` — `BYPASSRLS` est nécessaire car `plateformes_poids`, `dsp_connections`,
+`campaign_dsp_report`, `bidding_zone_configs`, `zone_set_extraction_cp_plateforme` ont la RLS active sans policy (0 ligne, sans
+erreur, sinon). Mot de passe **absent du fichier** : lu dans la variable psql `optimisation_mdp`
+(`psql -v optimisation_mdp=…`). Droits (limités à ce qui existe au 04/11) : `SELECT` sur les tables de plan, de livraison et de
+registre ; `SELECT`/`UPDATE` `dsp_connections` ; `INSERT` `campaign_dsp_report`, `dsp_api_logs` ; `EXECUTE`
+`volumes_attendus_cp_univers`, `hors_zone_extraction`. Les droits sur `optimisation_*` viendront avec leurs tables (T8).
+Règles I/O : pool ≤ 3 connexions, `statement_timeout` 30 s, campagnes une par une.
+
+**Calendrier.** T0-T2 (doc, socle, fixtures) livrés le 04/11. Le plan initial reste calculé en TS jusqu'à la parité (T3-T4),
+puis mode `ombre` (T5) et bascule `python` (T6) ; cycle quotidien (ordonnanceur Python, `optimisation_cycles`, validation humaine
+avant tout envoi) à T8-T12 ; adaptateurs DSP à T13-T16.
 
 ---
 

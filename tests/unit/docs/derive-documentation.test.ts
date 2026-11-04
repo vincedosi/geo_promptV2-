@@ -63,6 +63,22 @@ describe('dérive entre ARCHITECTURE.md et le code', () => {
     ).toEqual([]);
   });
 
+  it('toute variable d env du service d optimisation Python est documentée', () => {
+    // Le service Python (services/optimisation/, 2026-11-04) a son propre
+    // .env.example, que le contrôle ci-dessus ne lit pas. Une variable qu'il
+    // déclare sans que la doc la nomme, c'est un conteneur qui démarre en 503
+    // sans que personne ne sache quoi remplir.
+    const exemple = lire('services/optimisation/.env.example');
+    const declarees = Array.from(exemple.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)).map(m => m[1]);
+    expect(declarees.length, 'services/optimisation/.env.example ne déclare plus aucune variable').toBeGreaterThan(0);
+    const absentes = declarees.filter(v => !archi.includes(`\`${v}\``));
+    expect(
+      absentes,
+      `Variables du service d'optimisation absentes d'ARCHITECTURE.md : ${absentes.join(', ')}. `
+      + `Les ajouter au tableau « Service d'optimisation (Python) » des variables d'environnement.`,
+    ).toEqual([]);
+  });
+
   it('toute dépendance externe appelée par le code est documentée', () => {
     // Modal manquait : un client appelait un serverless Python
     // tiers, invisible dans le doc autoritaire. Seul le doc PÉRIMÉ en parlait.
