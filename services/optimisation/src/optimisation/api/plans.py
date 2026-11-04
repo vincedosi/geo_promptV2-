@@ -11,11 +11,22 @@ plateforme, ses sorties de poids et `algo`. Python lit lui-même le REGISTRE (`p
 `multiplicateur` et `part_prevue` du résumé : persister `algo` demande d'amender la fonction quand Next l'enverra (T5).
 
 Aucune écriture : la base n'est que lue, l'écriture de l'extraction reste SQL.
+
+ENTRÉES (relecture B, I1) : toute valeur hors domaine est refusée en 422 français AVANT le calcul — NaN et ±∞
+(`allow_inf_nan=False` : le `json.loads` de Starlette accepte ces littéraux), négatifs, valeurs au-delà des bornes
+chiffrées ci-dessous, groupes vides. Sans cela, elles traversaient le calcul et faisaient lever la sérialisation
+(`allow_nan=False`) : 500 anglais.
+
+CONNEXION ET CALCUL (relecture B, M4) : la connexion est empruntée APRÈS la validation du corps (un corps invalide n'en
+prend aucune, et rend 422 même base coupée), et rendue AVANT le calcul pur ; le calcul passe sous `verrou_calcul`, un
+seul à la fois dans le processus.
 """
 
 import hashlib
 import json
-from collections.abc import Iterator
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import asdict
 from typing import Annotated, Any, Literal, Protocol
 
@@ -43,82 +54,114 @@ from optimisation.noyau.types import (
     VolumesAttendus,
 )
 
-# Bornes des entrées : un plan national compte ≈ 6 100 unités CP ; `zone_set_cp` est plafonné à 8 000 par les routes
-# risque (PLAFOND_CP). Au-delà, ce n'est plus un plan mais une erreur de l'appelant.
+# Bornes des entrées : un plan national compte ≈ 6 100 unités CP (la France compte ≈ 6 300 codes postaux) ;
+# `zone_set_cp` est plafonné à 8 000 par les routes risque (PLAFOND_CP). Au-delà, ce n'est plus un plan mais une erreur
+# de l'appelant.
 MAX_UNITES = 10_000
 MAX_CODES_EXACTS = 10_000
 MAX_GROUPES = 2_000
 MAX_LIGNES_RISQUE = 20_000
+# Un groupe de codes indiscernables : `LigneCouvertureEntree.membres` était déjà borné à 50 ; même borne pour `groupes`.
+MAX_MEMBRES = 50
+# Une population d'unité ne peut pas dépasser celle du pays : France entière ≈ 68,6 M habitants (INSEE, 1er janvier
+# 2025). 10⁸ laisse une marge de ×1,45 et garde toute somme finie (20 000 lignes × 10⁸ = 2·10¹² ≪ 1,8·10³⁰⁸).
+POP_MAX = 1e8
+# `part` et `part_brute` sont des POURCENTAGES (sql/303 : `100 * p / tot`, p ⊂ tot) : ≤ 100, plus une tolérance
+# d'arrondi flottant pour un `p` sommé dans un autre ordre que `tot`.
+PART_MAX = 100.0 + 1e-6
+# Multiplicateur d'enchère par classe d'un jeu risque : les bornes du TS (`lib/zones/jeu.ts`, POIDS_MIN / POIDS_MAX).
+POIDS_MIN = 0.0
+POIDS_MAX = 5.0
+# Un calcul national prend ≈ 1 s ; 30 s d'attente laissent passer une file d'une trentaine de calculs avant le 503.
+ATTENTE_CALCUL_S = 30.0
 
 MESSAGE_INDISPONIBLE = "Le calcul du plan est indisponible, réessayez dans une minute."
+MESSAGE_OCCUPE = "Un autre calcul de plan est en cours, réessayez dans une minute."
 
 Plateforme = Literal["dv360", "ttd", "meta", "tiktok"]
 Code = Annotated[str, Field(min_length=1, max_length=16)]
+Population = Annotated[float, Field(ge=0, le=POP_MAX)]
+Part = Annotated[float, Field(ge=0, le=PART_MAX)]
+Membres = Annotated[list[Code], Field(min_length=1, max_length=MAX_MEMBRES)]
+Groupes = Annotated[dict[Code, Membres], Field(max_length=MAX_GROUPES)]
 
 
 # ── Entrées ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
-class LigneCouvertureEntree(BaseModel):
+class Entree(BaseModel):
+    """Base de tout corps reçu : NaN et ±∞ refusés partout, conteneurs imbriqués compris (I1)."""
+
+    model_config = ConfigDict(allow_inf_nan=False)
+
+
+class LigneCouvertureEntree(Entree):
     """Une unité de `couverture_zone` (maille CP). Les champs d'affichage (`nom`, `commune`…) sont ignorés."""
 
     model_config = ConfigDict(extra="ignore")
     code: Code
-    pop_en_zone: float | None
-    pop_totale: float | None
-    part: float | None
-    part_brute: float | None
-    membres: list[Code] | None = Field(default=None, max_length=50)
+    pop_en_zone: Population | None
+    pop_totale: Population | None
+    part: Part | None
+    part_brute: Part | None
+    membres: Membres | None = None
     incluse: bool | None = None
 
 
-class ChoixEntree(BaseModel):
+class ChoixEntree(Entree):
     model_config = ConfigDict(extra="forbid")
     plateforme: Plateforme
     seuil: float = Field(ge=0, le=100)
-    # Le nombre de CODES que la conversion de cette plateforme a retenus (`resume.n_codes ?? n_unites`) : c'est lui que
-    # comptent ses limites d'entrées sur le plan COMMUN (`sortiesPoids`). Absent : celui du plan commun.
-    n_codes_conversion: int | None = Field(default=None, ge=0)
+    # Le nombre de CODES que la conversion de cette plateforme a retenus : `r.n_codes ?? r.n_unites` du bilan de
+    # CONVERSION (`extraction-jeu-zone.ts`, sortiesPoids du plan commun). C'est lui que comptent ses limites d'entrées.
+    # OBLIGATOIRE (relecture B, M5) : Python ne voit pas la conversion, et le repli d'avant (le `n_codes` du plan
+    # commun) rendait d'autres envois que le TS sans le dire. ≤ MAX_UNITES : la France compte ≈ 6 300 codes postaux.
+    n_codes_conversion: int = Field(ge=0, le=MAX_UNITES)
 
 
-class RecetteEntree(BaseModel):
+class RecetteEntree(Entree):
     model_config = ConfigDict(extra="ignore")
     type: str = Field(min_length=1, max_length=40)
     code: str | None = None
 
 
-class PlanZoneEntree(BaseModel):
+class PlanZoneEntree(Entree):
     model_config = ConfigDict(extra="forbid")
     couverture: list[LigneCouvertureEntree] = Field(max_length=MAX_UNITES)
     choix: list[ChoixEntree] = Field(min_length=1, max_length=4)
     mode_plan: Literal["exclusif", "pondere"]
-    groupes: dict[Code, list[Code]] = Field(default_factory=dict, max_length=MAX_GROUPES)
+    # Groupe vide refusé (M1) : en `divise`, il faisait diviser par zéro.
+    groupes: Groupes = Field(default_factory=dict)
     codes_exacts: list[Code] | None = Field(default=None, max_length=MAX_CODES_EXACTS)
     recette: RecetteEntree | None = None
 
 
-class CpZoneEntree(BaseModel):
+class CpZoneEntree(Entree):
     """Une ligne de `zone_set_cp` (une par grappe), telle que la route risque la convertit."""
 
     model_config = ConfigDict(extra="ignore")
     code_postal: Code
     classe: str = Field(min_length=1, max_length=40)
-    pop_en_zone: float
-    pop_totale: float
+    pop_en_zone: Population
+    pop_totale: Population
     retenu: bool
 
 
-class JeuEntree(BaseModel):
+Classe = Annotated[str, Field(min_length=1, max_length=40)]
+Poids = Annotated[float, Field(ge=POIDS_MIN, le=POIDS_MAX)]
+
+
+class JeuEntree(Entree):
     model_config = ConfigDict(extra="ignore")
     mode_plan: Literal["exclusif", "pondere"]
-    poids: dict[str, float] = Field(default_factory=dict, max_length=200)
+    poids: dict[Classe, Poids] = Field(default_factory=dict, max_length=200)
 
 
-class PlanRisqueEntree(BaseModel):
+class PlanRisqueEntree(Entree):
     model_config = ConfigDict(extra="forbid")
     cps: list[CpZoneEntree] = Field(min_length=1, max_length=MAX_LIGNES_RISQUE)
     jeu: JeuEntree
-    groupes: dict[Code, list[Code]] = Field(default_factory=dict, max_length=MAX_GROUPES)
+    groupes: Groupes = Field(default_factory=dict)
 
 
 # ── Lecteurs (remplaçables en test) ──────────────────────────────────────────────────────────────────────────────────
@@ -143,8 +186,12 @@ class LecteurBase:
         return lire_volumes(self._conn, codes, univers)
 
 
-def obtenir_lecteur() -> Iterator[Lecteur]:
-    """Dépendance : un lecteur sur une connexion du pool, rendue à la fin de la requête."""
+SourceLecture = Callable[[], AbstractContextManager[Lecteur]]
+
+
+@contextmanager
+def _lecteur_base() -> Iterator[Lecteur]:
+    """Un lecteur sur une connexion du pool, rendue à la sortie du `with` ; base indisponible → 503 français."""
     try:
         with connexion(config.url_base()) as conn:
             yield LecteurBase(conn)
@@ -153,6 +200,30 @@ def obtenir_lecteur() -> Iterator[Lecteur]:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"message": MESSAGE_INDISPONIBLE, "cause": str(erreur)},
         ) from erreur
+
+
+def obtenir_source() -> SourceLecture:
+    """Dépendance : de quoi OUVRIR un lecteur, sans rien emprunter.
+
+    Une dépendance-générateur empruntait la connexion avant la validation du corps et la gardait jusqu'à la réponse,
+    calcul compris (relecture B, M4). La route ouvre désormais le lecteur elle-même, le temps des seules lectures.
+    """
+    return _lecteur_base
+
+
+_verrou_calcul = threading.Lock()
+
+
+@contextmanager
+def verrou_calcul() -> Iterator[None]:
+    """Un calcul pur à la fois dans le processus : les routes `def` tournent sur le pool de threads d'anyio (40), donc
+    `--workers 1` seul ne sérialisait rien (relecture B, M4). Au-delà de `ATTENTE_CALCUL_S`, 503 français."""
+    if not _verrou_calcul.acquire(timeout=ATTENTE_CALCUL_S):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"message": MESSAGE_OCCUPE})
+    try:
+        yield
+    finally:
+        _verrou_calcul.release()
 
 
 # ── Sérialisation des objets du noyau ────────────────────────────────────────────────────────────────────────────────
@@ -204,7 +275,7 @@ routeur = APIRouter(prefix="/v1/plans", default_response_class=ReponseJson)
 
 
 @routeur.post("/zone")
-def plan_zone(entree: PlanZoneEntree, lecteur: Annotated[Lecteur, Depends(obtenir_lecteur)]) -> ReponseJson:
+def plan_zone(entree: PlanZoneEntree, source: Annotated[SourceLecture, Depends(obtenir_source)]) -> ReponseJson:
     """Plan commun (D32, déprécié mais encore écrit) + un plan par plateforme au CP (B12) + sorties de poids."""
     plateformes = [c.plateforme for c in entree.choix]
     if len(set(plateformes)) != len(plateformes):
@@ -228,21 +299,38 @@ def plan_zone(entree: PlanZoneEntree, lecteur: Annotated[Lecteur, Depends(obteni
     choix = [ChoixPlateforme(plateforme=c.plateforme, seuil=c.seuil) for c in entree.choix]
 
     # La séquence de l'extraction (`extraction-jeu-zone.ts`) : registre → réglage commun → univers → volumes → plans.
-    try:
-        poids = lecteur.poids(list(plateformes))
-        reglage = reglage_du_plan(poids, list(plateformes))
-        if isinstance(reglage, RefusReglage):
-            raise _refus(reglage.message)
-        codes = [x.code for x in lignes] + (liste or [])
-        univers = univers_de_zone(
-            codes, entree.recette.type if entree.recette else None, entree.recette.code if entree.recette else None
-        )
-        volumes = lecteur.volumes(codes, univers)
-    except (RegistreIllisible, VolumesIllisibles) as erreur:
-        raise _illisible(erreur) from erreur
-    except ValueError as erreur:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(erreur)) from erreur
+    # Connexion empruntée ici, corps déjà validé, et rendue à la sortie du `with` : AVANT le calcul pur.
+    with source() as lecteur:
+        try:
+            poids = lecteur.poids(list(plateformes))
+            reglage = reglage_du_plan(poids, list(plateformes))
+            if isinstance(reglage, RefusReglage):
+                raise _refus(reglage.message)
+            codes = [x.code for x in lignes] + (liste or [])
+            univers = univers_de_zone(
+                codes, entree.recette.type if entree.recette else None, entree.recette.code if entree.recette else None
+            )
+            volumes = lecteur.volumes(codes, univers)
+        except (RegistreIllisible, VolumesIllisibles) as erreur:
+            raise _illisible(erreur) from erreur
+        except ValueError as erreur:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(erreur)) from erreur
 
+    with verrou_calcul():
+        return _calculer_plan_zone(entree, lignes, groupes, liste, choix, poids, reglage, volumes)
+
+
+def _calculer_plan_zone(
+    entree: PlanZoneEntree,
+    lignes: list[LigneCouverture],
+    groupes: dict[str, list[str]],
+    liste: list[str] | None,
+    choix: list[ChoixPlateforme],
+    poids: list[PlateformePoids],
+    reglage: ReglagePlan,
+    volumes: VolumesAttendus,
+) -> ReponseJson:
+    """Le calcul pur de `/v1/plans/zone`, sans base : plans par plateforme, plan commun, sorties de poids, `algo`."""
     propres = plans_par_plateforme(lignes, choix, entree.mode_plan, groupes, poids, liste, volumes)
     if isinstance(propres, RefusReglage):
         raise _refus(propres.message)
@@ -251,9 +339,8 @@ def plan_zone(entree: PlanZoneEntree, lecteur: Annotated[Lecteur, Depends(obteni
     par_plateforme: list[dict[str, Any]] = []
     sorties_commun: list[dict[str, Any]] = []
     for p, c in zip(propres, entree.choix, strict=True):
-        n_codes = c.n_codes_conversion if c.n_codes_conversion is not None else commun["resume"]["n_codes"]
         s_commun, a_commun = sorties_poids(
-            poids, p.plateforme, n_codes, commun["resume"]["multiplicateur"]["ajustements"]
+            poids, p.plateforme, c.n_codes_conversion, commun["resume"]["multiplicateur"]["ajustements"]
         )
         sorties_commun.append({"plateforme": p.plateforme, "poids": s_commun, "avertissements": a_commun})
         s_propre, a_propre = sorties_poids(
@@ -293,6 +380,11 @@ def plan_zone(entree: PlanZoneEntree, lecteur: Annotated[Lecteur, Depends(obteni
 @routeur.post("/risque")
 def plan_risque(entree: PlanRisqueEntree) -> ReponseJson:
     """Plan d'un jeu RISQUE, sémantique `repartition` (`genererPlanCp` avec les groupes divisés). Aucune lecture."""
+    with verrou_calcul():
+        return _calculer_plan_risque(entree)
+
+
+def _calculer_plan_risque(entree: PlanRisqueEntree) -> ReponseJson:
     plan = generer_plan_cp(
         [
             CpZone(

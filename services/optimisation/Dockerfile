@@ -25,5 +25,5 @@ RUN useradd --system --uid 10001 optimisation
 USER optimisation
 
 EXPOSE 8090
-# Un seul worker : un calcul à la fois (plan § 3.2).
+# Un seul processus ; le « un calcul à la fois » est tenu dans le processus par `verrou_calcul` (api/plans.py).
 CMD ["uvicorn", "optimisation.api.app:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "1"]

@@ -46,9 +46,13 @@ def declinaison(zone: str, nom: str) -> Declinaison:
     commun = decoder(par["planCpDeZone"]["entree"]["args"])
     univers = decoder(par["universDeZone"]["entree"]["args"])
     recette = univers[1] if len(univers) > 1 else None
+    sortie_commun = decoder(par["planCpDeZone"]["sortie"])
+    # `n_codes_conversion` est obligatoire (relecture B, M5) : le générateur appelle `sortiesPoids` du plan commun avec
+    # `commun.resume.n_codes` (`generer-fixtures.ts`), c'est donc ce que Next aurait envoyé pour ces cas.
+    choix = [{**c, "n_codes_conversion": sortie_commun["resume"]["n_codes"]} for c in _json(propres[1])]
     requete = {
         "couverture": _json(propres[0]),
-        "choix": _json(propres[1]),
+        "choix": choix,
         "mode_plan": propres[2],
         "groupes": _json(propres[3]),
         "codes_exacts": _json(propres[5]) if len(propres) > 5 else None,
@@ -61,7 +65,7 @@ def declinaison(zone: str, nom: str) -> Declinaison:
         poids=[plateforme_poids(x) for x in propres[4]],
         volumes=vols,
         univers=decoder(par["universDeZone"]["sortie"]),
-        commun=decoder(par["planCpDeZone"]["sortie"]),
+        commun=sortie_commun,
         plans=decoder(par["plansParPlateforme"]["sortie"]),
         sorties=[decoder(c["sortie"]) for c in appels if c["fonction"] == "sortiesPoids"],
     )

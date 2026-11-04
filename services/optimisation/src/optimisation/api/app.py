@@ -1,12 +1,19 @@
-"""Application FastAPI. Lancement : `uvicorn optimisation.api.app:app --workers 1` (un calcul à la fois)."""
+"""Application FastAPI. Lancement : `uvicorn optimisation.api.app:app --workers 1`.
+
+Un seul processus ; DANS ce processus, les routes `def` tournent sur le pool de threads d'anyio. « Un calcul à la
+fois » est donc tenu par un verrou autour du calcul pur (`api/plans.py`, `verrou_calcul`), pas par `--workers 1`
+seul (relecture B, M4).
+"""
 
 from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Response, status
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 
 from optimisation import __version__, config
+from optimisation.api.erreurs import LimiteCorps, erreur_imprevue, refus_de_validation
 from optimisation.api.plans import routeur as routeur_plans
 from optimisation.api.securite import exiger_cle
 from optimisation.base import EtatBase, sonder_base
@@ -59,6 +66,9 @@ def creer_app() -> FastAPI:
         )
 
     application.include_router(routeur_plans)
+    application.add_exception_handler(RequestValidationError, refus_de_validation)
+    application.add_exception_handler(Exception, erreur_imprevue)
+    application.add_middleware(LimiteCorps)
     return application
 
 

@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from optimisation import base
 from optimisation.api.app import app
-from optimisation.api.plans import Lecteur, obtenir_lecteur
+from optimisation.api.plans import Lecteur, obtenir_source
 from optimisation.noyau.types import PlateformePoids, Univers, VolumesAttendus
 from tests.parite.adaptation import charger, decoder, ecarts
 from tests.plans_fixtures import Declinaison, declinaison
@@ -22,6 +23,8 @@ class LecteurFactice:
     def __init__(self, d: Declinaison) -> None:
         self.d = d
         self.appels: list[tuple[str, Any]] = []
+        self.ouvertures = 0
+        self.rendu = False
 
     def poids(self, plateformes: list[str]) -> list[PlateformePoids]:
         self.appels.append(("poids", sorted(plateformes)))
@@ -42,10 +45,13 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 def brancher(d: Declinaison) -> LecteurFactice:
     lecteur = LecteurFactice(d)
 
-    def fabrique() -> Iterator[Lecteur]:
+    @contextmanager
+    def ouvrir() -> Iterator[Lecteur]:
+        lecteur.ouvertures += 1
         yield lecteur
+        lecteur.rendu = True
 
-    app.dependency_overrides[obtenir_lecteur] = fabrique
+    app.dependency_overrides[obtenir_source] = lambda: ouvrir
     return lecteur
 
 
