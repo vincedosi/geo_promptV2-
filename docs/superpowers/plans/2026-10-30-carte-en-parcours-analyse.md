@@ -375,9 +375,9 @@ O-1 (« Population cumulée », `713e5baa`).
 | # | Résidu | Nature | Suite |
 |---|---|---|---|
 | O-2 | Les libellés de typologie sont sans accents (« Revenus eleves », « Peu de tres ages »). L'un porte un nom de colonne brut : « pct_55_79 / Familial (enfants)… » | données (script Python `clustering_poi_filosofi.py`) | à corriger à la source, au prochain calcul de modèle ; aucun code de ④ |
-| O-3 | Un lien `?customZone=` affiche « Script bidding DV360 » dans la barre et passe le fil d'étapes en numéros seuls | hors lot | **à confirmer** comme voulu (Vincent) |
-| D-4 | Après un changement de zone analysée, le journal de la bataille précédente reste affiché sous les boutons grisés | `outil-bataille-v2` | **arbitrage** : vider le journal au changement de zone, ou le garder comme trace |
-| D-5 | Les boutons de la bataille V2 sont en capitales (« VÉRIFIER CACHE », « LANCER », « FORCER »), comme React | parité avec React contre règle sentence case | **à trancher une fois** pour les deux applications |
+| O-3 | Un lien `?customZone=` affiche « Script bidding DV360 » dans la barre et passe le fil d'étapes en numéros seuls | hors lot | **fait** (`9efe8a2d`, 04/11) : Vincent — « aucune régie DSP visible pour le moment ». Bouton retiré de la barre Angular ; le lien vit (géométrie, recadrage, « Tout effacer ») ; avec lui, la barre n'a plus que ses blocs de toujours et le fil garde ses huit libellés (spec ; le repli est une requête de conteneur, non évaluée par jsdom). Exports du plan média et de « Mes zones » intacts |
+| D-4 | Après un changement de zone analysée, le journal de la bataille précédente reste affiché sous les boutons grisés | `outil-bataille-v2` | **fait** (`df11657d`, 04/11) : vidé au changement de zone de la bataille — journal, statut du cache, compteurs ; sauf remplissage ORS en cours. Créneau carte et persistance inchangés |
+| D-5 | Les boutons de la bataille V2 sont en capitales (« VÉRIFIER CACHE », « LANCER », « FORCER »), comme React | parité avec React contre règle sentence case | **fait** (`ddc37611`, 04/11) : sentence case dans les deux applis (« Vérifier le cache », « Lancer », « Forcer », et les libellés d'attente) ; React `BattleV2Tool.tsx` seul, dérogation au gel ; `IsochronesTool.tsx` (V1) non touché |
 | — | sql/284 (retrait de `croisements_zone`) | dette datée | à appliquer au merge dans `feat/angular-lot0` |
 
 ---
