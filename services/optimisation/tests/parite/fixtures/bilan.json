@@ -1,0 +1,104 @@
+{
+  "tests_unitaires": {
+    "plan.test.ts": {
+      "tests_avec_appel": 30,
+      "appels": 35
+    },
+    "plan-jeu-zone.test.ts": {
+      "tests_avec_appel": 26,
+      "appels": 42
+    },
+    "part-prevue.test.ts": {
+      "tests_avec_appel": 13,
+      "appels": 27
+    }
+  },
+  "zones": {
+    "composite": {
+      "lignes": 901,
+      "declinaisons": [
+        "exclusif-dv360",
+        "pondere-dv360",
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd",
+        "exclusif-dv360-liste-exacte"
+      ]
+    },
+    "strasbourg": {
+      "lignes": 62,
+      "declinaisons": [
+        "exclusif-dv360",
+        "pondere-dv360",
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd",
+        "exclusif-dv360-liste-exacte"
+      ]
+    },
+    "paris": {
+      "lignes": 48,
+      "declinaisons": [
+        "exclusif-dv360",
+        "pondere-dv360",
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd",
+        "exclusif-dv360-liste-exacte"
+      ]
+    },
+    "seuil-carreaux": {
+      "lignes": 663,
+      "declinaisons": [
+        "exclusif-dv360",
+        "pondere-dv360",
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd",
+        "exclusif-dv360-liste-exacte"
+      ]
+    },
+    "metropole": {
+      "lignes": 5957,
+      "declinaisons": [
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd"
+      ]
+    },
+    "france": {
+      "lignes": 6075,
+      "declinaisons": [
+        "exclusif-dv360-ttd",
+        "pondere-dv360-ttd"
+      ]
+    }
+  },
+  "appels_zones": 168,
+  "risque": {
+    "b7c11e25-7734-4766-bbb2-c4695c51c7f2": {
+      "lignes_ts": 2000,
+      "lignes_stockees": 2000,
+      "multiplicateurs_differents": 0,
+      "codes_differents": 0
+    },
+    "d1dc1d1d-cdda-4e0a-982c-20eb7de614c7": {
+      "lignes_ts": 2000,
+      "lignes_stockees": 2000,
+      "multiplicateurs_differents": 1997,
+      "codes_differents": 0
+    },
+    "78f6911a-5e3e-471e-a90c-c5bfbd771c15": {
+      "lignes_ts": 2595,
+      "lignes_stockees": 2595,
+      "multiplicateurs_differents": 0,
+      "codes_differents": 0
+    },
+    "c40af217-1a56-40a8-bc3e-95aa1aa3e5f8": {
+      "lignes_ts": 2595,
+      "lignes_stockees": 2595,
+      "multiplicateurs_differents": 2592,
+      "codes_differents": 0
+    }
+  },
+  "tailles_octets": {
+    "tests-unitaires.json.gz": 10658,
+    "zones-reference.json.gz": 4028931,
+    "extractions-risque.json.gz": 308939
+  }
+}
