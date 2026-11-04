@@ -661,7 +661,7 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
   `teinteLigneV1`), `parametresV1`, `libelleTerritoire`, `pctApplication`, `anneauxPourDecoupe`, la variante `v1` de
   `mg-journal-bataille` et `mg-statut-cache`, la capacité locale de `ContexteBatailleService` (`capaciteLocale`), et
   `bataille_v1` / `application_bataille` des outils admis sur la métropole (`perimetre-national.ts`).
-- **Reste** : la Bataille V2 et son **remplissage ORS** du cache (« CALCULER N POIS MANQUANTS (ORS) »). Ce remplissage
+- **Reste** : la Bataille V2 et son **remplissage ORS** du cache (« Calculer N POIs manquants (ORS) »). Ce remplissage
   passe par `POST /api/isochrone-battle`, la route PROTÉGÉE de l'ancienne V1 (`IsochronesApi.remplirCache`, corps
   `corpsRemplissage`, identique à celui de React). **La route a donc encore UN appelant Angular**, le remplissage, et
   aucun pour la V1 elle-même. Elle n'est pas touchée (fichier protégé) ; elle partira, avec

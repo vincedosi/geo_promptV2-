@@ -46,7 +46,7 @@ describe('OutilBatailleV2Component (BattleV2Tool.tsx, T17)', () => {
     expect([...el.querySelectorAll('[data-palier]')].map((b) => b.getAttribute('aria-pressed'))).toEqual(Array(7).fill('true'));
   });
 
-  it('cache incomplet : « ✕ 1 POI manquants », barre, « CALCULER 1 POI MANQUANTS (ORS) » qui émet', async () => {
+  it('cache incomplet : « ✕ 1 POI manquants », barre, « Calculer 1 POI manquants (ORS) » qui émet', async () => {
     const { el, fixture, v2, emis } = await monter();
     v2.verifierCache();
     await fixture.whenStable();
@@ -55,11 +55,11 @@ describe('OutilBatailleV2Component (BattleV2Tool.tsx, T17)', () => {
     expect(s).toContain('✕ 1 POI manquants');
     expect(s).toContain('7/14 en cache · 7 à calculer');
     bouton(el, '[data-remplir]').click();
-    expect(bouton(el, '[data-remplir]').textContent!.trim()).toBe('CALCULER 1 POI MANQUANTS (ORS)');
+    expect(bouton(el, '[data-remplir]').textContent!.trim()).toBe('Calculer 1 POI manquants (ORS)');
     expect(emis).toEqual(['remplir']);
   });
 
-  it('LANCER et FORCER oublient le statut du cache puis émettent', async () => {
+  it('« Lancer » et « Forcer » oublient le statut du cache puis émettent', async () => {
     const { el, fixture, v2, emis } = await monter();
     v2.verifierCache();
     await fixture.whenStable();
@@ -68,6 +68,20 @@ describe('OutilBatailleV2Component (BattleV2Tool.tsx, T17)', () => {
     bouton(el, '[data-forcer]').click();
     bouton(el, '[data-verifier-cache]').click();
     expect(emis).toEqual(['lancer:false', 'lancer:true', 'verifierCache']);
+  });
+
+  it('D-5 (04/11) : les boutons en sentence case, jamais en capitales — ni dans le texte, ni par une classe', async () => {
+    const { el, fixture, v2 } = await monter();
+    expect(bouton(el, '[data-verifier-cache]').textContent!.trim()).toBe('Vérifier le cache');
+    expect(bouton(el, '[data-lancer]').textContent!.trim()).toBe('Lancer');
+    expect(bouton(el, '[data-forcer]').textContent!.trim()).toBe('Forcer');
+    v2.verifierCache();
+    await fixture.whenStable();
+    expect(bouton(el, '[data-remplir]').textContent!.trim()).toBe('Calculer 1 POI manquants (ORS)');
+    for (const b of el.querySelectorAll('button')) {
+      expect(b.classList.contains('uppercase'), b.textContent!).toBe(false);
+      expect(b.textContent).not.toMatch(/VÉRIF|LANCER|FORCER|CALCUL|MANQUANTS|EN COURS/);
+    }
   });
 
   it('bataille affichée : « Masquer » la cache et vide le journal', async () => {
