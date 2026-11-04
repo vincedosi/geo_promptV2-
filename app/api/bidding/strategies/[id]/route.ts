@@ -9,6 +9,8 @@
  *     Avant cette RPC : matérialisation lazy de l'indicateur de la courbe
  *     (in_zone_weights.variable_code) si périmé (> 30 j) via RPC
  *     materialize_indicator_cp_values() — échec → 422 { error: 'indicator_not_ready' }.
+ *     Modes abandonnés (`by_tier`, `by_subzone`, 05/11) dans `weighting_mode` ou le `mode` des poids : refusés,
+ *     422 `{ error: 'mode_abandonne', detail, champ }` (`lib/bidding/modes-abandonnes.ts`). GET inchangé.
  *
  * DELETE /api/bidding/strategies/[id]
  *   → soft-archive : status='archived' + status_changed_at + audit log.
@@ -20,6 +22,7 @@ import { indicateursVisibles } from '@/lib/auth/perimetre-donnees';
 import { createAdminClient } from '@/lib/auth';
 import { checkStrategyAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
+import { issueModeAbandonne, refuserModesAbandonnes, REFUS_MODE_ABANDONNE } from '@/lib/bidding/modes-abandonnes';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,7 +68,7 @@ const StrategyPatchSchema = z.object({
   alert_severity_threshold: z.enum(['low', 'medium', 'high', 'critical']).nullable().optional(),
   status: z.enum(['draft', 'active', 'paused', 'completed', 'archived']).optional(),
   reason: z.string().max(2000).optional(),
-});
+}).superRefine(refuserModesAbandonnes); // `by_tier` / `by_subzone` abandonnés (05/11) : 422 `mode_abandonne`
 
 type StrategyPatch = z.infer<typeof StrategyPatchSchema>;
 
@@ -150,6 +153,13 @@ export async function PATCH(
   }
   const parsed = StrategyPatchSchema.safeParse(raw);
   if (!parsed.success) {
+    const abandonne = issueModeAbandonne(parsed.error.issues);
+    if (abandonne) {
+      return NextResponse.json(
+        { error: REFUS_MODE_ABANDONNE, detail: abandonne.message, champ: abandonne.path.join('.') },
+        { status: 422 },
+      );
+    }
     return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
   }
   const body = parsed.data;

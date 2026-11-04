@@ -4,6 +4,8 @@
  *      toutes celles de l'espace — l'étape ⑥ n'en cherche qu'une. Sans paramètre, la liste entière est lue par
  *      `lireTout` (lot 6, relecture 2) : elle dépasse `db-max-rows` un jour, et échoue alors au lieu de tronquer.
  * POST /api/bidding/strategies — crée une stratégie depuis le wizard A4.7 (5 steps)
+ *      Modes de pondération abandonnés (`by_tier`, `by_subzone`, 05/11 — `weighting_mode` ou `mode` des poids) :
+ *      refusés, 422 `{ error: 'mode_abandonne', detail, champ }` (`lib/bidding/modes-abandonnes.ts`).
  *
  * Eligibilité POST : la campagne doit exister ET son `dsp_source` doit être ≠ 'adform'.
  * Conflit : interdit si une stratégie en status active existe déjà pour cette campagne.
@@ -29,6 +31,7 @@ import { createAdminClient } from '@/lib/auth';
 import { checkCampaignAccess, checkZoneAccess } from '@/lib/campaigns/access';
 import { toJson } from '@/lib/supabase/rpc-json';
 import { lireTout } from '@/lib/supabase/lire-tout';
+import { issueModeAbandonne, refuserModesAbandonnes, REFUS_MODE_ABANDONNE } from '@/lib/bidding/modes-abandonnes';
 
 /**
  * Plafond de la liste des stratégies sans `?campaign_id=` : au-delà, la route échoue au lieu de tronquer. Une
@@ -90,7 +93,7 @@ const StrategyCreateSchema = z.object({
 
   is_demo: z.boolean().optional(),
   consume_draft_id: z.string().uuid().optional(),
-});
+}).superRefine(refuserModesAbandonnes); // `by_tier` / `by_subzone` abandonnés (05/11) : 422 `mode_abandonne`
 
 export async function GET(request: NextRequest) {
   const profile = await requireAuth(request);
@@ -183,6 +186,13 @@ export async function POST(request: NextRequest) {
 
   const parsed = StrategyCreateSchema.safeParse(raw);
   if (!parsed.success) {
+    const abandonne = issueModeAbandonne(parsed.error.issues);
+    if (abandonne) {
+      return NextResponse.json(
+        { error: REFUS_MODE_ABANDONNE, detail: abandonne.message, champ: abandonne.path.join('.') },
+        { status: 422 },
+      );
+    }
     return NextResponse.json(
       { error: 'invalid_body', issues: parsed.error.issues },
       { status: 400 },
