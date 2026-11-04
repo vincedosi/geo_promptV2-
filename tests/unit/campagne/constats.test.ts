@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculerConstats } from '@/lib/campagne/constats'
+import { calculerConstats, seuilEcartSignale, SEUIL_ECART_SIGNALE_PCT } from '@/lib/campagne/constats'
 
 describe('constats de correction', () => {
   it('n affiche rien quand tout va bien', () => {
@@ -143,5 +143,42 @@ describe('constats de correction', () => {
     const sur = c.find((x) => x.id === 'sur_pression')
     expect(sur!.cible).toBe('2B')
     expect(sur!.titre).toContain('€')
+  })
+})
+
+/**
+ * Relecture de la phase 2 de l'optimisation, I4 : le ± 20 % est RÉGLABLE par campagne
+ * (`optimisation_reglages.parametres.seuils.ecart_signale_pct`), lu par la route `alignement/constats`.
+ * Défaut : 20, le comportement d'avant.
+ */
+describe('seuil ± des constats réglable', () => {
+  const unites = [
+    { code: '13', nom: 'Bouches-du-Rhône', ecart_pct: -25, impressions: 400, cpm: 6.5 },
+    { code: '75', nom: 'Paris', ecart_pct: 25, impressions: 5000, cpm: 6.5 },
+  ]
+  const donnees = { unites, cpm_moyen: 6.5, canaux: [] }
+
+  it('sans seuil : 20 %, un écart de ±25 % est signalé dans les deux sens', () => {
+    expect(calculerConstats(donnees).map((c) => c.id)).toEqual(['sous_pression', 'sur_pression'])
+    expect(calculerConstats(donnees, { seuilEcartPct: 20 })).toEqual(calculerConstats(donnees))
+  })
+
+  it('seuil réglé à 30 : les mêmes écarts ne sont plus signalés', () => {
+    expect(calculerConstats(donnees, { seuilEcartPct: 30 })).toEqual([])
+  })
+
+  it('seuil réglé à 10 : un écart de ±15 % le devient', () => {
+    const d = { ...donnees, unites: unites.map((u) => ({ ...u, ecart_pct: Math.sign(u.ecart_pct) * 15 })) }
+    expect(calculerConstats(d)).toEqual([])
+    expect(calculerConstats(d, { seuilEcartPct: 10 }).map((c) => c.id)).toEqual(['sous_pression', 'sur_pression'])
+  })
+
+  it('seuilEcartSignale : la valeur réglée si nombre > 0, sinon le défaut (règle de optimisation_seuil)', () => {
+    expect(seuilEcartSignale(null)).toBe(SEUIL_ECART_SIGNALE_PCT)
+    expect(seuilEcartSignale({})).toBe(20)
+    expect(seuilEcartSignale({ seuils: { cp_sous_plan_pct: 50 } })).toBe(20)
+    expect(seuilEcartSignale({ seuils: { ecart_signale_pct: 30 } })).toBe(30)
+    expect(seuilEcartSignale({ seuils: { ecart_signale_pct: '30' } })).toBe(20)
+    expect(seuilEcartSignale({ seuils: { ecart_signale_pct: 0 } })).toBe(20)
   })
 })

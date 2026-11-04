@@ -72,8 +72,23 @@ export interface Constat {
  * parce que ce bloc ne doit remonter que des écarts massifs et actionnables
  * — pas le bruit qu'une tolérance à 10 % laisse déjà passer comme « hors
  * plan » dans le score.
+ *
+ * C'est le DÉFAUT : depuis la relecture de la phase 2 de l'optimisation (I4), le seuil se règle par campagne
+ * (`optimisation_reglages.parametres.seuils.ecart_signale_pct`, lu par la route `alignement/constats` via
+ * `seuilEcartSignale`) et arrive ici par `calculerConstats(…, { seuilEcartPct })`.
  */
 export const SEUIL_ECART_SIGNALE_PCT = 20
+
+/**
+ * Le seuil ± des constats réglé pour une campagne : `parametres.seuils.ecart_signale_pct` s'il est un nombre
+ * strictement positif et fini, sinon le défaut. Même règle que `optimisation_seuil` en SQL (sql/345) : une clé
+ * absente ou d'un autre type vaut le défaut. `parametres` est la colonne jsonb telle que lue (ou `null` sans ligne).
+ */
+export function seuilEcartSignale(parametres: unknown): number {
+  const seuils = (parametres as { seuils?: unknown } | null)?.seuils
+  const v = (seuils as { ecart_signale_pct?: unknown } | null | undefined)?.ecart_signale_pct
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : SEUIL_ECART_SIGNALE_PCT
+}
 
 /**
  * Seuil de CPM jugé « nettement plus cher que la moyenne ».
@@ -107,10 +122,10 @@ function listerUnites(unites: { code: string; nom: string }[]): string {
 }
 
 /** Concentration de la sous-pression : les unités les plus en retard, volume manquant estimé décroissant. */
-function constatSousPression(unites: UniteConstat[]): Constat | null {
+function constatSousPression(unites: UniteConstat[], seuil: number): Constat | null {
   const candidats: { u: UniteConstat; manque: number }[] = []
   for (const u of unites) {
-    if (u.ecart_pct == null || u.ecart_pct >= -SEUIL_ECART_SIGNALE_PCT) continue
+    if (u.ecart_pct == null || u.ecart_pct >= -seuil) continue
     const plan = planEstime(u.impressions, u.ecart_pct)
     if (plan == null) continue
     candidats.push({ u, manque: Math.max(0, plan - u.impressions) })
@@ -141,7 +156,7 @@ function constatSousPression(unites: UniteConstat[]): Constat | null {
  * filtre, avec tout son volume (`volume_deplace` si fourni, sinon
  * `impressions` — les deux coïncident à plan nul).
  */
-function constatSurPression(unites: UniteConstat[]): Constat | null {
+function constatSurPression(unites: UniteConstat[], seuil: number): Constat | null {
   const candidats: { u: UniteConstat; trop: number; eur: number }[] = []
   for (const u of unites) {
     if (u.hors_plan) {
@@ -149,7 +164,7 @@ function constatSurPression(unites: UniteConstat[]): Constat | null {
       if (trop > 0) candidats.push({ u, trop, eur: u.cpm != null ? (trop / 1000) * u.cpm : 0 })
       continue
     }
-    if (u.ecart_pct == null || u.ecart_pct <= SEUIL_ECART_SIGNALE_PCT) continue
+    if (u.ecart_pct == null || u.ecart_pct <= seuil) continue
     const plan = planEstime(u.impressions, u.ecart_pct)
     if (plan == null) continue
     const trop = Math.max(0, u.impressions - plan)
@@ -215,10 +230,13 @@ function constatCanalCher(canaux: CanalConstat[], cpmMoyen: number | null): Cons
  * déplaçables, écart de CPM) ne sont pas sur la même échelle et ne se
  * comparent pas honnêtement entre elles avec les seules données reçues ici.
  */
-export function calculerConstats(data: DonneesConstats): Constat[] {
+export function calculerConstats(
+  data: DonneesConstats,
+  { seuilEcartPct = SEUIL_ECART_SIGNALE_PCT }: { seuilEcartPct?: number } = {},
+): Constat[] {
   const constats = [
-    constatSousPression(data.unites),
-    constatSurPression(data.unites),
+    constatSousPression(data.unites, seuilEcartPct),
+    constatSurPression(data.unites, seuilEcartPct),
     constatCanalCher(data.canaux, data.cpm_moyen),
   ].filter((c): c is Constat => c !== null)
 

@@ -39,8 +39,8 @@ from optimisation.noyau.mesures import (
 )
 
 ALGO_DEFAUT = "uniformiser_global"
-# ± 20 % des constats (`lib/campagne/constats.ts:76`, `SEUIL_ECART_SIGNALE_PCT`) : validé et stocké, lu par personne
-# aujourd'hui (le calcul des constats reste TS, affichage React gelé).
+# ± 20 % des constats (`lib/campagne/constats.ts`, `SEUIL_ECART_SIGNALE_PCT`) : validé et stocké ici, LU par la route
+# Next `alignement/constats` (`seuilEcartSignale`, relecture de la phase 2, I4) — le calcul des constats reste en TS.
 ECART_SIGNALE_PCT = Decimal(20)
 
 UniversMethodeA = Literal["fige", "referentiel"]
