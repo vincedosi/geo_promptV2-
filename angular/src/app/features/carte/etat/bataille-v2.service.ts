@@ -53,6 +53,11 @@ interface ResultatV2 {
  * remplissage ORS restent sur ① (route protégée, qui ne connaît pas les zones ; la route de remplissage propre à la V2
  * est le n° 44 de l'Excel) : sur la zone, ils ne partent pas.
  *
+ * Changer de zone VIDE aussi ce que l'outil affiche de la bataille précédente — journal, statut du cache, compteurs du
+ * remplissage (D-4, décision du 04/11) : un journal resté là se lisait comme celui de la nouvelle zone. Seul un
+ * remplissage ORS en cours garde son journal : il est l'opération du moment, pas la précédente. Le créneau peint sur la
+ * carte n'est pas touché (il peut porter la zone d'un lien, et « Tout effacer » le vide), ni rien de persisté.
+ *
  * `@Injectable()` sans `providedIn` : fourni par la page carte, détruit avec elle.
  */
 @Injectable()
@@ -91,8 +96,12 @@ export class BatailleV2Service {
   constructor() {
     inject(CouchesCarteService).inscrireEffacement('bataille-v2', () => this.reinitialiser());
     inject(DestroyRef).onDestroy(() => this.arreter());
-    // P-c : une bataille en vol sur une zone quittée (ou une bascule) est abandonnée, sa réponse jetée.
-    surChangement(this.zoneBataille, () => this.abandonner());
+    // P-c : une bataille en vol sur une zone quittée (ou une bascule) est abandonnée, sa réponse jetée ; puis D-4 :
+    // l'affichage de la bataille précédente est vidé.
+    surChangement(this.zoneBataille, () => {
+      this.abandonner();
+      this.viderAffichage();
+    });
   }
 
   /** Un palier bascule ; le statut du cache devient caduc (`BattleV2Tool.tsx:106-111`). */
@@ -237,7 +246,7 @@ export class BatailleV2Service {
     return this.api.verifierCache(corpsVerification(ctx, paliers));
   }
 
-  /** La zone de la bataille a changé : le flux en vol est désabonné (sa réponse jetée), la ligne le dit. */
+  /** La zone de la bataille a changé : le flux en vol est désabonné (sa réponse jetée). */
   private abandonner(): void {
     // Un comptage de capacité en vol (lancement sur ①) part aussi : sa suite partirait sur le contexte quitté.
     this.borne?.unsubscribe();
@@ -246,7 +255,17 @@ export class BatailleV2Service {
     this.flux?.unsubscribe();
     this.flux = null;
     this.chargement.set(false);
-    this.noter('> Zone changée : bataille abandonnée.');
+  }
+
+  /** D-4 : journal, statut du cache et compteurs de la bataille précédente vidés — sauf pendant un remplissage ORS. */
+  private viderAffichage(): void {
+    if (this.remplissage()) return;
+    this.journal.set([]);
+    this.cache.set(null);
+    this.remplissageTotal.set(0);
+    this.remplissageTermines.set(0);
+    this.remplissagePct.set(0);
+    this.remplissageAnneaux.set(0);
   }
 
   private arreter(): void {
