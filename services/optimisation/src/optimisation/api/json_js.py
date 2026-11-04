@@ -4,6 +4,10 @@ Plan § 2.3, point 4 : le texte `jsonb` écrit par la base doit être celui qu'a
 `float` (le seul nombre de JS) ; `JSON.stringify(1)` écrit `1`, `json.dumps(1.0)` écrit `1.0`. On convertit donc tout
 flottant entier exact (|x| < 2⁵³) en `int` avant d'écrire ; `-0.0` devient `0`, comme `JSON.stringify(-0)`. NaN et
 ±∞ n'ont pas de JSON : refusés (`allow_nan=False`), comme une valeur que le TS aurait écrite `null` sans le dire.
+
+⚠ Identique au TS une fois PARSÉ, pas au texte brut (relecture B, M6) : `json.dumps` écrit `3.2e-05` et `1e-07` là
+où `JSON.stringify` écrit `0.000032` et `1e-7`, et un entier ≥ 2⁵³ reste `…992.0`. Même nombre après `JSON.parse` côté
+Next ou `numeric` du `jsonb` : en mode ombre, comparer les valeurs parsées, jamais le texte de la réponse.
 """
 
 import json
