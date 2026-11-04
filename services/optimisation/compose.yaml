@@ -1,0 +1,25 @@
+# Service d'optimisation en local, sur le réseau du stack Supabase (scripts/local/01-supabase-up.sh).
+# Démarrage : scripts/local/13-optimisation-up.sh. Variables : services/optimisation/.env (non suivi).
+name: optimisation
+
+services:
+  optimisation_api:
+    build: .
+    image: dentsu-explore/optimisation:local
+    container_name: optimisation_api
+    env_file: .env
+    environment:
+      TZ: Europe/Paris
+    # Hôte seulement : jamais exposé au réseau, jamais joint par le navigateur (plan § 3.2).
+    ports:
+      - "127.0.0.1:8090:8090"
+    networks:
+      - supabase
+    restart: unless-stopped
+    mem_limit: 256m
+
+networks:
+  supabase:
+    # Créé par `supabase start` ; nom vérifié par `docker network ls` le 2026-11-04.
+    name: supabase_network_genesis_app
+    external: true
