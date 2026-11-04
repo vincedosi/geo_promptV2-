@@ -7,8 +7,10 @@
   restent servis par la fonction SQL et ne sont pas portés.
 
 Les sorties ont la forme du `jsonb` SQL (mêmes clés) ; les `numeric` y sont des `Decimal` à la même échelle. Les seuils
-(0,85 / 0,70 / 1,15 / 1,30 / × 1,25 / 70 % / 5 % / 90 % / 110 %) restent écrits en dur, comme en SQL : leur passage en
-réglages par campagne est la phase 2.
+d'alerte (0,85 / 0,70 / 1,15 / 1,30 / × 1,25 / 70 % / 5 %) sont RÉGLABLES par campagne depuis la tâche 2.3 :
+`SeuilsSuivi`, lus dans `optimisation_reglages` (`lecture/reglages.py`) comme le fait `get_campaign_suivi` (sql/345) ;
+`SEUILS_DEFAUT` = les littéraux d'avant, donc sans réglage le comportement est inchangé. 90 % / 110 % (CP sous ou
+au-dessus de l'objectif) restent en dur, comme en SQL : le cahier ne les nomme pas.
 
 Les entrées sont les lignes de `campaign_cp_rollup` et `campaign_daily_rollup` (déjà agrégées par le SQL de
 `refresh_campaign_rollups`, qui reste en base) ; les dates y sont des numéros de jour (pas de `datetime` ici).
@@ -30,7 +32,8 @@ from optimisation.noyau.numeric_pg import (
 )
 from optimisation.noyau.prevu import MODE_STRICT, OBJECTIF_IMPRESSIONS, StrategiePrevue, fraction_du_temps
 
-# Seuils de `get_campaign_suivi`, en dur (phase 2 : réglages).
+# Seuils par défaut de `get_campaign_suivi` : les littéraux de sql/113, repris par `optimisation_seuil(…, défaut)` en
+# sql/345. Mêmes ÉCHELLES que les littéraux SQL (`0.70` et non `0.7`) : `CP_SOUS_PLAN_PCT` s'écrit dans un titre.
 RYTHME_RETARD = Decimal("0.85")
 RYTHME_RETARD_GRAVE = Decimal("0.70")
 RYTHME_AVANCE = Decimal("1.15")
@@ -38,6 +41,7 @@ RYTHME_AVANCE_GRAVE = Decimal("1.30")
 CPM_DEPASSEMENT = Decimal("1.25")
 CP_SOUS_PLAN_PCT = Decimal(70)
 FUITE_PCT = Decimal(5)
+# En dur, comme en SQL (non réglables : le cahier ne les nomme pas).
 OBJECTIF_SOUS_PCT = Decimal(90)
 OBJECTIF_SUR_PCT = Decimal(110)
 
@@ -360,6 +364,22 @@ def alignement_par_maille(
 
 
 @dataclass(frozen=True)
+class SeuilsSuivi:
+    """Les seuils d'alerte de `get_campaign_suivi`, réglables par campagne (tâche 2.3, sql/345)."""
+
+    rythme_retard: Decimal = RYTHME_RETARD
+    rythme_retard_grave: Decimal = RYTHME_RETARD_GRAVE
+    rythme_avance: Decimal = RYTHME_AVANCE
+    rythme_avance_grave: Decimal = RYTHME_AVANCE_GRAVE
+    cpm_depassement: Decimal = CPM_DEPASSEMENT
+    cp_sous_plan_pct: Decimal = CP_SOUS_PLAN_PCT
+    fuite_pct: Decimal = FUITE_PCT
+
+
+SEUILS_DEFAUT = SeuilsSuivi()
+
+
+@dataclass(frozen=True)
 class StrategieSuivi:
     """La stratégie la plus récente : ce que lisent `get_campaign_expected` et `get_campaign_suivi`."""
 
@@ -381,11 +401,12 @@ def suivi(
     multiplicateurs_actifs: Sequence[Decimal],
     attendu: Decimal | None,
     acteurs: Sequence[str] | None = None,
+    seuils: SeuilsSuivi = SEUILS_DEFAUT,
 ) -> Json:
     """La partie décisionnelle de `get_campaign_suivi(campagne, acteurs)`.
 
     `multiplicateurs_actifs` : les `bid_multiplier` des lignes actives du plan ; `attendu` : `get_campaign_expected`
-    (GLOBAL, jamais filtré par acteur, comme en SQL).
+    (GLOBAL, jamais filtré par acteur, comme en SQL) ; `seuils` : les réglages de la campagne (défaut : ceux d'avant).
     """
     if strategie is None:
         return {"error": "no_strategy"}
@@ -451,7 +472,7 @@ def suivi(
         objectif_pct = _arr(_pct(Decimal(imps), attendu), 1)
 
     alertes: list[Json] = []
-    if indice is not None and indice < RYTHME_RETARD:
+    if indice is not None and indice < seuils.rythme_retard:
         if temps_pct is None or budget_pct is None:  # impossible : indice non NULL ⇒ les deux le sont
             raise ValueError("rythme sans temps ni budget")
         with localcontext(EXACT):
@@ -459,12 +480,12 @@ def suivi(
         alertes.append(
             {
                 "kind": "pacing",
-                "severity": "danger" if indice < RYTHME_RETARD_GRAVE else "warning",
+                "severity": "danger" if indice < seuils.rythme_retard_grave else "warning",
                 "title": _concat("Pacing en retard de ", retard, " points"),
                 "detail": _concat(budget_pct, " % du budget pour ", temps_pct, " % du temps"),
             }
         )
-    elif indice is not None and indice > RYTHME_AVANCE:
+    elif indice is not None and indice > seuils.rythme_avance:
         if temps_pct is None or budget_pct is None:
             raise ValueError("rythme sans temps ni budget")
         with localcontext(EXACT):
@@ -472,14 +493,14 @@ def suivi(
         alertes.append(
             {
                 "kind": "pacing",
-                "severity": "danger" if indice > RYTHME_AVANCE_GRAVE else "warning",
+                "severity": "danger" if indice > seuils.rythme_avance_grave else "warning",
                 "title": _concat("Pacing en avance de ", avance, " points"),
                 "detail": _concat(budget_pct, " % du budget pour ", temps_pct, " % du temps"),
             }
         )
     if cpm_reel is not None and s.forecast_cpm is not None:
         with localcontext(EXACT):
-            depasse = cpm_reel > s.forecast_cpm * CPM_DEPASSEMENT
+            depasse = cpm_reel > s.forecast_cpm * seuils.cpm_depassement
         if depasse:
             alertes.append(
                 {
@@ -503,7 +524,7 @@ def suivi(
         if not cible or part is None or not part > 0:
             continue
         ratio = _pct(diviser_ou_nul(im, Decimal(total_cp)), part)
-        if ratio is not None and ratio < CP_SOUS_PLAN_PCT:
+        if ratio is not None and ratio < seuils.cp_sous_plan_pct:
             sous.append((im, sp))
     if sous:
         sp_sous = somme(sp for _im, sp in sous) or _ZERO
@@ -512,7 +533,7 @@ def suivi(
             {
                 "kind": "zones_under",
                 "severity": "warning",
-                "title": _concat(len(sous), " CP cibles sous 70 % du plan"),
+                "title": _concat(len(sous), " CP cibles sous ", seuils.cp_sous_plan_pct, " % du plan"),
                 "detail": _concat(
                     arrondir(sp_sous),
                     " € de spend · ",
@@ -521,7 +542,7 @@ def suivi(
                 ),
             }
         )
-    if mode == MODE_STRICT and (out_share if out_share is not None else _ZERO) > FUITE_PCT:
+    if mode == MODE_STRICT and (out_share if out_share is not None else _ZERO) > seuils.fuite_pct:
         alertes.append(
             {
                 "kind": "leak",
