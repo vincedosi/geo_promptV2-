@@ -12,7 +12,7 @@ import { planFactice } from '../testing/plan-factice';
 import { BarreParcoursComponent, HAUTEUR_BARRE_PARCOURS } from './barre-parcours.component';
 
 /** Les fausses dépendances de `mg-badge-session`, comme `carte.page.spec.ts`. */
-async function monter(entrees: { zoneScript?: string | null; planMedia?: number | null; autresOuvert?: boolean } = {}) {
+async function monter(entrees: { planMedia?: number | null; autresOuvert?: boolean } = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -36,7 +36,6 @@ async function monter(entrees: { zoneScript?: string | null; planMedia?: number 
   fixture.componentRef.setInput('etapes', etapesDuFil({ filtrePose: false, calquesActifs: false, analyseAffichee: false, jeuRenseigne: false, planRenseigne: false, activationRenseignee: false }));
   fixture.componentRef.setInput('courante', 'perimetre');
   fixture.componentRef.setInput('segments', [{ cle: 'france', libelle: 'France entière' }, { cle: 'region:53', libelle: 'Bretagne' }]);
-  if (entrees.zoneScript !== undefined) fixture.componentRef.setInput('zoneScript', entrees.zoneScript);
   if (entrees.planMedia !== undefined) fixture.componentRef.setInput('planMedia', entrees.planMedia);
   if (entrees.autresOuvert !== undefined) fixture.componentRef.setInput('autresOuvert', entrees.autresOuvert);
   await fixture.whenStable();
@@ -117,54 +116,46 @@ describe('BarreParcoursComponent', () => {
     expect(el.querySelectorAll('mg-fil-etapes nav button')[0].getAttribute('aria-current')).toBe('step');
   });
 
-  it('Script bidding DV360 et Plan média (n) n’existent que s’ils ont un objet', async () => {
-    const sans = await monter({ zoneScript: null, planMedia: null });
-    expect(sans.el.querySelector('[data-script-dv360]')).toBeNull();
+  it('Plan média (n) n’existe que s’il a un objet', async () => {
+    const sans = await monter({ planMedia: null });
     expect(sans.el.querySelector('[data-rouvrir-plan]')).toBeNull();
-    // Défauts : les deux sont absents sans qu'on pose rien.
+    // Défaut : absent sans qu'on pose rien.
     TestBed.resetTestingModule();
     const defaut = await monter();
-    expect(defaut.el.querySelector('[data-script-dv360]')).toBeNull();
     expect(defaut.el.querySelector('[data-rouvrir-plan]')).toBeNull();
     TestBed.resetTestingModule();
-    const avec = await monter({ zoneScript: 'Brest', planMedia: 3 });
-    const script = avec.el.querySelector<HTMLButtonElement>('[data-script-dv360]')!;
-    expect(script.textContent!.trim()).toBe('Script bidding DV360');
-    expect(script.getAttribute('title')).toBe('Générer le fichier custom bidding DV360 pour « Brest »');
+    const avec = await monter({ planMedia: 3 });
     expect(avec.el.querySelector('[data-rouvrir-plan]')!.textContent!.trim()).toBe('Plan média (3)');
-    // Et ils disparaissent quand leur objet s'en va.
-    avec.fixture.componentRef.setInput('zoneScript', null);
+    // Et il disparaît quand son objet s'en va.
     avec.fixture.componentRef.setInput('planMedia', null);
     await avec.fixture.whenStable();
-    expect(avec.el.querySelector('[data-script-dv360]')).toBeNull();
     expect(avec.el.querySelector('[data-rouvrir-plan]')).toBeNull();
   });
 
-  it('Script bidding DV360 masqué aux étapes ⑥-⑧ (revue finale du lot 6, V-8)', async () => {
-    const { fixture, el } = await monter({ zoneScript: 'Brest' });
-    for (const etape of ['plan', 'activation', 'live']) {
+  it('O-3 (04/11) : aucune régie DSP dans la barre — plus de bouton « Script bidding DV360 », ni entrée ni sortie pour lui', async () => {
+    const { fixture, el } = await monter({ planMedia: 2 });
+    for (const etape of ['perimetre', 'zones', 'analyse', 'jeu', 'plan', 'activation', 'live']) {
       fixture.componentRef.setInput('courante', etape);
       await fixture.whenStable();
-      expect(el.querySelector('[data-script-dv360]')).toBeNull();
+      expect(el.querySelector('[data-script-dv360]'), etape).toBeNull();
+      expect(el.textContent, etape).not.toMatch(/DV360|bidding/i);
     }
-    fixture.componentRef.setInput('courante', 'jeu');
-    await fixture.whenStable();
-    expect(el.querySelector('[data-script-dv360]')).not.toBeNull();
+    expect('zoneScript' in fixture.componentInstance).toBe(false);
+    expect('genererScript' in fixture.componentInstance).toBe(false);
   });
 
-  it('relaie choisir, remonter, toutEffacer, genererScript, rouvrirPlan, basculerImmersif, orgChangee, ouvrirAutres', async () => {
-    const { fixture, el } = await monter({ zoneScript: 'Brest', planMedia: 2 });
+  it('relaie choisir, remonter, toutEffacer, rouvrirPlan, basculerImmersif, orgChangee, ouvrirAutres', async () => {
+    const { fixture, el } = await monter({ planMedia: 2 });
     const barre = fixture.componentInstance;
     // UN abonnement par sortie : chaque espion ne voit que la sienne.
     const espions = {
-      choisir: vi.fn(), remonter: vi.fn(), toutEffacer: vi.fn(), genererScript: vi.fn(),
+      choisir: vi.fn(), remonter: vi.fn(), toutEffacer: vi.fn(),
       rouvrirPlan: vi.fn(), basculerImmersif: vi.fn(), orgChangee: vi.fn(), ouvrirAutres: vi.fn(),
     };
     barre.ouvrirAutres.subscribe(espions.ouvrirAutres);
     barre.choisir.subscribe(espions.choisir);
     barre.remonter.subscribe(espions.remonter);
     barre.toutEffacer.subscribe(espions.toutEffacer);
-    barre.genererScript.subscribe(espions.genererScript);
     barre.rouvrirPlan.subscribe(espions.rouvrirPlan);
     barre.basculerImmersif.subscribe(espions.basculerImmersif);
     barre.orgChangee.subscribe(espions.orgChangee);
@@ -172,7 +163,6 @@ describe('BarreParcoursComponent', () => {
     el.querySelectorAll<HTMLButtonElement>('mg-fil-etapes nav button')[2].click();
     el.querySelector<HTMLButtonElement>('mg-fil-ariane button')!.click();
     el.querySelector<HTMLButtonElement>('[data-tout-effacer]')!.click();
-    el.querySelector<HTMLButtonElement>('[data-script-dv360]')!.click();
     el.querySelector<HTMLButtonElement>('[data-rouvrir-plan]')!.click();
     el.querySelector<HTMLButtonElement>('[data-immersif]')!.click();
     el.querySelector<HTMLButtonElement>('[data-autres]')!.click();
@@ -183,7 +173,6 @@ describe('BarreParcoursComponent', () => {
     expect(espions.choisir.mock.calls).toEqual([['zones']]);
     expect(espions.remonter.mock.calls).toEqual([[0]]);
     expect(espions.toutEffacer).toHaveBeenCalledTimes(1);
-    expect(espions.genererScript).toHaveBeenCalledTimes(1);
     expect(espions.rouvrirPlan).toHaveBeenCalledTimes(1);
     expect(espions.basculerImmersif).toHaveBeenCalledTimes(1);
     expect(espions.orgChangee.mock.calls).toEqual([['org-2']]);

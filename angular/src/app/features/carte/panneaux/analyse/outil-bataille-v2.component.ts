@@ -10,10 +10,13 @@ import {
 
 /**
  * L'outil « Bataille V2 (multi-paliers) » — portage de `filter-panel/BattleV2Tool.tsx` (lot 4, T17) : paliers,
- * statut du cache, remplissage ORS des POI manquants, LANCER / FORCER, progressions, journal, « Masquer ».
+ * statut du cache, remplissage ORS des POI manquants, « Lancer » / « Forcer », progressions, journal, « Masquer ».
+ *
+ * Libellés des boutons en sentence case dans les DEUX applis (D-5, 04/11 : « VÉRIFIER CACHE », « LANCER », « FORCER »
+ * étaient en capitales, contre le design system — React corrigé du même coup, dérogation explicite au gel).
  *
  * Il LIT l'état (`BatailleV2Service`, `BatailleService`) et ÉMET chaque lancement : le panneau Analyse garde le
- * périmètre avant d'appeler le service. Comme React, LANCER et FORCER oublient le statut du cache AVANT l'émission.
+ * périmètre avant d'appeler le service. Comme React, « Lancer » et « Forcer » oublient le statut du cache AVANT l'émission.
  *
  * Écarts justifiés : la barre « indéterminée » de la découpe PostGIS est un dégradé animé chez React
  * (`linear-gradient` + `fpScan`, une `@keyframes` définie nulle part : elle n'a jamais bougé) — ici un segment plat,
@@ -66,16 +69,16 @@ import {
             <mg-statut-cache [statut]="s" />
             @if (s.missing_pois > 0) {
               <button type="button" data-remplir [disabled]="remplirInactif()" (click)="remplir.emit()"
-                [class]="bouton + ' ' + (remplirInactif() ? desactive : avertissement)">{{ v2.remplissage() ? 'ORS EN COURS...' : 'CALCULER ' + s.missing_pois + ' POI' + (s.missing_pois > 1 ? 'S' : '') + ' MANQUANTS (ORS)' }}</button>
+                [class]="bouton + ' ' + (remplirInactif() ? desactive : avertissement)">{{ v2.remplissage() ? 'ORS en cours...' : 'Calculer ' + s.missing_pois + ' POI' + (s.missing_pois > 1 ? 's' : '') + ' manquants (ORS)' }}</button>
             }
           }
           <div class="flex gap-1.5">
             <button type="button" data-verifier-cache [disabled]="verifInactive()" (click)="verifierCache.emit()"
-              [class]="bouton + ' ' + (verifInactive() ? desactive : gris)">{{ v2.verification() ? 'VÉRIF...' : 'VÉRIFIER CACHE' }}</button>
+              [class]="bouton + ' ' + (verifInactive() ? desactive : gris)">{{ v2.verification() ? 'Vérif...' : 'Vérifier le cache' }}</button>
             <button type="button" data-lancer [disabled]="lancerInactif()" (click)="lancerApresOubli(false)"
-              [class]="bouton + ' ' + (lancerInactif() ? desactive : teal)">{{ v2.chargement() ? 'CALCUL...' : 'LANCER' }}</button>
+              [class]="bouton + ' ' + (lancerInactif() ? desactive : teal)">{{ v2.chargement() ? 'Calcul...' : 'Lancer' }}</button>
             <button type="button" data-forcer [disabled]="lancerInactif()" (click)="lancerApresOubli(true)"
-              [class]="bouton + ' ' + (lancerInactif() ? desactive : avertissement)">FORCER</button>
+              [class]="bouton + ' ' + (lancerInactif() ? desactive : avertissement)">Forcer</button>
           </div>
         </div>
 
@@ -123,7 +126,7 @@ export class OutilBatailleV2Component {
   readonly basculer = output<void>();
   readonly verifierCache = output<void>();
   readonly remplir = output<void>();
-  /** `true` : FORCER (`force_battle`). */
+  /** `true` : « Forcer » (`force_battle`). */
   readonly lancer = output<boolean>();
 
   protected readonly v2 = inject(BatailleV2Service);

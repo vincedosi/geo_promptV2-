@@ -43,6 +43,7 @@ import { AnnonceService } from './etat/annonce.service';
 import { CatalogueIndicateursService } from './etat/catalogue-indicateurs.service';
 import { CouchesCarteService, quandStyleCharge } from './etat/couches-carte.service';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { LienZoneService } from './etat/lien-zone.service';
 import { CarreauxService } from './couches/carreaux.service';
 import { JEUX_REFERENTIELS } from './logique/jeux-carte';
 import { MeteoService } from './couches/meteo.service';
@@ -1299,7 +1300,7 @@ describe('CartePage — le module risque, route ENFANT (T13, B2/B3)', () => {
   });
 });
 
-describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () => {
+describe('CartePage — panneau Zones, lien customZone (T14 ; bouton DV360 retiré, O-3)', () => {
   const ID = ID_ZONE_DU_LIEN;
   const ENTITE = ZONE_DU_LIEN;
 
@@ -1344,14 +1345,13 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(harness.fixture.debugElement.query(By.css('mg-panneau-analyse')).injector.get(CatalogueIndicateursService)).toBe(duPage);
   });
 
-  it('sans lien : aucune géométrie demandée, aucun bouton DV360', async () => {
+  it('sans lien : aucune géométrie demandée', async () => {
     const geometrie = vi.fn(() => of(ENTITE));
-    const { hote } = await carteChargee({ zones: { geometrie } });
+    await carteChargee({ zones: { geometrie } });
     expect(geometrie).not.toHaveBeenCalled();
-    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
   });
 
-  it('?customZone=<id> : ③ courante ; géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), bouton DV360 nommé ; une autre navigation de requête ne relit rien', async () => {
+  it('?customZone=<id> : ③ courante ; géométrie lue UNE fois carte prête, recadrage sur son emprise (60 px, 1 s), AUCUN bouton DV360 (O-3) ; une autre navigation de requête ne relit rien', async () => {
     const geometrie = vi.fn(() => of(ENTITE));
     const exporter = vi.fn(() => of());
     const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie, exporter } });
@@ -1362,11 +1362,17 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     // Le créneau de bataille est peint : l'aplat des anneaux et le point au centre.
     expect(cartes[0].getLayer('battle-fill')).toBeDefined();
     expect(cartes[0].getLayer('battle-pois-circle')).toBeDefined();
-    const bouton = hote.querySelector<HTMLButtonElement>('button[data-script-dv360]')!;
-    expect(bouton.getAttribute('title')).toBe('Générer le fichier custom bidding DV360 pour « CIRFA BRETAGNE »');
-    expect(bouton.closest('mg-barre-parcours')).not.toBeNull();
-    bouton.click();
-    expect(exporter).toHaveBeenCalledWith(ID, 'bidding_script');
+    // O-3 (04/11, « aucune régie DSP visible pour le moment ») : la zone du lien ne fait plus naître de bouton DV360,
+    // et rien n'exporte de script bidding de lui-même.
+    expect(hote.querySelector('[data-script-dv360]')).toBeNull();
+    expect(exporter).not.toHaveBeenCalled();
+    // La barre n'a que ses blocs de toujours : rien ne dispute plus sa largeur au fil, qui garde ses huit libellés
+    // (le bouton en plus le repliait en numéros seuls — le repli est une requête de conteneur, que jsdom n'évalue pas).
+    const barre = hote.querySelector('mg-barre-parcours')!;
+    expect([...barre.children].map((c) => c.hasAttribute('data-tout-effacer') ? 'effacer' : c.hasAttribute('data-immersif') ? 'immersif' : c.tagName.toLowerCase()))
+      .toEqual(['mg-logo', 'mg-fil-ariane', 'div', 'effacer', 'immersif', 'mg-bascule-theme', 'mg-badge-session']);
+    expect([...barre.querySelectorAll('mg-fil-etapes [data-libelle-etape]')].map((l) => l.textContent!.trim()))
+      .toEqual(ETAPES_CARTE.map((e) => LIBELLE_ETAPE_CARTE[e]));
 
     await harness.navigateByUrl(`/carte?customZone=${ID}&autre=1`);
     await stable();
@@ -1380,12 +1386,13 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(geometrie).toHaveBeenCalledTimes(1);
   });
 
-  it('« Tout effacer » : le créneau se vide, le bouton DV360 disparaît, `customZone` quitte l’URL', async () => {
-    const { hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE) } });
-    expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
+  it('« Tout effacer » : le créneau se vide, `customZone` quitte l’URL', async () => {
+    const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE) } });
+    expect(injecteurPage(harness).get(LienZoneService).zoneDuLien()).not.toBeNull();
+    expect(cartes[0].getLayer('battle-fill')).toBeDefined();
     hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
     await stable();
-    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+    expect(injecteurPage(harness).get(LienZoneService).zoneDuLien()).toBeNull();
     expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
     // `customZone` parti, l'étape ③ qu'il avait ouverte reste (elle est dans l'URL depuis l'ouverture).
     expect(TestBed.inject(Router).url).toBe('/carte?etape=zones');
@@ -1411,18 +1418,8 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
     expect(carteAuSignal).toEqual([null]);
     // Plus de nettoyage manuel : filtre, zone du lien et URL restent tels quels — c'est la recréation qui les remet à zéro.
     expect(etat.filtre()?.code).toBe(ID);
-    expect(hote.querySelector('button[data-script-dv360]')).not.toBeNull();
+    expect(injecteurPage(harness).get(LienZoneService).zoneDuLien()).not.toBeNull();
     expect(TestBed.inject(Router).url).toBe(`/carte?customZone=${ID}&etape=zones`);
-  });
-
-  it('B8, tour 3 (N-1) : « Script bidding DV360 » d’une zone trop fine — le refus de la route est annoncé, valeur comprise', async () => {
-    const corps = new Blob([JSON.stringify({ error: 'Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.', refus: 'rayon_non_activable' })], { type: 'application/json' });
-    const exporter = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 422, error: corps })));
-    const { harness, hote, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => of(ENTITE), exporter } });
-    hote.querySelector<HTMLButtonElement>('button[data-script-dv360]')!.click();
-    await stable();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(injecteurPage(harness).get(AnnonceService).annonces().map((a) => a.texte)).toContain('Rayon de 100 m : trop fin pour être activé (minimum 250 m). Gardé pour l’analyse uniquement.');
   });
 
   it('lien en échec : une annonce le dit (React : console seulement)', async () => {
@@ -1433,14 +1430,14 @@ describe('CartePage — panneau Zones, lien customZone, script DV360 (T14)', () 
 
   it('« Tout effacer » pendant la lecture du lien : la réponse tardive ne remplit plus le créneau (revue 1)', async () => {
     const vol = new Subject<unknown>();
-    const { hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => vol } });
+    const { harness, hote, cartes, stable } = await carteChargee({ url: `/carte?customZone=${ID}`, zones: { geometrie: () => vol } });
     hote.querySelector<HTMLButtonElement>('button[data-tout-effacer]')!.click();
     await stable();
     expect(vol.observed).toBe(false);
     vol.next(ENTITE);
     await stable();
     expect(cartes[0].getLayer('battle-fill')).toBeUndefined();
-    expect(hote.querySelector('button[data-script-dv360]')).toBeNull();
+    expect(injecteurPage(harness).get(LienZoneService).zoneDuLien()).toBeNull();
   });
 });
 describe('CartePage — ⑤ suit un recalcul de sa zone (revue finale du lot 5, point 2)', () => {
@@ -1647,6 +1644,9 @@ interface LigneInventaire {
  *   risque, route ENFANT (T13, B2/B3) » ;
  * - 13. Back office → ici seulement « Accès » (`admin/acces`) ; « Health check » : `panneaux/reglages.component.spec.ts`
  *   (« « Health check » est ACTIF ») ;
+ * - 18. (retirée) Script bidding DV360 de la zone du lien : bouton RETIRÉ de la barre sur décision de Vincent (O-3,
+ *   04/11 : « aucune régie DSP visible pour le moment »), pas perdu. Le lien `?customZone=` lui-même (géométrie,
+ *   recadrage, « Tout effacer ») et l'absence du bouton : ce fichier, describe du lien `?customZone=`.
  * - 19. Plan média (n) → ce fichier, describe « plan média des zones affichées (T15) » (`[data-rouvrir-plan]`, zone
  *   affichée, panneau fermé) ;
  * - 22. Badge de zoom → ici seulement `[data-badge-zoom]` ; détail IRIS, zone active et tiroir Street View : ce fichier,
@@ -1692,11 +1692,6 @@ const INVENTAIRE: readonly LigneInventaire[] = [
   {
     n: 17, fonction: 'Mode immersif', lieu: {}, preuves: ['mg-boite-outils [data-quitter-immersif]'],
     avant: async ({ hote, stable }) => { hote.querySelector<HTMLButtonElement>('mg-barre-parcours [data-immersif]')!.click(); await stable(); },
-  },
-  {
-    n: 18, fonction: 'Script bidding DV360', lieu: {}, preuves: ['mg-barre-parcours [data-script-dv360]'], url: `/carte?customZone=${ID_ZONE_DU_LIEN}`,
-    // Le lien n'est lu qu'une fois la carte prête (`mapReady`) : publier la carte d'abord (B4).
-    avant: async ({ cartes, stable }) => { cartes[0].emettre('load'); await stable(); },
   },
   { n: 20, fonction: 'Session', lieu: {}, preuves: ['mg-barre-parcours mg-badge-session'] },
   { n: 21, fonction: 'Campagne', lieu: { etape: 6 }, preuves: ['[data-panneau-etape="plan"] mg-panneau-plan mg-hall-campagnes', 'mg-barre-parcours mg-choix-campagne'] },

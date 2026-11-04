@@ -38,6 +38,7 @@ import { CataloguePoiService } from './etat/catalogue-poi.service';
 import { CampagneOohService } from './couches/campagne-ooh.service';
 import { SOURCE_CAMPAGNE_OOH } from './couches/couche-campagne-ooh';
 import { EtatCarteService } from './etat/etat-carte.service';
+import { LienZoneService } from './etat/lien-zone.service';
 import { DETAIL_ESSAI } from './testing/campagnes-ooh.fixture';
 
 @Component({ selector: 'mg-vide', template: '' })
@@ -211,7 +212,7 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
   });
 
   it('(d) ?customZone= appartient à l’ancien espace : retiré de l’URL AVANT la recréation, la nouvelle page ne relit pas la zone', async () => {
-    const { harness, stable, page, changerEspace, cartes } = await ouvrir(`/carte?customZone=${ID}&risque=abc`);
+    const { stable, page, changerEspace, cartes } = await ouvrir(`/carte?customZone=${ID}&risque=abc`);
     const zones = TestBed.inject(ZonesCustomApi) as unknown as { geometrie: ReturnType<typeof vi.fn> };
     cartes[0].emettre('load');
     await stable();
@@ -225,7 +226,8 @@ describe('CarteHoteComponent — changer d’espace recrée la page carte', () =
     cartes[cartes.length - 1].emettre('load');
     await stable();
     expect(zones.geometrie).toHaveBeenCalledTimes(1);
-    expect(harness.fixture.nativeElement.querySelector('button[data-script-dv360]')).toBeNull();
+    // La zone du lien n'est pas re-peinte dans la page recréée (le bouton DV360 qui la montrait est retiré, O-3).
+    expect(page().injector.get(LienZoneService).zoneDuLien()).toBeNull();
   });
 
   it('(e) le module risque (route enfant) reste rendu par l’outlet de la page recréée', async () => {

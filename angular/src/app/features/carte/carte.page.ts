@@ -175,9 +175,10 @@ export class CartePage {
   /** La météo (T11) : la page monte son dialogue, comme la modale de `page.tsx:1456-1488`. */
   protected readonly meteo = inject(MeteoService);
   private readonly document = inject(DOCUMENT);
-  private readonly annonce = inject(AnnonceService);
-  private readonly exports = inject(ExportZoneService);
-  /** Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, quelle que soit l'étape. */
+  /**
+   * Le lien `?customZone=` (T14) : lu dès l'ouverture de la carte, quelle que soit l'étape. Injecté pour être INSTANCIÉ
+   * (il lit l'URL à sa construction) : la page ne le lit plus depuis le retrait du bouton DV360 de la barre (O-3, 04/11).
+   */
   protected readonly lienZone = inject(LienZoneService);
   /** Le plan média des zones affichées (T15) : panneau droit du conteneur carte, et l'écart des outils quand il est ouvert. */
   protected readonly planMedia = inject(PlanMediaService);
@@ -331,15 +332,6 @@ export class CartePage {
     // D-6 : `retirerCoucheCouverture` appelait `getLayer` sur une carte déjà retirée).
     this.couches.publier(null);
     this.espaceChange.emit();
-  }
-
-  /** « Script bidding DV360 » de la zone du lien (`page.tsx:1377-1399`) : un FICHIER, aucun envoi vers DV360. */
-  protected genererScriptDv360(): void {
-    const zone = this.lienZone.zoneDuLien();
-    if (!zone) return;
-    void this.exports.exporter(zone.id, 'bidding_script').then((echec) => {
-      if (echec) this.annonce.annoncer(echec);
-    });
   }
 
   protected cartePrete(carte: maplibregl.Map): void {

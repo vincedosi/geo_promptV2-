@@ -24,9 +24,9 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
  * fils, pas un doublon, comme l'en-tête du module risque. Juste après le fil, DANS son conteneur, séparé de lui par un filet, le bouton
  * « Autres » (T11b, Vincent 14/10) : au niveau des étapes mais HORS du fil — ni numéro, ni Alt+N, hors de la liste
  * `nav` des étapes ; ouvert, il prend l'état actif d'une étape courante et le fil n'en marque plus aucune. À droite, ce qui vaut à toute étape (arbitrage A5) : les deux
- * boutons contextuels de l'ancienne colonne flottante (Script bidding DV360 de la zone du lien, Plan média (n) panneau
- * fermé), Tout effacer, le mode immersif, le thème, la session. Aux étapes ⑥-⑧, avant eux, le sélecteur de campagne
- * (`mg-choix-campagne`, lot 6, A-1). Elle remplace la barre du haut et le rail.
+ * le bouton contextuel de l'ancienne colonne flottante (Plan média (n) panneau fermé), Tout effacer, le mode immersif, le thème, la session. Aux étapes ⑥-⑧, avant eux, le sélecteur de campagne
+ * (`mg-choix-campagne`, lot 6, A-1). Elle remplace la barre du haut et le rail. Le bouton « Script bidding DV360 » de la
+ * zone du lien `?customZone=` en est retiré le 04/11 (O-3 : aucune régie DSP visible pour le moment) ; le lien, lui, vit.
  * Dans le flux de la page (jamais `fixed`, racine d'ombre).
  */
 @Component({
@@ -52,12 +52,6 @@ const BOUTON_NEUTRE = 'flex shrink-0 cursor-pointer items-center gap-1.5 rounded
     </div>
     <!-- ⑥-⑧ (lot 6, A-1) : la campagne courante (?campagne=). Hors du fil : elle vaut pour les trois étapes. -->
     @if (avecCampagne()) { <mg-choix-campagne /> }
-    @if (scriptVisible(); as nom) {
-      <button type="button" data-script-dv360 (click)="genererScript.emit()" [class]="boutonTeal"
-              [attr.title]="'Générer le fichier custom bidding DV360 pour « ' + nom + ' »'">
-        <mg-icone nom="fichier-bas" [taille]="13" [trait]="1.5" />Script bidding DV360
-      </button>
-    }
     @if (planMedia(); as n) {
       <button type="button" data-rouvrir-plan (click)="rouvrirPlan.emit()" title="Rouvrir le plan média des zones affichées"
               [class]="boutonTeal">Plan média ({{ n }})</button>
@@ -84,21 +78,16 @@ export class BarreParcoursComponent {
   readonly courante = input.required<string>();
   readonly segments = input.required<SegmentAriane[]>();
   readonly precision = input<string>();
-  /** Le nom de la zone du lien `?customZone=` ; `null` sans elle (le bouton DV360 n'existe que pour elle). */
-  readonly zoneScript = input<string | null>(null);
   /** Le nombre de zones du plan média quand son panneau est FERMÉ, `null` sinon. */
   readonly planMedia = input<number | null>(null);
   /** « Autres » est ouvert (`ParcoursService.autres`) : aucune étape n'est alors courante dans le fil. */
   readonly autresOuvert = input(false);
   /** Le sélecteur de campagne, aux étapes ⑥-⑧ seulement (et pas sous « Autres »). */
   protected readonly avecCampagne = computed(() => !this.autresOuvert() && ETAPES_CAMPAGNE.includes(this.courante() as EtapeCarte));
-  /** « Script bidding DV360 » : masqué aux étapes ⑥-⑧, la V1 n'y fait pas de custom bidding (revue finale du lot 6, V-8). */
-  protected readonly scriptVisible = computed(() => (this.avecCampagne() ? null : this.zoneScript()));
 
   readonly choisir = output<string>();
   readonly remonter = output<number>();
   readonly toutEffacer = output<void>();
-  readonly genererScript = output<void>();
   readonly rouvrirPlan = output<void>();
   readonly basculerImmersif = output<void>();
   readonly ouvrirAutres = output<void>();

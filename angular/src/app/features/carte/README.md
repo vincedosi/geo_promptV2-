@@ -54,8 +54,8 @@ d'état et de couche (`providers`) : ils naissent et meurent avec l'écran.
   Chaque panneau est monté à la PREMIÈRE visite de son étape puis gardé (`invisible` + `inert`) : revenir ne relit rien.
 - **La boîte à outils** (`mg-boite-outils`) : Mes analyses, Mes zones, Fond de carte, Légende (bascule), Aide (celle de
   l'étape courante + raccourcis), Réglages (apparence, back office). Un tiroir à la fois, Échap le ferme.
-- **Dans la barre** : « Script bidding DV360 » (lien `?customZone=` ; masqué aux étapes ⑥-⑧, la V1 n'y fait pas de
-  custom bidding) et « Plan média (n) » quand ils ont un objet,
+- **Dans la barre** : « Plan média (n) » quand il a un objet (le bouton « Script bidding DV360 » de la zone du lien
+  `?customZone=` est retiré le 04/11, O-3 : aucune régie DSP visible pour le moment ; le lien, lui, vit),
   « Tout effacer », mode immersif (sortie : bouton de la boîte à outils ou Échap), thème, session et espace.
 - ⑤ Jeu de zones (lot 5) a son panneau (`panneaux/jeu/`, voir plus bas) : React n'a rien d'équivalent hors du module
   risque. ⑥ Plan (lot 6) a le sien (`panneaux/plan/`, voir plus bas), ⑦ Activation (lot 7) aussi
@@ -394,7 +394,7 @@ est supprimé partout).
 
 **Résidus** (liste « Suites » du plan) :
 - libellés de typologies sans accents (données du script Python) ;
-- « Script bidding DV360 » dans la barre via `?customZone=` (à confirmer) ;
+- ~~« Script bidding DV360 » dans la barre via `?customZone=`~~ : retiré le 04/11 (O-3) ;
 - D-4, le journal de bataille qui reste affiché au changement de zone (arbitrage) ;
 - D-5, la casse des boutons de la bataille, identique à React (parité, à trancher une fois).
 
@@ -661,7 +661,7 @@ le serveur ; `texteMotif` retombe sur le message serveur pour un code inconnu).
   `teinteLigneV1`), `parametresV1`, `libelleTerritoire`, `pctApplication`, `anneauxPourDecoupe`, la variante `v1` de
   `mg-journal-bataille` et `mg-statut-cache`, la capacité locale de `ContexteBatailleService` (`capaciteLocale`), et
   `bataille_v1` / `application_bataille` des outils admis sur la métropole (`perimetre-national.ts`).
-- **Reste** : la Bataille V2 et son **remplissage ORS** du cache (« CALCULER N POIS MANQUANTS (ORS) »). Ce remplissage
+- **Reste** : la Bataille V2 et son **remplissage ORS** du cache (« Calculer N POIs manquants (ORS) »). Ce remplissage
   passe par `POST /api/isochrone-battle`, la route PROTÉGÉE de l'ancienne V1 (`IsochronesApi.remplirCache`, corps
   `corpsRemplissage`, identique à celui de React). **La route a donc encore UN appelant Angular**, le remplissage, et
   aucun pour la V1 elle-même. Elle n'est pas touchée (fichier protégé) ; elle partira, avec

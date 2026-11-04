@@ -3,9 +3,9 @@
   <mg-barre-parcours
     [etapes]="etapes()" [courante]="parcours.etape()"
     [segments]="segmentsAriane()" [precision]="precisionAriane()"
-    [zoneScript]="lienZone.zoneDuLien()?.nom ?? null" [planMedia]="zonesPlanFerme()" [autresOuvert]="parcours.autres()"
+    [planMedia]="zonesPlanFerme()" [autresOuvert]="parcours.autres()"
     (choisir)="choisirEtape($event)" (remonter)="remonterAriane($event)" (ouvrirAutres)="parcours.ouvrirAutres()"
-    (toutEffacer)="toutEffacer()" (genererScript)="genererScriptDv360()" (rouvrirPlan)="planMedia.ouvert.set(true)"
+    (toutEffacer)="toutEffacer()" (rouvrirPlan)="planMedia.ouvert.set(true)"
     (basculerImmersif)="basculerImmersif()" (orgChangee)="organisationChangee()"
   />
 }

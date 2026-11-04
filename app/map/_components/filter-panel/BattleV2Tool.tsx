@@ -157,8 +157,8 @@ export function BattleV2Tool({
               onClick={handleFillMissingV2}
             >
               {v2Filling
-                ? 'ORS EN COURS...'
-                : `CALCULER ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 'S' : ''} MANQUANTS (ORS)`}
+                ? 'ORS en cours...'
+                : `Calculer ${v2CacheStatus.missing_pois} POI${v2CacheStatus.missing_pois > 1 ? 's' : ''} manquants (ORS)`}
             </button>
           )}
 
@@ -169,21 +169,21 @@ export function BattleV2Tool({
               disabled={battleV2Paliers.length === 0 || v2Checking || v2Filling || battleV2Loading}
               onClick={handleCheckV2}
             >
-              {v2Checking ? 'VÉRIF...' : 'VÉRIFIER CACHE'}
+              {v2Checking ? 'Vérif...' : 'Vérifier le cache'}
             </button>
             <button
               style={primaryBtn('#22d3ee', battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
               disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
               onClick={() => { setV2CacheStatus(null); handleBattleV2(false); }}
             >
-              {battleV2Loading ? 'CALCUL...' : 'LANCER'}
+              {battleV2Loading ? 'Calcul...' : 'Lancer'}
             </button>
             <button
               style={primaryBtn(C.amber, battleV2Paliers.length === 0 || battleV2Loading || v2Filling)}
               disabled={battleV2Paliers.length === 0 || battleV2Loading || v2Filling}
               onClick={() => { setV2CacheStatus(null); handleBattleV2(true); }}
             >
-              FORCER
+              Forcer
             </button>
           </div>
         </div>

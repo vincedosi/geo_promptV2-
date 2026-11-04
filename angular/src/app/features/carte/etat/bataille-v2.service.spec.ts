@@ -254,3 +254,67 @@ describe('BatailleV2Service — relecture 2', () => {
     expect(corps['batailleV2']).toEqual([]);
   });
 });
+
+/** D-4 (décision du 04/11) : changer de zone analysée VIDE l'affichage de la bataille précédente ; rien de persisté. */
+describe('BatailleV2Service — D-4, changement de zone', () => {
+  const Z1 = '0f8fad5b-d9cb-469f-a165-70867728950e';
+  const Z2 = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+  it('le journal et le résultat de la bataille sur la zone A disparaissent quand ④ passe à la zone B', () => {
+    const { v2, flux, zoneId, bataille } = monter();
+    zoneId.set(Z1);
+    TestBed.tick();
+    v2.lancer(false);
+    flux.batailleV2[0].next({ type: 'result', data: { battleGeoJSON: { type: 'FeatureCollection', features: [anneau] }, poisForMap: [], battleCacheKey: 'cle-a' } });
+    flux.batailleV2[0].complete();
+    expect(v2.journal().length).toBeGreaterThan(0);
+    expect(v2.journal().at(-1)).toBe('> ✓ Bataille v2 affichée sur la carte');
+    v2.cache.set(STATUT_MANQUANT);
+
+    zoneId.set(Z2);
+    TestBed.tick();
+    expect(v2.journal()).toEqual([]);
+    expect(v2.cache()).toBeNull();
+    // Le créneau peint n'est pas touché (lien `?customZone=`, « Tout effacer ») ; aucune écriture ailleurs.
+    expect(bataille.appliquer).toHaveBeenCalledTimes(1);
+  });
+
+  it('une bataille en vol sur la zone A est abandonnée ET son journal vidé : sa réponse tardive n’écrit plus rien', () => {
+    const { v2, flux, zoneId } = monter();
+    zoneId.set(Z1);
+    TestBed.tick();
+    v2.lancer(false);
+    expect(v2.chargement()).toBe(true);
+    expect(v2.journal().length).toBeGreaterThan(0);
+    zoneId.set(Z2);
+    TestBed.tick();
+    expect(v2.chargement()).toBe(false);
+    expect(v2.journal()).toEqual([]);
+    expect(flux.batailleV2[0].observed).toBe(false);
+  });
+
+  it('retirer la zone de ④ (retour au périmètre de ①) vide aussi ; la même zone relue ne vide rien', () => {
+    const { v2, zoneId } = monter();
+    zoneId.set(Z1);
+    TestBed.tick();
+    v2.journal.set(['> ligne de la zone A']);
+    zoneId.set(Z1);
+    TestBed.tick();
+    expect(v2.journal()).toEqual(['> ligne de la zone A']);
+    zoneId.set(null);
+    TestBed.tick();
+    expect(v2.journal()).toEqual([]);
+  });
+
+  it('un remplissage ORS en cours (sur ①) garde son journal : c’est l’opération du moment, pas la précédente', () => {
+    const { v2, zoneId } = monter();
+    v2.surZone.set(true);
+    v2.remplir();
+    expect(v2.remplissage()).toBe(true);
+    const journal = v2.journal();
+    expect(journal.length).toBeGreaterThan(0);
+    zoneId.set(Z1);
+    TestBed.tick();
+    expect(v2.journal()).toEqual(journal);
+  });
+});
