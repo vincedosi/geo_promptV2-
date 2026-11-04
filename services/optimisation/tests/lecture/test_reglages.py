@@ -132,3 +132,14 @@ def test_le_check_sql_refuse_ce_que_pydantic_refuse(conn: psycopg.Connection[tup
 def test_optimisation_service_ne_supprime_pas(conn: psycopg.Connection[tuple[object, ...]]) -> None:
     with conn.cursor() as cur, pytest.raises(psycopg.errors.InsufficientPrivilege):
         cur.execute("delete from public.optimisation_reglages where campagne_id = %s", (CAMPAGNE,))
+
+
+SQL_350 = SQL_345.parent / "350_optimisation_reglages_donnees.sql"
+
+
+def test_bornes_hautes_egales_au_check_sql() -> None:
+    """sql/350 (mineur M2) : `*_pct` ≤ 100, les autres ≤ 10 — la même règle que `Seuils` (`le=`)."""
+    assert r"like '%\_pct' then 100 else 10" in SQL_350.read_text(encoding="utf-8")
+    for nom, champ in Seuils.model_fields.items():
+        bornes = [m.le for m in champ.metadata if hasattr(m, "le")]
+        assert bornes == [Decimal(100) if nom.endswith("_pct") else Decimal(10)], nom

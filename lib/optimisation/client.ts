@@ -16,9 +16,11 @@
 import type { z } from 'zod';
 import { DelaiDepasseError, fetchAvecDelai } from '@/lib/http/fetch-avec-delai';
 import {
-  SchemaCatalogueAlgos, SchemaReglageAlgoEtJournal, SchemaResultatReglageAlgo, SchemaSortiePlanRisque,
+  SchemaCatalogueAlgos, SchemaReglageAlgoEtJournal, SchemaReglagesDonneesEtJournal, SchemaResultatReglageAlgo,
+  SchemaResultatReglagesDonnees, SchemaSortiePlanRisque,
   SchemaSortiePlanZone, SchemaSortieRecaler,
-  type CatalogueAlgos, type ChoixAlgo, type FamilleAlgo, type ReglageAlgoEtJournal, type ResultatReglageAlgo, type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
+  type CatalogueAlgos, type ChoixAlgo, type FamilleAlgo, type ReglageAlgoEtJournal, type ResultatReglageAlgo,
+  type ReglagesDonneesEtJournal, type ResultatReglagesDonnees, type EntreePlanRisque, type EntreePlanZone, type EntreeRecaler,
   type SortiePlanRisque, type SortiePlanZone, type SortieRecaler,
 } from '@/lib/optimisation/schemas';
 
@@ -222,4 +224,28 @@ export function reglerAlgoCampagne(
     body: JSON.stringify(choix),
     entetes: { 'X-Espace': identite.espace, 'X-Utilisateur': identite.utilisateur, 'X-Role': identite.role },
   }, SchemaResultatReglageAlgo, delaiMs);
+}
+
+/** `GET /v1/campagnes/{id}/reglages` — seuils d'alerte et corrections de données de la campagne, et leur journal. */
+export function lireReglagesCampagne(
+  campagne: string, espace: string, delaiMs?: number,
+): Promise<ReglagesDonneesEtJournal> {
+  return lireOptimisation(
+    `/v1/campagnes/${encodeURIComponent(campagne)}/reglages`, SchemaReglagesDonneesEtJournal, delaiMs,
+    { 'X-Espace': espace });
+}
+
+/**
+ * `PUT /v1/campagnes/{id}/reglages` — REMPLACE les réglages de données (clé absente = défaut), tracé au journal.
+ * Refus → `ErreurOptimisation` motif `refus`, statut 422, `refus` = `parametre_invalide` ou `validation`.
+ */
+export function reglerReglagesCampagne(
+  campagne: string, parametres: Record<string, unknown>, identite: IdentiteOptimisation,
+  delaiMs: number = DELAI_OPTIMISATION_MS,
+): Promise<ResultatReglagesDonnees> {
+  return requeter(`/v1/campagnes/${encodeURIComponent(campagne)}/reglages`, {
+    method: 'PUT',
+    body: JSON.stringify({ parametres }),
+    entetes: { 'X-Espace': identite.espace, 'X-Utilisateur': identite.utilisateur, 'X-Role': identite.role },
+  }, SchemaResultatReglagesDonnees, delaiMs);
 }

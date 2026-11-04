@@ -21,9 +21,8 @@ import { z } from 'zod';
 import { requireAuth, authUnauthorized } from '@/lib/api/middleware';
 import { createAdminClient } from '@/lib/auth';
 import { lireCorps } from '@/lib/api/valider-corps';
-import {
-  ErreurOptimisation, lireAlgoCampagne, reglerAlgoCampagne, type MotifErreur,
-} from '@/lib/optimisation/client';
+import { lireAlgoCampagne, reglerAlgoCampagne } from '@/lib/optimisation/client';
+import { CAMPAGNE_INTROUVABLE as INTROUVABLE, reponseErreurOptimisation as erreurService } from '@/lib/optimisation/reponse-erreur';
 import { lireDroitAlgo } from '@/lib/optimisation/droit-algo';
 
 export const dynamic = 'force-dynamic';
@@ -38,27 +37,6 @@ const CorpsSchema = z.object({
   algo_id: z.string().min(1).max(64),
   parametres: z.record(z.string().min(1).max(64), z.number().finite()).optional(),
 }).strict();
-
-const STATUT_PAR_MOTIF: Record<MotifErreur, number> = {
-  configuration: 503,
-  reseau: 503,
-  indisponible: 503,
-  delai: 504,
-  refus: 502,
-  serveur: 502,
-  reponse: 502,
-};
-
-const INTROUVABLE = { error: 'Campagne introuvable.' };
-
-function erreurService(e: unknown): NextResponse {
-  if (!(e instanceof ErreurOptimisation)) throw e;
-  // 404 du service : la campagne n'appartient pas à l'espace transmis — rendu comme notre propre 404.
-  if (e.statut === 404) return NextResponse.json(INTROUVABLE, { status: 404 });
-  // 422 du service : le choix est refusé ; message français et code stable relayés.
-  if (e.statut === 422) return NextResponse.json({ error: e.refus ?? 'refus', message: e.message }, { status: 422 });
-  return NextResponse.json({ error: e.message, motif: e.motif }, { status: STATUT_PAR_MOTIF[e.motif] });
-}
 
 export async function GET(
   request: NextRequest,

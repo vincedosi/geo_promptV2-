@@ -102,7 +102,7 @@ _JOURNAL = """
 select j.id::text, j.modifie_par::text, j.role_auteur, j.modifie_le, j.algo_avant, j.parametres_avant, j.algo_apres,
        j.algo_version_apres, j.parametres_apres
   from public.optimisation_reglages_journal j
- where j.campagne_id = %(campagne)s
+ where j.campagne_id = %(campagne)s and j.nature = 'algo'  -- sql/350 : les réglages de données ont leur journal
  -- Colonnes QUALIFIÉES : `id` seul désignerait la colonne de sortie `id::text` (tri texte, index inutilisable).
  order by j.modifie_le desc, j.id desc
  limit %(limite)s

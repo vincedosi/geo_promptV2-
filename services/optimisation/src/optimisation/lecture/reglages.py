@@ -45,21 +45,28 @@ ECART_SIGNALE_PCT = Decimal(20)
 
 UniversMethodeA = Literal["fige", "referentiel"]
 
+# Bornes hautes des seuils (sql/350) : `*_pct` ≤ 100, rythmes et facteur de CPM ≤ 10.
+BORNE_PCT = Decimal(100)
+BORNE_FACTEUR = Decimal(10)
+
 
 class Seuils(BaseModel):
-    """`parametres.seuils` : chaque seuil est facultatif et strictement positif ; défaut = la valeur d'avant."""
+    """`parametres.seuils` : chaque seuil est facultatif et strictement positif ; défaut = la valeur d'avant.
+
+    Bornes hautes (sql/350, mineur M2 de la relecture) : un pourcentage ≤ 100, un rythme ou un facteur de CPM ≤ 10 —
+    les mêmes que le CHECK `optimisation_parametres_valides` (comparées par `tests/lecture/test_reglages.py`)."""
 
     # Strict : un nombre écrit en texte ("0.85") est refusé, comme par le CHECK (`jsonb_typeof = 'number'`).
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
-    rythme_retard: Decimal = Field(default=RYTHME_RETARD, gt=0)
-    rythme_retard_grave: Decimal = Field(default=RYTHME_RETARD_GRAVE, gt=0)
-    rythme_avance: Decimal = Field(default=RYTHME_AVANCE, gt=0)
-    rythme_avance_grave: Decimal = Field(default=RYTHME_AVANCE_GRAVE, gt=0)
-    cpm_depassement: Decimal = Field(default=CPM_DEPASSEMENT, gt=0)
-    cp_sous_plan_pct: Decimal = Field(default=CP_SOUS_PLAN_PCT, gt=0)
-    fuite_pct: Decimal = Field(default=FUITE_PCT, gt=0)
-    ecart_signale_pct: Decimal = Field(default=ECART_SIGNALE_PCT, gt=0)
+    rythme_retard: Decimal = Field(default=RYTHME_RETARD, gt=0, le=BORNE_FACTEUR)
+    rythme_retard_grave: Decimal = Field(default=RYTHME_RETARD_GRAVE, gt=0, le=BORNE_FACTEUR)
+    rythme_avance: Decimal = Field(default=RYTHME_AVANCE, gt=0, le=BORNE_FACTEUR)
+    rythme_avance_grave: Decimal = Field(default=RYTHME_AVANCE_GRAVE, gt=0, le=BORNE_FACTEUR)
+    cpm_depassement: Decimal = Field(default=CPM_DEPASSEMENT, gt=0, le=BORNE_FACTEUR)
+    cp_sous_plan_pct: Decimal = Field(default=CP_SOUS_PLAN_PCT, gt=0, le=BORNE_PCT)
+    fuite_pct: Decimal = Field(default=FUITE_PCT, gt=0, le=BORNE_PCT)
+    ecart_signale_pct: Decimal = Field(default=ECART_SIGNALE_PCT, gt=0, le=BORNE_PCT)
 
     @model_validator(mode="after")
     def _ordonnes(self) -> "Seuils":

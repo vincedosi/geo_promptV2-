@@ -243,6 +243,54 @@ export const SchemaResultatReglageAlgo: z.ZodType<S['ResultatReglageAlgo']> = z.
   entree: SchemaEntreeJournal.nullable(),
 }).passthrough();
 
+/**
+ * Réglages de DONNÉES d'une campagne (`GET` / `PUT /v1/campagnes/{id}/reglages`, relecture de la phase 2, I3) :
+ * seuils d'alerte et bascules des corrections. `parametres` = ce qui est réglé (clés données seulement), `effectifs`
+ * = défauts compris. La forme fine de `parametres` est validée par le service (Pydantic strict + CHECK sql/350).
+ */
+const objetJson = z.record(z.string(), z.unknown());
+
+const SchemaReglagesDonnees: z.ZodType<S['ReglagesDonnees']> = z.object({
+  campagne_id: z.string().uuid(),
+  parametres: objetJson,
+  effectifs: z.object({
+    seuils: z.object({
+      rythme_retard: nombre, rythme_retard_grave: nombre, rythme_avance: nombre, rythme_avance_grave: nombre,
+      cpm_depassement: nombre, cp_sous_plan_pct: nombre, fuite_pct: nombre, ecart_signale_pct: nombre,
+    }).passthrough(),
+    tableaux_depuis_plan: z.boolean(),
+    univers_methode_a: z.enum(['fige', 'referentiel']),
+  }).passthrough(),
+  enregistre: z.boolean(),
+  maj_par: z.string().nullable(),
+  maj_le: horodatage.nullable(),
+}).passthrough();
+
+const SchemaEntreeJournalReglages: z.ZodType<S['EntreeJournalReglagesSortie']> = z.object({
+  id: z.string(),
+  modifie_par: z.string().nullable(),
+  role_auteur: z.string().nullable(),
+  modifie_le: horodatage,
+  avant: objetJson,
+  apres: objetJson,
+}).passthrough();
+
+export const SchemaReglagesDonneesEtJournal: z.ZodType<S['ReglagesDonneesEtJournal']> = z.object({
+  reglages: SchemaReglagesDonnees,
+  journal: z.array(SchemaEntreeJournalReglages),
+  journal_tronque: z.boolean(),
+}).passthrough();
+
+export const SchemaResultatReglagesDonnees: z.ZodType<S['ResultatReglagesDonnees']> = z.object({
+  reglages: SchemaReglagesDonnees,
+  change: z.boolean(),
+  entree: SchemaEntreeJournalReglages.nullable(),
+  tableaux_a_reconstruire: z.boolean(),
+}).passthrough();
+
+export type ReglagesDonneesEtJournal = S['ReglagesDonneesEtJournal'];
+export type ResultatReglagesDonnees = S['ResultatReglagesDonnees'];
+
 export type ReglageAlgoEtJournal = S['ReglageAlgoEtJournal'];
 export type ResultatReglageAlgo = S['ResultatReglageAlgo'];
 export type ChoixAlgo = S['ChoixAlgo'];
