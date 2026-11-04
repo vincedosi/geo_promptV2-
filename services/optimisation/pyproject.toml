@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn>=0.32",
     "pydantic>=2.9",
     "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
 ]
 
 [dependency-groups]
@@ -41,7 +42,10 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "S", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]  # textes en français : apostrophes et guillemets typographiques voulus
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # textes en français : apostrophes et guillemets typographiques voulus
+    "N818",  # exceptions nommées en français (`BaseIndisponible`), pas de suffixe `Error`
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]

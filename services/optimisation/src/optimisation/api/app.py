@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Response, status
 from pydantic import BaseModel
 
 from optimisation import __version__, config
+from optimisation.api.plans import routeur as routeur_plans
 from optimisation.api.securite import exiger_cle
 from optimisation.base import EtatBase, sonder_base
 
@@ -57,6 +58,7 @@ def creer_app() -> FastAPI:
             base=SanteBase(ok=etat.ok, role=etat.role, erreur=etat.erreur),
         )
 
+    application.include_router(routeur_plans)
     return application
 
 

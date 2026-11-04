@@ -1,12 +1,17 @@
 """Accès à la base par psycopg 3, en direct (pas de PostgREST, donc pas de plafond de 1 000 lignes).
 
-T1 ne porte que la sonde de `/sante`. Le pool (≤ 3 connexions, règles I/O de CLAUDE.md) viendra avec
-les premiers lecteurs (T4).
+`/sante` ouvre sa propre connexion (une sonde ne doit pas dépendre du pool qu'elle diagnostique). Les lecteurs (T4)
+empruntent au pool : 3 connexions au plus (règles I/O de CLAUDE.md), ouvert au premier emprunt, pas à l'import.
 """
 
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any
 
 import psycopg
+from psycopg_pool import ConnectionPool
 
 DELAI_CONNEXION_S = 5
 DELAI_REQUETE_MS = 5_000
@@ -43,3 +48,52 @@ def sonder_base(url: str | None) -> EtatBase:
         premiere = texte.splitlines()[0] if texte else ""
         return EtatBase(ok=False, erreur=f"{type(erreur).__name__}: {premiere}")
     return EtatBase(ok=True, role=str(ligne[0]) if ligne else None)
+
+
+TAILLE_MAX_POOL = 3
+DELAI_EMPRUNT_S = 10.0
+
+_pool: ConnectionPool[psycopg.Connection[Any]] | None = None
+_verrou = threading.Lock()
+
+
+class BaseIndisponible(Exception):
+    """URL absente, base injoignable ou pool épuisé : le service répond 503, jamais un calcul sans données."""
+
+
+def _obtenir_pool(url: str | None) -> ConnectionPool[psycopg.Connection[Any]]:
+    global _pool
+    with _verrou:
+        if _pool is None:
+            if url is None:
+                raise BaseIndisponible("OPTIMISATION_DATABASE_URL absente")
+            _pool = ConnectionPool(
+                url,
+                min_size=1,
+                max_size=TAILLE_MAX_POOL,
+                open=False,
+                kwargs={"connect_timeout": DELAI_CONNEXION_S, "application_name": "optimisation"},
+            )
+            _pool.open(wait=False)
+        return _pool
+
+
+@contextmanager
+def connexion(url: str | None) -> Iterator[psycopg.Connection[Any]]:
+    """Une connexion empruntée au pool, en lecture seule ; `BaseIndisponible` si elle ne peut pas être obtenue."""
+    try:
+        with _obtenir_pool(url).connection(timeout=DELAI_EMPRUNT_S) as conn:
+            conn.read_only = True
+            yield conn
+    except psycopg.Error as erreur:
+        texte = str(erreur).strip()
+        # PoolTimeout (pool épuisé) est une psycopg.Error. Classe et première ligne seulement : jamais l'URL.
+        raise BaseIndisponible(f"{type(erreur).__name__}: {texte.splitlines()[0] if texte else ''}") from erreur
+
+
+def fermer_pool() -> None:
+    global _pool
+    with _verrou:
+        if _pool is not None:
+            _pool.close()
+            _pool = None
