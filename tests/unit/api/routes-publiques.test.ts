@@ -50,6 +50,10 @@ const PUBLIQUES_ASSUMEES = new Map<string, string>([
    "Flux OAuth Supabase : l'authentification ne peut pas exiger d'être authentifié."],
   ['/api/inngest',
    'Webhook Inngest, signé par Inngest. Hors matcher à dessein.'],
+  ['/api/dev/connexion-auto',
+   'Connexion automatique du lancement Angular autonome (décision du 02/11) : elle OUVRE une session, elle ne peut '
+   + 'donc pas en exiger une. 404 hors `next dev` (NODE_ENV !== development) et sans DEV_CONNEXION_AUTO_* (fichier '
+   + '.env.development.local, non suivi) : inexistante en build et dans AIDA.'],
 ]);
 
 /** Chemin de route Next à partir du chemin de fichier. */
