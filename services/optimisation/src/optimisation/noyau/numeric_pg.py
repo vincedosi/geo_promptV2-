@@ -101,7 +101,9 @@ def arrondir(x: Decimal, decimales: int = 0) -> Decimal:
     """`round(x, n)` et la conversion vers `numeric(p, n)` : moitié loin de zéro, échelle exactement n (n ≥ 0)."""
     if decimales < 0:
         raise ValueError("decimales doit être positif ou nul")
-    return x.quantize(Decimal(1).scaleb(-decimales, context=_ARRONDI), rounding=ROUND_HALF_UP, context=_ARRONDI)
+    arrondi = x.quantize(Decimal(1).scaleb(-decimales, context=_ARRONDI), rounding=ROUND_HALF_UP, context=_ARRONDI)
+    # Postgres n'a pas de zéro négatif : round(-0.04, 1) vaut 0.0, pas -0.0.
+    return arrondi.copy_abs() if arrondi.is_zero() else arrondi
 
 
 def plus_grand(*valeurs: Decimal | None) -> Decimal | None:
@@ -123,8 +125,8 @@ def plus_petit(*valeurs: Decimal | None) -> Decimal | None:
 
 
 def texte(x: Decimal) -> str:
-    """Le texte de `numeric_out` : jamais de notation scientifique, toutes les décimales de l'échelle."""
-    return format(x, "f")
+    """Le texte de `numeric_out` : jamais de notation scientifique, toutes les décimales de l'échelle, pas de « -0 »."""
+    return format(x.copy_abs() if x.is_zero() else x, "f")
 
 
 def somme(valeurs: Iterable[Decimal | None]) -> Decimal | None:
