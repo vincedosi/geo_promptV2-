@@ -22,6 +22,11 @@
 
 ### Étapes
 
+> **Reprise sur un poste neuf : suivre [`REPRISE.md`](REPRISE.md).** Les
+> étapes ci-dessous datent de l'époque du projet Supabase hébergé, supprimé le
+> 2026-09-21 : il n'y a plus de compte Supabase ni de « projet de dev » à
+> rejoindre, tout tourne en local depuis un export de la base.
+
 1. **Clone**
    ```bash
    git clone <repo-url>
