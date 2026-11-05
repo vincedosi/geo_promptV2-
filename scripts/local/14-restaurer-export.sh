@@ -134,7 +134,7 @@ MSYS_NO_PATHCONV=1 docker exec "$CONT" pg_restore -U postgres -d "$BASE" --data-
   -t identities /tmp/export-auth.dump >> "$JOURNAL" 2>&1 || true
 echo "  comptes restaurés : $(compter "select count(*) from auth.users")"
 
-echo "[4/6] schéma public, données comprises (15 à 40 min selon le poste)"
+echo "[4/6] schéma public, données comprises (2 min mesurées le 2026-11-05, davantage sur un poste plus lent)"
 debut=$(date +%s)
 MSYS_NO_PATHCONV=1 docker exec "$CONT" pg_restore -U postgres -d "$BASE" \
   --no-owner -j 2 /tmp/export-public.dump >> "$JOURNAL" 2>&1 || true
